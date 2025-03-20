@@ -318,6 +318,25 @@ status_t sql_table_cache_query_field(sql_stmt_t *stmt, sql_table_t *table, query
     return sql_table_cache_query_field_impl(stmt, table, src_query_fld, OG_FALSE);
 }
 
+void og_sql_table_release_query_field(sql_query_t *qry, var_column_t *vc)
+{
+    sql_table_t *sql_tb = (sql_table_t *)sql_array_get(&qry->tables, vc->tab);
+    bilist_node_t *bi_nd = cm_bilist_head(&sql_tb->query_fields);
+
+    for (; bi_nd!= NULL; bi_nd = BINODE_NEXT(bi_nd)) {
+        query_field_t *qry_fd = BILIST_NODE_OF(query_field_t, bi_nd, bilist_node);
+        if (qry_fd->col_id == vc->col) {
+            qry_fd->ref_count--;
+            if (qry_fd->ref_count == 0) {
+                cm_bilist_del(bi_nd, &sql_tb->query_fields);
+                OG_LOG_DEBUG_INF("[PROJ_ELIMINATE] The column is eliminated from the query fields, "
+                    "column_id: %d", vc->col);
+            }
+            break;
+        }
+    }
+}
+
 status_t sql_table_cache_cond_query_field(sql_stmt_t *stmt, sql_table_t *table, query_field_t *src_query_fld)
 {
     return sql_table_cache_query_field_impl(stmt, table, src_query_fld, OG_TRUE);
@@ -1053,6 +1072,11 @@ static status_t sql_create_proj_col_array(sql_stmt_t *stmt, sql_table_t *table, 
 status_t sql_create_project_columns(sql_stmt_t *stmt, sql_table_t *table)
 {
     if (table->project_col_array != NULL) {
+        return OG_SUCCESS;
+    }
+
+    // No projected columns needed
+    if (table->type != NORMAL_TABLE && !OG_IS_SUBSELECT_TABLE(table->type)) {
         return OG_SUCCESS;
     }
 

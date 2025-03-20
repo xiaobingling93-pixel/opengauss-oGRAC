@@ -40,3 +40,4 @@ test: og_cond_reorganise
 test: og_subslct_erase
 test: og_merge_join
 test: og_pred_down
+test: og_proj_col_eliminate

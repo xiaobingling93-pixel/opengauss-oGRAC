@@ -37,6 +37,7 @@
 #include "ogsql_orderby_erase.h"
 #include "ogsql_cond_reorganise.h"
 #include "ogsql_predicate_pushdown.h"
+#include "ogsql_proj_rewrite.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -214,6 +215,7 @@ status_t ogsql_apply_rule_set_2(sql_stmt_t *statement, sql_query_t *qry)
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_predicate_pushdown);
     // 19. transform condition order.
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_cond_reorder);
+    OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_eliminate_proj_col);
     return OG_SUCCESS;
 }
 

@@ -162,13 +162,7 @@ static inline status_t sql_aggr_sum_value(sql_stmt_t *stmt, variant_t *v_aggr, v
     return opr_exec(OPER_TYPE_ADD, SESSION_NLS(stmt), v_aggr, v_add, v_aggr);
 }
 
-static inline void sql_get_aggr_value(sql_stmt_t *stmt, uint32 id, variant_t *value)
-{
-    sql_cursor_t *cursor = OGSQL_CURR_CURSOR(stmt);
-    cursor = sql_get_group_cursor(cursor);
-    aggr_var_t *aggr_var = sql_get_aggr_addr(cursor, id);
-    var_copy(&aggr_var->var, value);
-}
+status_t og_sql_aggr_get_value(sql_stmt_t *statement, uint32 id, variant_t *value);
 
 status_t sql_init_aggr_page(sql_stmt_t *stmt, sql_cursor_t *cursor, galist_t *aggrs);
 status_t sql_mtrl_aggr(sql_stmt_t *stmt, sql_cursor_t *cursor, plan_node_t *plan, bool32 par_exe_flag);

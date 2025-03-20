@@ -64,6 +64,15 @@ static inline status_t add_query_field_for_order(visit_assist_t *visit_ass, expr
             return OG_ERROR;
         }
     }
+
+    if ((*node)->type == EXPR_NODE_AGGR) {
+        query = visit_ass->query;
+        uint32 aggr_node_id = NODE_VALUE(uint32, *node);
+        expr_node_t *aggr_node = (expr_node_t *)cm_galist_get(query->aggrs, aggr_node_id);
+        aggr_node->value.v_func.aggr_ref_count++;
+        return visit_expr_node(visit_ass, &aggr_node, add_query_field_for_order);
+    }
+
     return OG_SUCCESS;
 }
 

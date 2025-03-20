@@ -56,6 +56,7 @@ typedef status_t (*visit_func_t)(visit_assist_t *va, expr_node_t **node);
 status_t visit_expr_node(visit_assist_t *visit_ass, expr_node_t **node, visit_func_t visit_func);
 status_t visit_expr_tree(visit_assist_t *visit_ass, expr_tree_t *tree, visit_func_t visit_func);
 status_t visit_func_node(visit_assist_t *visit_ass, expr_node_t *node, visit_func_t visit_func);
+status_t visit_case_node(visit_assist_t *visit_ass, expr_node_t *node, visit_func_t visit_func);
 
 bool32 sql_expr_tree_equal(sql_stmt_t *stmt, expr_tree_t *tree1, expr_tree_t *tree2, uint32 *tab_map);
 status_t sql_get_reserved_value(sql_stmt_t *stmt, expr_node_t *node, variant_t *val);

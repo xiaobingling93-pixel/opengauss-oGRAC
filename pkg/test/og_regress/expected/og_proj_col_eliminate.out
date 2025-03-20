@@ -1,0 +1,315 @@
+
+
+SQL> -- test result result is no match dute to aggr func rs_col is eliminated
+SQL> drop table if exists rs_col_t1;
+
+Succeed.
+
+SQL> drop table if exists rs_col_t2;
+
+Succeed.
+
+SQL> create table rs_col_t1 (id int, c_int int, c_varchar varchar(100));
+
+Succeed.
+
+SQL> create table rs_col_t2 (col1 int primary key, col2 int, col3 int, col8 number);
+
+Succeed.
+
+SQL> insert into rs_col_t1 values (1,2,'canscsaucdvdcsaicn');
+
+1 rows affected.
+
+SQL> insert into rs_col_t1 values (2,3,'scajeucheuicic');
+
+1 rows affected.
+
+SQL> insert into rs_col_t1 values (3,4,'cahjbyuvuckbusainv');
+
+1 rows affected.
+
+SQL> insert into rs_col_t2 values (1, 2, 3, 4);
+
+1 rows affected.
+
+SQL> insert into rs_col_t2 values (2, 3, 4, 5);
+
+1 rows affected.
+
+SQL> insert into rs_col_t2 values (3, 4, 5, 6);
+
+1 rows affected.
+
+SQL> 
+SQL> create index idx_rs_col_t1_index_1 on rs_col_t1(id);
+
+Succeed.
+
+SQL> create index idx_rs_col_t1_index_2 on rs_col_t1(id,c_int);
+
+Succeed.
+
+SQL> create index idx_rs_col_t1_index_3 on rs_col_t1(upper(c_varchar));
+
+Succeed.
+
+SQL> analyze table rs_col_t1 compute statistics;
+
+Succeed.
+
+SQL> analyze table rs_col_t2 compute statistics;
+
+Succeed.
+
+SQL> 
+SQL> drop table rs_col_t1;
+
+Succeed.
+
+SQL> drop table rs_col_t2;
+
+Succeed.
+
+SQL> 
+SQL> -- test proj win col eliminate
+SQL> drop table if exists proj_win_col_t;
+
+Succeed.
+
+SQL> create table proj_win_col_t (id int);
+
+Succeed.
+
+SQL> insert into proj_win_col_t values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11);
+
+11 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> select temp.id from
+  2     (select
+  3          avg(id) over (partition by id order by id) new_id, id
+  4      from proj_win_col_t where id < 10 group by id
+  5     ) temp order by 1;
+
+ID          
+------------
+1           
+2           
+3           
+4           
+5           
+6           
+7           
+8           
+9           
+
+9 rows fetched.
+
+SQL> 
+SQL> select temp.id, temp.sum_id from
+  2     (select
+  3          sum(id) over (partition by id order by id) sum_id,
+  4          avg(id) over (partition by id order by id) avg_id,
+  5          id
+  6      from proj_win_col_t where id < 10 group by id
+  7     ) temp order by 1, 2;
+
+ID           SUM_ID              
+------------ --------------------
+1            1                   
+2            2                   
+3            3                   
+4            4                   
+5            5                   
+6            6                   
+7            7                   
+8            8                   
+9            9                   
+
+9 rows fetched.
+
+SQL> 
+SQL> drop table if exists proj_win_col_t;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists t_proj_over_limit;
+
+Succeed.
+
+SQL> create table t_proj_over_limit(id int, c_int int, c_vchar varchar(10));
+
+Succeed.
+
+SQL> insert into t_proj_over_limit values (1,0,'abc123'),(2,1,'abc1231'),(3,2,'abc1232'),(4,3,'abc1233'),(5,4,'abc1234'),(6,5,'abc1235'),(7,6,'abc1236'),(8,7,'abc1237');
+
+8 rows affected.
+
+SQL> insert into t_proj_over_limit values (9,8,'abc1238'),(10,9,'abc1239'),(11,10,'abc12310'),(12,11,'abc12311'),(13,12,'abc12312'),(14,13,'abc12313'),(15,14,'abc12314'),(16,15,'abc12315'),(17,16,'abc12316');
+
+9 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> 
+SQL> select t0.id,t0.c_int from (
+  2                                select a.id, a.c_int, a.c_vchar, dense_rank() over (partition by a.c_vchar order by a.id) win_col
+  3                                from t_proj_over_limit a group by a.id,a.c_int,a.c_vchar limit 10) t0 order by t0.id,t0.c_int;
+
+ID           C_INT       
+------------ ------------
+1            0           
+2            1           
+3            2           
+11           10          
+12           11          
+13           12          
+14           13          
+15           14          
+16           15          
+17           16          
+
+10 rows fetched.
+
+SQL> -- test case_cond + winsort
+SQL> select id,c_int from
+  2     (select a.id,a.id+a.c_int c_int,
+  3             case when (lag(a.c_int,0,null) OVER(PARTITION BY a.id,a.c_int order by a.id) +100)*10 >250
+  4                      then lag(a.c_int,0,null) OVER(PARTITION BY a.id,a.c_int order by a.id)
+  5                  else lag(a.c_int,0,null) OVER(PARTITION BY a.id,a.c_int order by a.id)
+  6                 end
+  7      from t_proj_over_limit a limit 10) order by 1,2;
+
+ID           C_INT               
+------------ --------------------
+1            1                   
+2            3                   
+3            5                   
+4            7                   
+5            9                   
+6            11                  
+7            13                  
+8            15                  
+9            17                  
+10           19                  
+
+10 rows fetched.
+
+SQL> -- test calc + winsort
+SQL> select id,c_int from
+  2     (select a.id,a.id+a.c_int c_int, (lag(a.c_int,0,null) OVER(PARTITION BY a.id,a.c_int order by a.id) + 100) * 10
+  3      from t_proj_over_limit a limit 10) order by id;
+
+ID           C_INT               
+------------ --------------------
+1            1                   
+2            3                   
+3            5                   
+4            7                   
+5            9                   
+6            11                  
+7            13                  
+8            15                  
+9            17                  
+10           19                  
+
+10 rows fetched.
+
+SQL> -- test func + winsort
+SQL> select id,c_int from
+  2     (select a.id,a.id+a.c_int c_int, cast (lag(a.c_int,0,null) OVER(PARTITION BY a.id,a.c_int order by a.id) as bigint)
+  3      from t_proj_over_limit a limit 10) order by id;
+
+ID           C_INT               
+------------ --------------------
+1            1                   
+2            3                   
+3            5                   
+4            7                   
+5            9                   
+6            11                  
+7            13                  
+8            15                  
+9            17                  
+10           19                  
+
+10 rows fetched.
+
+SQL> 
+SQL> -- subquery has sort items and limit, the winsort rs_col can be eliminated
+SQL> select t0.id,t0.c_int from (
+  2                                select a.id, a.c_int, a.c_vchar, dense_rank() over (partition by a.c_vchar order by a.id) win_col
+  3                                from t_proj_over_limit a group by a.id,a.c_int,a.c_vchar order by 1,2 limit 10) t0 order by t0.id,t0.c_int;
+
+ID           C_INT       
+------------ ------------
+1            0           
+2            1           
+3            2           
+4            3           
+5            4           
+6            5           
+7            6           
+8            7           
+9            8           
+10           9           
+
+10 rows fetched.
+
+SQL> 
+SQL> select id,c_int from
+  2     (select a.id,a.id+a.c_int c_int,
+  3             case when (lag(a.c_int,0,null) OVER(PARTITION BY a.id,a.c_int order by a.id) +100)*10 >250
+  4                      then lag(a.c_int,0,null) OVER(PARTITION BY a.id,a.c_int order by a.id)
+  5                  else lag(a.c_int,0,null) OVER(PARTITION BY a.id,a.c_int order by a.id)
+  6                 end
+  7      from t_proj_over_limit a order by 1,2 limit 10) order by 1,2;
+
+ID           C_INT               
+------------ --------------------
+1            1                   
+2            3                   
+3            5                   
+4            7                   
+5            9                   
+6            11                  
+7            13                  
+8            15                  
+9            17                  
+10           19                  
+
+10 rows fetched.
+
+SQL> 
+SQL> select id,c_int from
+  2     (select a.id,a.id+a.c_int c_int, cast (lag(a.c_int,0,null) OVER(PARTITION BY a.id,a.c_int order by a.id) as bigint)
+  3      from t_proj_over_limit a order by 1,2 limit 10) order by id;
+
+ID           C_INT               
+------------ --------------------
+1            1                   
+2            3                   
+3            5                   
+4            7                   
+5            9                   
+6            11                  
+7            13                  
+8            15                  
+9            17                  
+10           19                  
+
+10 rows fetched.
+
+SQL> drop table if exists t_proj_over_limit;
+Succeed.
+
+
+
+
