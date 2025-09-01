@@ -31,3 +31,4 @@ test: og_dynamic_sampling
 test: og_autotrace
 test: og_hash_join
 test: og_hash_mtrl
+test: og_listagg

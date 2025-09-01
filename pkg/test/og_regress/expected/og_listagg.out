@@ -1,0 +1,145 @@
+
+
+SQL> -- Clean up previous test table
+SQL> DROP TABLE IF EXISTS t_listagg_check;
+
+Succeed.
+
+SQL> 
+SQL> -- Create test table
+SQL> CREATE TABLE t_listagg_check (
+  2                                  id INT,
+  3                                  group_col INT,
+  4                                  val VARCHAR(10),
+  5                                  sort_num INT
+  6 );
+
+Succeed.
+
+SQL> 
+SQL> -- Insert data designed to expose string vs numeric sort differences
+SQL> -- Numeric order: 1, 2, 10
+SQL> -- String order:  1, 10, 2
+SQL> INSERT INTO t_listagg_check VALUES (1, 100, 'One', 1);
+
+1 rows affected.
+
+SQL> INSERT INTO t_listagg_check VALUES (2, 100, 'Two', 2);
+
+1 rows affected.
+
+SQL> INSERT INTO t_listagg_check VALUES (3, 100, 'Ten', 10);
+
+1 rows affected.
+
+SQL> 
+SQL> -- Second group for verification
+SQL> INSERT INTO t_listagg_check VALUES (4, 200, 'Five', 5);
+
+1 rows affected.
+
+SQL> INSERT INTO t_listagg_check VALUES (5, 200, 'Fifty', 50);
+
+1 rows affected.
+
+SQL> INSERT INTO t_listagg_check VALUES (6, 200, 'Six', 6);
+
+1 rows affected.
+
+SQL> 
+SQL> -- Test 1: Sort by Numeric Column
+SQL> -- Expected Result for group 100: "One,Two,Ten" (Ordered by 1, 2, 10)
+SQL> -- If bug exists (sorted as string): "One,Ten,Two" (Ordered by '1', '10', '2')
+SQL> SELECT group_col,
+  2        LISTAGG(val, ',') WITHIN GROUP (ORDER BY sort_num) as list_asc
+  3 FROM t_listagg_check
+  4 GROUP BY group_col;
+
+GROUP_COL    LIST_ASC                                                        
+------------ ----------------------------------------------------------------
+100          One,Two,Ten                                                     
+200          Five,Six,Fifty                                                  
+
+2 rows fetched.
+
+SQL> --
+SQL> -- -- Test 2: Sort by Numeric Column DESC
+SQL> -- -- Expected Result for group 100: "Ten,Two,One" (Ordered by 10, 2, 1)
+SQL> SELECT group_col,
+  2        LISTAGG(val, ',') WITHIN GROUP (ORDER BY sort_num DESC) as list_desc
+  3 FROM t_listagg_check
+  4 GROUP BY group_col;
+
+GROUP_COL    LIST_DESC                                                       
+------------ ----------------------------------------------------------------
+100          Ten,Two,One                                                     
+200          Fifty,Six,Five                                                  
+
+2 rows fetched.
+
+SQL> 
+SQL> -- Test 3: Sort by Expression (Force type inference logic)
+SQL> -- Verifies that expressions also have their types correctly inferred
+SQL> SELECT group_col,
+  2        LISTAGG(val, ',') WITHIN GROUP (ORDER BY sort_num + 0) as list_expr
+  3 FROM t_listagg_check
+  4 GROUP BY group_col;
+
+GROUP_COL    LIST_EXPR                                                       
+------------ ----------------------------------------------------------------
+100          One,Two,Ten                                                     
+200          Five,Six,Fifty                                                  
+
+2 rows fetched.
+
+SQL> 
+SQL> -- Cleanup
+SQL> DROP TABLE t_listagg_check;
+
+Succeed.
+
+SQL> 
+SQL> -- 模拟 “字符串排序” 的异常场景（用于对比）
+SQL> -- 创建字符串类型排序列的测试表
+SQL> CREATE TABLE t_listagg_bug (
+  2                                group_col NUMBER,
+  3                                val VARCHAR2(10),
+  4                                sort_str VARCHAR2(10)  -- 字符串类型的“数字”
+  5 );
+
+Succeed.
+
+SQL> 
+SQL> -- 插入数据
+SQL> INSERT INTO t_listagg_bug (group_col, val, sort_str) VALUES (100, 'One', '1');
+
+1 rows affected.
+
+SQL> INSERT INTO t_listagg_bug (group_col, val, sort_str) VALUES (100, 'Two', '2');
+
+1 rows affected.
+
+SQL> INSERT INTO t_listagg_bug (group_col, val, sort_str) VALUES (100, 'Ten', '10');
+
+1 rows affected.
+
+SQL> 
+SQL> -- 按字符串排序（触发 bug）
+SQL> SELECT group_col,
+  2        LISTAGG(val, ',') WITHIN GROUP (ORDER BY sort_str) as list_bug
+  3 FROM t_listagg_bug
+  4 GROUP BY group_col;
+
+GROUP_COL                                LIST_BUG                                                        
+---------------------------------------- ----------------------------------------------------------------
+100                                      One,Ten,Two                                                     
+
+1 rows fetched.
+
+SQL> 
+SQL> DROP TABLE t_listagg_bug;
+Succeed.
+
+
+
+
