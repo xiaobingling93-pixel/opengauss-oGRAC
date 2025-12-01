@@ -1,0 +1,246 @@
+SQL> -- test the result set after union of null
+SQL> drop table if exists t_union_1;
+
+Succeed.
+
+SQL> create table t_union_1(id int, c_inter interval day(7) to second(5));
+
+Succeed.
+
+SQL> insert into t_union_1 values (1, '1231 12:3:4.1234'),(2, 'P1231DT16H3.333S'),(3,'PT12H'),
+  2 						   (4,'-P99DT655M999.99S'),(5,'-1234 0:0:0.0004'),(5,'-1234 0:0:0.0004'),
+  3 						   (6,'-1234 0:0:0.0004'),(7,'-1234 0:0:0.0004');
+
+8 rows affected.
+
+SQL> SELECT c_inter, NULL FROM t_union_1 UNION SELECT NULL, c_inter FROM t_union_1 ORDER BY 1,2;
+
+C_INTER                  NULL                    
+------------------------ ------------------------
+-0001234 00:00:00.00040                          
+-0000099 11:11:39.99000                          
++0000000 12:00:00.00000                          
++0001231 12:03:04.12340                          
++0001231 16:00:03.33300                          
+                         -0001234 00:00:00.00040 
+                         -0000099 11:11:39.99000 
+                         +0000000 12:00:00.00000 
+                         +0001231 12:03:04.12340 
+                         +0001231 16:00:03.33300 
+
+10 rows fetched.
+
+SQL> DESC -Q SELECT c_inter, NULL FROM t_union_1 UNION SELECT NULL, c_inter FROM t_union_1;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_INTER                                      INTERVAL DAY(7) TO SECOND(5)        
+NULL                                         INTERVAL DAY(7) TO SECOND(5)        
+
+SQL> drop table if exists t_union_1;
+
+Succeed.
+
+SQL> -- test the result datatype of union
+SQL> drop table if exists t_data_union_1;
+
+Succeed.
+
+SQL> drop table if exists t_data_union_2;
+
+Succeed.
+
+SQL> create table t_data_union_1 (c_int int, c_char char(10), c_varchar varchar(20), c_lob clob, c_raw raw(30), c_binary binary(10), c_varbinary varbinary(11), c_bool bool, c_number number(12), c_number2 number2(13), c_decimal decimal(10,3), c_date date, c_timestamp timestamp(6));
+
+Succeed.
+
+SQL> create table t_data_union_2 (c_int int, c_char char(10), c_varchar varchar(20), c_lob clob, c_raw raw(30), c_binary binary(10), c_varbinary varbinary(11), c_bool bool, c_number number(12), c_number2 number2(13), c_decimal decimal(10,3), c_date date, c_timestamp timestamp(6));
+
+Succeed.
+
+SQL> desc -q select c_char from t_data_union_1 union select c_varchar from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_CHAR                                       VARCHAR(20 BYTE)                    
+
+SQL> desc -q select c_char from t_data_union_1 union select c_binary from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_CHAR                                       BINARY(10)                          
+
+SQL> desc -q select c_char from t_data_union_1 union select c_lob from t_data_union_2;
+
+OG-00601, [1:48]Sql syntax error: unexpected lob column occurs
+
+SQL> desc -q select c_char from t_data_union_1 union select c_raw from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_CHAR                                       RAW(30)                             
+
+SQL> desc -q select c_char from t_data_union_1 union select c_varbinary from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_CHAR                                       VARBINARY(11)                       
+
+SQL> desc -q select c_char from t_data_union_1 union select c_bool from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_CHAR                                       VARCHAR(10 BYTE)                    
+
+SQL> desc -q select c_char from t_data_union_1 union select c_date from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_CHAR                                       VARCHAR(48 BYTE)                    
+
+SQL> 
+SQL> desc -q select c_varchar from t_data_union_1 union select c_char from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_VARCHAR                                    VARCHAR(20 BYTE)                    
+
+SQL> desc -q select c_varchar from t_data_union_1 union select c_lob from t_data_union_2;
+
+OG-00601, [1:51]Sql syntax error: unexpected lob column occurs
+
+SQL> desc -q select c_varchar from t_data_union_1 union select c_raw from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_VARCHAR                                    RAW(30)                             
+
+SQL> desc -q select c_varchar from t_data_union_1 union select c_binary from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_VARCHAR                                    VARBINARY(20)                       
+
+SQL> desc -q select c_varchar from t_data_union_1 union select c_varbinary from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_VARCHAR                                    VARBINARY(20)                       
+
+SQL> desc -q select c_varchar from t_data_union_1 union select c_date from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_VARCHAR                                    VARCHAR(48 BYTE)                    
+
+SQL> desc -q select c_varchar from t_data_union_1 union select c_bool from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_VARCHAR                                    VARCHAR(20 BYTE)                    
+
+SQL> 
+SQL> desc -q select c_int from t_data_union_1 union select c_char from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_INT                                        VARCHAR(11 BYTE)                    
+
+SQL> desc -q select c_int from t_data_union_1 union select c_raw from t_data_union_2;
+
+OG-00601, [1:40]Sql syntax error: expression must have same datatype as corresponding expression
+
+SQL> desc -q select c_int from t_data_union_1 union select c_lob from t_data_union_2;
+
+OG-00601, [1:47]Sql syntax error: unexpected lob column occurs
+
+SQL> desc -q select c_int from t_data_union_1 union select c_bool from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_INT                                        BOOLEAN                             
+
+SQL> desc -q select c_int from t_data_union_1 union select c_number from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_INT                                        NUMBER                              
+
+SQL> desc -q select c_int from t_data_union_1 union select c_decimal from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_INT                                        NUMBER                              
+
+SQL> 
+SQL> desc -q select c_number from t_data_union_1 union select c_number2 from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_NUMBER                                     NUMBER                              
+
+SQL> desc -q select c_number from t_data_union_1 union select c_decimal from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_NUMBER                                     NUMBER                              
+
+SQL> desc -q select c_number2 from t_data_union_1 union select c_decimal from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_NUMBER2                                    NUMBER                              
+
+SQL> 
+SQL> desc -q select c_date from t_data_union_1 union select c_timestamp from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_DATE                                       TIMESTAMP(6)                        
+
+SQL> 
+SQL> desc -q select NULL from t_data_union_1 union select c_binary from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+NULL                                         BINARY(10)                          
+
+SQL> desc -q select NULL from t_data_union_1 union select c_timestamp from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+NULL                                         TIMESTAMP(6)                        
+
+SQL> desc -q select NULL from t_data_union_1 union select c_varchar from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+NULL                                         VARCHAR(20 BYTE)                    
+
+SQL> desc -q select c_bool from t_data_union_1 union select NULL from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_BOOL                                       BOOLEAN                             
+
+SQL> desc -q select c_number from t_data_union_1 union select NULL from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_NUMBER                                     NUMBER(12)                          
+
+SQL> desc -q select c_decimal from t_data_union_1 union select NULL from t_data_union_2;
+
+Name                                Null?    Type                                
+----------------------------------- -------- ------------------------------------
+C_DECIMAL                                    NUMBER(10, 3)                       
+
+SQL> 
+SQL> drop table if exists t_data_union_1;
+
+Succeed.
+
+SQL> drop table if exists t_data_union_2;
+
+Succeed.
+
