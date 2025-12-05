@@ -28,32 +28,6 @@
 #include "ogsql_stmt.h"
 #include "ogsql_cond.h"
 
-/*
-The Oracle optimizer is divided into three parts:
-1, transformer
-2, estimator
-3, plan generator
-
-This module implement the oracle-like transformer.
-
-For some statements, the query transformer determines
-whether it is advantageous to rewrite the original SQL statement
-into a semantically equivalent SQL statement with a lower cost.
-
-The query transformation includes:
-1, OR Expansion
-2, View Merging
-3, Predicate Pushing
-4, Subquery Unnesting
-5, Query Rewrite with Materialized Views
-6, Star Transformation
-7, In-Memory Aggregation
-8, Table Expansion
-9, Join Factorization
-
-Similar concept is implemented in PostgreSql. For example, in PG,
-pulling up sub-link is equivalent to sub-query unnesting in Oracle.
-*/
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -82,7 +56,6 @@ typedef struct st_push_assist {
 status_t sql_predicate_push_down(sql_stmt_t *stmt, sql_query_t *query);
 status_t sql_process_predicate_dlvr(sql_stmt_t *stmt, sql_query_t *query, cond_tree_t *cond);
 status_t sql_process_dlvr_join_tree_on(sql_stmt_t *stmt, sql_query_t *query, sql_join_node_t *join_tree);
-status_t sql_process_oper_or_sink(sql_stmt_t *stmt, cond_node_t **cond);
 status_t push_down_predicate(sql_stmt_t *stmt, cond_tree_t *cond, sql_table_t *table, select_node_t *slct,
     push_assist_t *push_assist);
 status_t cond_rewrite_4_chg_order(sql_stmt_t *stmt, sql_query_t *query);

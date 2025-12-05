@@ -1,0 +1,179 @@
+
+
+SQL> -- ==========================================
+SQL> -- 1. Environment Setup (DDL)
+SQL> -- ==========================================
+SQL> 
+SQL> -- Drop tables if they exist
+SQL> DROP TABLE IF EXISTS t_opt_order;
+
+Succeed.
+
+SQL> DROP TABLE IF EXISTS t_opt_customer;
+
+Succeed.
+
+SQL> 
+SQL> -- Create Customer Table
+SQL> CREATE TABLE t_opt_customer (
+  2     cust_id INT PRIMARY KEY,
+  3     name VARCHAR(50),
+  4     region VARCHAR(20),
+  5     credit_score INT
+  6 );
+
+Succeed.
+
+SQL> 
+SQL> -- Create Order Table
+SQL> CREATE TABLE t_opt_order (
+  2     order_id INT PRIMARY KEY,
+  3     cust_id INT,
+  4     amount DECIMAL(10, 2),
+  5     order_date DATE,
+  6     status VARCHAR(20)
+  7 );
+
+Succeed.
+
+SQL> 
+SQL> -- Create Indexes to support optimization
+SQL> -- Region index for filtering
+SQL> CREATE INDEX idx_cust_region ON t_opt_customer(region);
+
+Succeed.
+
+SQL> -- Foreign key index (implicit or explicit usually good for joins)
+SQL> CREATE INDEX idx_order_cust ON t_opt_order(cust_id);
+
+Succeed.
+
+SQL> 
+SQL> -- ==========================================
+SQL> -- 2. Data Preparation (DML)
+SQL> -- ==========================================
+SQL> 
+SQL> INSERT INTO t_opt_customer VALUES (1, 'Alice', 'North', 750);
+
+1 rows affected.
+
+SQL> INSERT INTO t_opt_customer VALUES (2, 'Bob', 'South', 600);
+
+1 rows affected.
+
+SQL> INSERT INTO t_opt_customer VALUES (3, 'Charlie', 'North', 800);
+
+1 rows affected.
+
+SQL> INSERT INTO t_opt_customer VALUES (4, 'David', 'East', 550);
+
+1 rows affected.
+
+SQL> INSERT INTO t_opt_customer VALUES (5, 'Eve', 'West', 900);
+
+1 rows affected.
+
+SQL> 
+SQL> INSERT INTO t_opt_order VALUES (101, 1, 150.00, DATE '2023-01-10', 'COMPLETED');
+
+1 rows affected.
+
+SQL> INSERT INTO t_opt_order VALUES (102, 1, 50.00, DATE '2023-01-15', 'PENDING');
+
+1 rows affected.
+
+SQL> INSERT INTO t_opt_order VALUES (103, 2, 200.00, DATE '2023-02-01', 'COMPLETED');
+
+1 rows affected.
+
+SQL> INSERT INTO t_opt_order VALUES (104, 3, 500.00, DATE '2023-02-10', 'SHIPPED');
+
+1 rows affected.
+
+SQL> INSERT INTO t_opt_order VALUES (105, 3, 120.00, DATE '2023-02-12', 'COMPLETED');
+
+1 rows affected.
+
+SQL> INSERT INTO t_opt_order VALUES (106, 4, 300.00, DATE '2023-03-05', 'CANCELLED');
+
+1 rows affected.
+
+SQL> 
+SQL> -- ==========================================
+SQL> -- 3. Condition Reorganisation Scenarios
+SQL> -- ==========================================
+SQL> 
+SQL> -- Scenario 1: Reordering multiple Filters and Joins
+SQL> --
+SQL> -- Input Order:
+SQL> -- 1. Join Condition
+SQL> -- 2. Single Column Filter (on t2)
+SQL> -- 3. Single Column Filter (on t1)
+SQL> --
+SQL> -- Expected Optimization:
+SQL> -- Filters on t1 and t2 should be pushed up/evaluated before the join where possible,
+SQL> -- or at least prioritized in the condition list if all are applied at the same level.
+SQL> 
+SQL> EXPLAIN SELECT t1.order_id, t2.region
+  2 FROM t_opt_order t1, t_opt_customer t2
+  3 WHERE t1.cust_id = t2.cust_id      -- Join
+  4   AND t2.region = 'North'          -- Filter 1
+  5   AND t1.status = 'COMPLETED';     -- Filter 2
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name              | Rows | Cost | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |                   | 1    | 3    | 0         |       |        |
+| 1  |   NESTED LOOPS          |       |                   | 1    | 3    | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T_OPT_CUSTOMER T2 | 2    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T_OPT_ORDER T1    | 3    | 1    | 0         |       |        |
+-------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: T2.REGION = 'North'                             
+    3 - filter: T1.STATUS = 'COMPLETED' AND T1.CUST_ID = T2.CUST_ID
+
+12 rows fetched.
+
+SQL> 
+SQL> 
+SQL> -- Scenario 2: Mixed Types with "False" Condition (if applicable)
+SQL> -- Some optimizers prioritize conditions that evaluate to FALSE literals to short-circuit.
+SQL> --
+SQL> -- Input Order:
+SQL> -- 1. Join
+SQL> -- 2. Complex Expression
+SQL> -- 3. 1=0 (False)
+SQL> 
+SQL> EXPLAIN SELECT *
+  2 FROM t_opt_order t1, t_opt_customer t2
+  3 WHERE t1.cust_id = t2.cust_id
+  4   AND t1.amount * 2 > 100
+  5   AND 1 = 0;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name              | Rows | Cost | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |                   | 10   | 6    | 0         |       |        |
+| 1  |   ROWNUM COUNT            |       |                   | 10   | 6    | 0         |       |        |
+| 2  |     NESTED LOOPS          |       |                   | 10   | 6    | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | T_OPT_CUSTOMER T2 | 5    | 1    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T_OPT_ORDER T1    | 6    | 1    | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - filter: NULL IS NOT NULL                                
+    2 - filter: NULL IS NOT NULL                                
+    3 - filter: NULL IS NOT NULL                                
+    4 - filter: NULL IS NOT NULL                                
+
+15 rows fetched.
+
+SQL> 
+SQL> 
+
+

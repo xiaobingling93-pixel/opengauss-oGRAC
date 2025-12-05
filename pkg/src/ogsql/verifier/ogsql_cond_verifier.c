@@ -28,6 +28,7 @@
 #include "expr_parser.h"
 #include "ogsql_cond_rewrite.h"
 #include "srv_instance.h"
+#include "ogsql_optim_common.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -785,7 +786,7 @@ status_t sql_verify_cond(sql_verifier_t *verif, cond_tree_t *cond)
 
     verif->incl_flags &= ~(SQL_INCL_COND_COL);
     cond->incl_flags = verif->incl_flags;
-    return sql_process_oper_or_sink(verif->stmt, &cond->root);
+    return cond_factor_process_tree(verif->stmt, &cond->root);
 }
 
 status_t sql_verify_query_where(sql_verifier_t *verif, sql_query_t *query)

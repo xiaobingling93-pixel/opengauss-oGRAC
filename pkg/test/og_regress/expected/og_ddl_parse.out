@@ -87,7 +87,7 @@ SQL> EXPLAIN
  12                      GROUP BY Y.PARENTPART_NAME) Z
  13                     ON X.PARTITION_NAME = Z.PARENTPART_NAME;
 
-EXPLAIN PLAN OUTPUT
+EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
 ----------------------------------------------------------------------------------------------------------------------------------------
 | Id | Operation                                       | Owner | Name                      | Rows | Cost  | StartCost | Bytes | Remark |
@@ -128,24 +128,24 @@ EXPLAIN PLAN OUTPUT
 | 33 |                           TABLE ACCESS FULL     | SYS   | SYS_TABLES T              | 0    | 10000 | 0         |       |        |
 | 34 |                           TABLE ACCESS FULL     | SYS   | DV_TABLESPACES TS         | 0    | 10000 | 0         |       |        |
 ----------------------------------------------------------------------------------------------------------------------------------------
-Predicate Information (identified by id):
------------------------------------------
-    3 - filter: CO.ORG_SCN = TP.ORG_SCN AND CO.OBJECT_TYPE = 2
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: CO.ORG_SCN = TP.ORG_SCN AND CO.OBJECT_TYPE = 2  
     8 - filter: T.RECYCLED = 0 AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME
-                || '"', 'TABLE'))
+                || '"', 'TABLE'))                               
     11 - filter: TP.USER# = U.ID AND TP.TABLE# = T.ID AND TP.USER# = T.USER# AND TP.SPACE# = TS.ID
-    12 - filter: X.PARTITION_NAME = Z.PARENTPART_NAME
+    12 - filter: X.PARTITION_NAME = Z.PARENTPART_NAME           
     22 - filter: TSUBP.PARENT_PART# = TP.PART# AND TSUBP.TABLE# = TP.TABLE# AND TSUBP.USER# = TP.USER# AND FALSE !=
-                TP.FLAGS & 0x04
-    24 - filter: TSUBP.USER# = U.ID
-    25 - filter: TSUBP.USER# = T.USER# AND T.RECYCLED = 0 AND TSUBP.TABLE# = T.ID AND (U.NAME = USER OR USER = 'SYS'
+                TP.FLAGS & 0x04                                 
+    24 - filter: TSUBP.USER# = U.ID                             
+    25 - filter: T.RECYCLED = 0 AND TSUBP.TABLE# = T.ID AND TSUBP.USER# = T.USER# AND (U.NAME = USER OR USER = 'SYS'
                 OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME || '"', 'TABLE'))
-    26 - filter: TSUBP.SPACE# = TS.ID
+    26 - filter: TSUBP.SPACE# = TS.ID                           
     27 - filter: P.NAME = 'T_RG_HS_01' AND O.TABLE_NAME = P.NAME
-    31 - filter: P.INDEX# = (-1) AND P.USER# = U.ID
+    31 - filter: P.INDEX# = (-1) AND P.USER# = U.ID             
     33 - filter: T.RECYCLED = 0 AND P.TABLE# = T.ID AND P.USER# = T.USER# AND (U.NAME = USER OR USER = 'SYS' OR FALSE
                 != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME || '"', 'TABLE'))
-    34 - filter: T.SPACE# = TS.ID
+    34 - filter: T.SPACE# = TS.ID                               
 
 57 rows fetched.
 

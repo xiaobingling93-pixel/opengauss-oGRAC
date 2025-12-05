@@ -363,3 +363,176 @@ bool32 check_cond_push2subslct_table(sql_stmt_t *statement, sql_query_t *qry, sq
 
     return OG_FALSE;
 }
+
+static void cond_factor_collect_and_nodes(cond_node_t *cond_node, biqueue_t *cond_que)
+{
+    if (cond_node->type == COND_NODE_AND) {
+        cond_factor_collect_and_nodes(cond_node->left, cond_que);
+        cond_factor_collect_and_nodes(cond_node->right, cond_que);
+        return;
+    }
+    biqueue_add_tail(cond_que, QUEUE_NODE_OF(cond_node));
+}
+
+static bool32 cond_factor_remove_node(sql_stmt_t *statement, cond_node_t *cmp_cond, biqueue_t *cond_que)
+{
+    biqueue_node_t *curr = biqueue_first(cond_que);
+    biqueue_node_t *end = biqueue_end(cond_que);
+
+    while (curr != end) {
+        cond_node_t *cond_node = OBJECT_OF(cond_node_t, curr);
+        if (sql_cond_node_equal(statement, cond_node, cmp_cond, NULL)) {
+            biqueue_del_node(curr);
+            return OG_TRUE;
+        }
+        curr = curr->next;
+    }
+    return OG_FALSE;
+}
+
+static status_t cond_factor_add_to_and_tree(sql_stmt_t *statement, cond_node_t **dst, cond_node_t *src)
+{
+    if (*dst == NULL) {
+        *dst = src;
+        return OG_SUCCESS;
+    }
+
+    cond_node_t *cond_node = NULL;
+    OG_RETURN_IFERR(sql_alloc_mem(statement->context, sizeof(cond_node_t), (void **)&cond_node));
+    cond_node->type = COND_NODE_AND;
+    cond_node->left = *dst;
+    cond_node->right = src;
+    *dst = cond_node;
+    return OG_SUCCESS;
+}
+
+static status_t cond_factor_extract_common(sql_stmt_t *statement, biqueue_t *l_que, biqueue_t *r_que,
+                                           cond_node_t **same_cond)
+{
+    biqueue_node_t *del_node = NULL;
+    biqueue_node_t *curr_node = biqueue_first(l_que);
+    biqueue_node_t *end_node = biqueue_end(l_que);
+
+    while (curr_node != end_node) {
+        cond_node_t *cmp_cond = OBJECT_OF(cond_node_t, curr_node);
+        if (!cond_factor_remove_node(statement, cmp_cond, r_que)) {
+            curr_node = curr_node->next;
+            continue;
+        }
+        OG_RETURN_IFERR(cond_factor_add_to_and_tree(statement, same_cond, cmp_cond));
+        del_node = curr_node;
+        curr_node = curr_node->next;
+        biqueue_del_node(del_node);
+    }
+    return OG_SUCCESS;
+}
+
+static inline status_t cond_factor_rebuild_and_tree(sql_stmt_t *statement, biqueue_t *cond_que,
+                                                      cond_node_t **cmp_cond)
+{
+    biqueue_node_t *curr_que = biqueue_first(cond_que);
+    biqueue_node_t *end_que = biqueue_end(cond_que);
+
+    while (curr_que != end_que) {
+        cond_node_t *cond_node = OBJECT_OF(cond_node_t, curr_que);
+        if (cond_factor_add_to_and_tree(statement, cmp_cond, cond_node) != OG_SUCCESS) {
+            return OG_ERROR;
+        }
+        curr_que = curr_que->next;
+    }
+    return OG_SUCCESS;
+}
+
+static status_t remove_matching_winsort_item(visit_assist_t *v_ast, expr_node_t **node)
+{
+    if ((*node)->type == EXPR_NODE_OVER) {
+        sql_query_t *qry = v_ast->query;
+        expr_node_t *winsort_node = NULL;
+        for (uint32 i = qry->winsort_list->count; i > 0; i--) {
+            winsort_node = (expr_node_t *)cm_galist_get(qry->winsort_list, i - 1);
+            if (winsort_node == *node) {
+                cm_galist_delete(qry->winsort_list, i - 1);
+                break;
+            }
+        }
+    }
+    return OG_SUCCESS;
+}
+
+static status_t cond_factor_cleanup_winsort_refs(sql_stmt_t *statement, cond_node_t *removed_cond)
+{
+    visit_assist_t v_ast;
+    sql_query_t *qry = OGSQL_CURR_NODE(statement);
+    sql_init_visit_assist(&v_ast, statement, qry);
+    v_ast.excl_flags |= VA_EXCL_WIN_SORT;
+    return visit_cond_node(&v_ast, removed_cond, remove_matching_winsort_item);
+}
+
+static inline status_t cond_factor_compose_result(sql_stmt_t *statement, cond_node_t *same_cond, cond_node_t *l_remain,
+                                                 cond_node_t *r_remain, cond_node_t **cmp_cond)
+{
+    cond_node_t *or_cond = NULL;
+    OG_RETURN_IFERR(sql_alloc_mem(statement->context, sizeof(cond_node_t), (void **)&or_cond));
+    or_cond->type = COND_NODE_OR;
+    or_cond->left = l_remain;
+    or_cond->right = r_remain;
+
+    OG_RETURN_IFERR(sql_alloc_mem(statement->context, sizeof(cond_node_t), (void **)cmp_cond));
+    (*cmp_cond)->type = COND_NODE_AND;
+    (*cmp_cond)->left = same_cond;
+    (*cmp_cond)->right = or_cond;
+    return OG_SUCCESS;
+}
+
+static status_t cond_factor_process_or_node(sql_stmt_t *statement, cond_node_t **cmp_cond)
+{
+    biqueue_t left_que;
+    biqueue_t right_que;
+    cond_node_t *l_remain = NULL;
+    cond_node_t *r_remain = NULL;
+    cond_node_t *same_cond = NULL;
+
+    biqueue_init(&left_que);
+    biqueue_init(&right_que);
+
+    cond_factor_collect_and_nodes((*cmp_cond)->left, &left_que);
+    cond_factor_collect_and_nodes((*cmp_cond)->right, &right_que);
+
+    // remove the same cmp_cond on both sides
+    OG_RETURN_IFERR(cond_factor_extract_common(statement, &left_que, &right_que, &same_cond));
+    // if no same cmp_cond, then no need rewrite cmp_cond node
+    if (same_cond == NULL) {
+        return OG_SUCCESS;
+    }
+    // construct left remain cmp_cond
+    OG_RETURN_IFERR(cond_factor_rebuild_and_tree(statement, &left_que, &l_remain));
+    // construct right remain cmp_cond
+    OG_RETURN_IFERR(cond_factor_rebuild_and_tree(statement, &right_que, &r_remain));
+    if (l_remain == NULL || r_remain == NULL) {
+        *cmp_cond = same_cond;
+        if (l_remain != NULL) {
+            OG_RETURN_IFERR(cond_factor_cleanup_winsort_refs(statement, l_remain));
+        }
+        if (r_remain != NULL) {
+            OG_RETURN_IFERR(cond_factor_cleanup_winsort_refs(statement, r_remain));
+        }
+        return OG_SUCCESS;
+    }
+    return cond_factor_compose_result(statement, same_cond, l_remain, r_remain, cmp_cond);
+}
+
+status_t cond_factor_process_tree(sql_stmt_t *statement, cond_node_t **cmp_cond)
+{
+    OG_RETURN_IFERR(sql_stack_safe(statement));
+    if ((*cmp_cond)->type != COND_NODE_AND && (*cmp_cond)->type != COND_NODE_OR) {
+        return OG_SUCCESS;
+    }
+
+    OG_RETURN_IFERR(cond_factor_process_tree(statement, &(*cmp_cond)->left));
+    OG_RETURN_IFERR(cond_factor_process_tree(statement, &(*cmp_cond)->right));
+
+    if ((*cmp_cond)->type == COND_NODE_OR) {
+        return cond_factor_process_or_node(statement, cmp_cond);
+    }
+    return OG_SUCCESS;
+}

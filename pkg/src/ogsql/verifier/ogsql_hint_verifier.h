@@ -46,6 +46,7 @@ typedef enum en_opt_param_id {
     OPT_DYNAMIC_SAMPLING,
     OPT_HASH_MATERIALIZE,
     OPT_ORDER_BY_ELIMINATION,
+    OPT_PRED_REORDER,
     OPT_PARAM_COUNT,
 } opt_param_id_t;
 

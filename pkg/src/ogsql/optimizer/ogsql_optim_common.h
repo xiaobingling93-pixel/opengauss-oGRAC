@@ -66,6 +66,7 @@ void og_del_parent_refs_in_expr_tree(sql_query_t *qry, expr_tree_t *expr);
 status_t og_modify_rs_cols2const(sql_stmt_t *statement, sql_query_t *qry);
 void make_subqry_without_join(sql_stmt_t *statement, select_node_t *select_node, bool32 is_var);
 bool32 check_cond_push2subslct_table(sql_stmt_t *statement, sql_query_t *qry, sql_select_t *slct_node, cmp_node_t *cmp);
+status_t cond_factor_process_tree(sql_stmt_t *stmt, cond_node_t **cond);
 
 #ifdef __cplusplus
 }
