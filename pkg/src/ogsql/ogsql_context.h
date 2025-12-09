@@ -250,7 +250,6 @@ typedef struct st_clause_info {
 typedef struct st_sql_withas {
     galist_t *withas_factors; // list of with as(sql_withas_factor_t)
     uint32 cur_match_idx;     // for check with as can't reference later with as definition
-    uint32 cur_level;
 } sql_withas_t;
 
 /* For parse result of hint expression */
@@ -839,14 +838,15 @@ typedef enum en_select_type {
 
 /* definition of with as clause */
 typedef struct st_sql_subquery_factor {
-    uint32 depth;
-    uint32 level;
+    uint32 id;
     uint32 refs;    /* withas reference count */
     bool32 is_mtrl; /* materialize hint occurs */
     sql_text_t user;
     sql_text_t name;
     sql_text_t subquery_sql;
     void *subquery_ctx;
+    struct st_sql_select *owner;
+    struct st_sql_subquery_factor *prev_factor;
 } sql_withas_factor_t;
 
 typedef struct st_parent_ref {
@@ -874,7 +874,7 @@ typedef struct st_sql_select {
     bool8 is_update_value; // flag indicates that the select is in update set clause
     bool8 is_withas;       // flag indicates that the select is withas
     bool8 can_sub_opt;     // flag indicates that the select is in update set clause can be optimized
-    uint8 reserved[1];     // reserved flags, 8 bytes align
+    bool8 in_parse_set_select; // flag indicates that the select is in parse set select
     rs_type_t rs_type;
     struct st_plan_node *rs_plan;
     void *cond_cursor;
@@ -884,6 +884,7 @@ typedef struct st_sql_select {
     struct st_sql_select *prev;
     struct st_sql_select *next;
     uint32 pending_col_count;
+    uint32 withas_id;
     galist_t *parent_refs;
     galist_t *withass;   // all withas context in current select clause
     galist_t *pl_dc_lst; // record plsql objects in current select context, for check privilege

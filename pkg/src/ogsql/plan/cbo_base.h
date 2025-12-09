@@ -195,7 +195,11 @@ extern "C" {
 #define TABLE_COST(table) (TABLE_CBO_IS_LOAD(table) ? CBO_MIN_COST : (table)->cost)
 
 #define IS_INDEX_UNIQUE(index) (((index)->primary || (index)->unique))
-#define IS_WITHAS_QUERY(query) (bool32)((query)->owner != NULL && (query)->owner->is_withas)
+static inline bool32 is_withas_query(sql_query_t *query)
+{
+    return (bool32)((query)->owner != NULL && (query)->owner->withas_id != OG_INVALID_ID32);
+}
+#define IS_WITHAS_QUERY is_withas_query
 #define IS_NL_OPER(oper) (bool32)((oper) == JOIN_OPER_NL || (oper) == JOIN_OPER_NL_LEFT || (oper) == JOIN_OPER_NL_FULL)
 #define IS_HASH_OPER(oper)                                                                                 \
     (bool32)((oper) == JOIN_OPER_HASH || (oper) == JOIN_OPER_HASH_LEFT || (oper) == JOIN_OPER_HASH_FULL || \

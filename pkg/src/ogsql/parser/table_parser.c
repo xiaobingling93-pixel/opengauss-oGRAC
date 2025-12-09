@@ -254,20 +254,174 @@ status_t sql_decode_object_name(sql_stmt_t *stmt, word_t *word, sql_text_t *user
     return OG_SUCCESS;
 }
 
+static inline bool32 verify_identity_between_table_and_cte
+    (sql_table_t *table_reference, sql_withas_factor_t *cte_definition)
+{
+    bool32 user_name_match = cm_text_equal(&table_reference->user.value, &cte_definition->user.value);
+    bool32 table_name_match = cm_text_equal(&table_reference->name.value, &cte_definition->name.value);
+    return user_name_match && table_name_match;
+}
+
+static status_t enforce_recursive_cte_constraint(sql_withas_t *cte_exec_ctx, sql_table_t *ref_table_entity)
+{
+    uint32_t cte_current_match_idx = cte_exec_ctx->cur_match_idx;
+    sql_withas_factor_t *recursive_cte_target = NULL;
+    recursive_cte_target = (sql_withas_factor_t *)cm_galist_get(
+        cte_exec_ctx->withas_factors,
+        cte_current_match_idx
+    );
+
+    bool32 is_cte_identity_matched = verify_identity_between_table_and_cte(
+        ref_table_entity,
+        recursive_cte_target
+    );
+    is_cte_identity_matched = (is_cte_identity_matched == true) ? true : false;
+
+    if (is_cte_identity_matched) {
+        OG_SRC_THROW_ERROR(recursive_cte_target->name.loc,
+                           ERR_SQL_SYNTAX_ERROR, "recursive WITH clause must have column alias list");
+        const status_t error_code = OG_ERROR;
+        return error_code;
+    }
+
+    return (status_t)OG_SUCCESS;
+}
+
+static sql_withas_factor_t *traverse_backward_local_cte_chain(sql_withas_t *cte_context, sql_table_t *referenced_table)
+{
+    uint32_t match_index = cte_context->cur_match_idx;
+    if (OG_INVALID_ID32 == match_index) {
+        return NULL;
+    }
+
+    sql_withas_factor_t *active_cte_unit = NULL;
+    active_cte_unit = (sql_withas_factor_t *)cm_galist_get(cte_context->withas_factors, match_index);
+
+    sql_withas_factor_t *prior_cte_unit = active_cte_unit->prev_factor;
+    sql_withas_factor_t *found_cte_unit = NULL;
+
+    for (; prior_cte_unit != NULL; prior_cte_unit = prior_cte_unit->prev_factor) {
+        bool32 identity_matched = verify_identity_between_table_and_cte(referenced_table, prior_cte_unit);
+        if (identity_matched) {
+            found_cte_unit = prior_cte_unit;
+        }
+    }
+
+    return found_cte_unit;
+}
+
+static sql_withas_factor_t *explore_parent_query_cte_hierarchy(sql_stmt_t *sql_statement, sql_table_t *target_table)
+{
+    sql_query_t *curr_query_unit = NULL;
+    sql_withas_factor_t *curr_cte_unit = NULL;
+    const uint32_t stack_total_depth = sql_statement->node_stack.depth;
+    uint32_t current_level = stack_total_depth;
+
+    while (current_level > 0) {
+        uint32_t stack_index = current_level - 1;
+        curr_query_unit = (sql_query_t *)sql_statement->node_stack.items[stack_index];
+
+        bool32 skip_current_query = (curr_query_unit->owner == NULL) || (curr_query_unit->owner->withass == NULL);
+        if (skip_current_query) {
+            current_level--;
+            continue;
+        }
+
+        const uint32_t total_cte_units = curr_query_unit->owner->withass->count;
+        uint32_t cte_index = 0;
+        do {
+            curr_cte_unit = (sql_withas_factor_t *)cm_galist_get(curr_query_unit->owner->withass, cte_index);
+            bool32 cte_match_flag = verify_identity_between_table_and_cte(target_table, curr_cte_unit);
+            if (cte_match_flag) {
+                return curr_cte_unit;
+            }
+            cte_index++;
+        } while (cte_index < total_cte_units);
+
+        current_level--;
+    }
+
+    return NULL;
+}
+
+static void iterate_all_cte_matching_candidates(sql_withas_t *cte_container,
+                                                sql_table_t *table_reference, bool32 *cte_table_indicator)
+{
+    sql_withas_factor_t *cte_node_instance = NULL;
+    sql_select_t *select_node_instance = NULL;
+    uint32_t total_cte_count = cte_container->withas_factors->count;
+
+    for (uint32_t reverse_iterator = total_cte_count; reverse_iterator > 0; reverse_iterator--) {
+        cte_node_instance = (sql_withas_factor_t *)cm_galist_get(cte_container->withas_factors, reverse_iterator - 1);
+        if (cte_node_instance->owner == NULL) {
+            if (verify_identity_between_table_and_cte(table_reference, cte_node_instance)) {
+                *cte_table_indicator = OG_TRUE;
+                table_reference->type = WITH_AS_TABLE;
+                table_reference->select_ctx = (sql_select_t *)cte_node_instance->subquery_ctx;
+                table_reference->select_ctx->withas_id = cte_node_instance->id;
+                table_reference->entry = NULL;
+                cte_node_instance->refs += 1;
+                return;
+            }
+            continue;
+        }
+
+        if (!(cte_node_instance->owner->in_parse_set_select)) {
+            continue;
+        }
+        select_node_instance = cte_node_instance->owner;
+        uint32_t sub_cte_collection_count = select_node_instance->withass->count;
+        for (uint32_t sub_cte_iterator = 0; sub_cte_iterator < sub_cte_collection_count; sub_cte_iterator++) {
+            cte_node_instance = (sql_withas_factor_t *)cm_galist_get(select_node_instance->withass, sub_cte_iterator);
+            if (verify_identity_between_table_and_cte(table_reference, cte_node_instance)) {
+                *cte_table_indicator = OG_TRUE;
+                table_reference->type = WITH_AS_TABLE;
+                table_reference->select_ctx = (sql_select_t *)cte_node_instance->subquery_ctx;
+                table_reference->select_ctx->withas_id = cte_node_instance->id;
+                table_reference->entry = NULL;
+                cte_node_instance->refs += 1;
+                return;
+            }
+        }
+    }
+}
+
+static sql_withas_factor_t *search_predefined_cte_nodes(sql_withas_t *cte_runtime_ctx, sql_table_t *table_ref_obj)
+{
+    sql_withas_factor_t *matched_cte_unit = NULL;
+    const uint32_t max_match_index = cte_runtime_ctx->cur_match_idx;
+    uint32_t idx_counter = 0;
+
+    while (idx_counter < max_match_index) {
+        uint32_t scan_position = idx_counter;
+        matched_cte_unit = (sql_withas_factor_t *)cm_galist_get(
+            cte_runtime_ctx->withas_factors,
+            scan_position
+        );
+        bool32 is_identity_consistent = verify_identity_between_table_and_cte(
+            table_ref_obj,
+            matched_cte_unit
+        );
+        if (is_identity_consistent) {
+            return matched_cte_unit;
+        }
+        idx_counter += 1;
+    }
+
+    return NULL;
+}
+
+/*
+ * checks if a given table reference (query_table) in a SQL statement matches any "WITH AS" definitions.
+ * If it matches, it marks the table as a WITH AS table and sets up the necessary context for further processing.
+ */
 status_t sql_try_match_withas_table(sql_stmt_t *stmt, sql_table_t *query_table, bool32 *is_withas_table)
 {
-    sql_withas_t *sql_withas = NULL;
+    sql_withas_t *withas = (sql_withas_t *)stmt->context->withas_entry;
     sql_withas_factor_t *factor = NULL;
-    uint32 i;
-    uint32 tmp_delta;
-    uint32 match_idx = OG_INVALID_ID32;
-    uint32 delta = OG_INVALID_INT32;
-    uint32 level = OG_INVALID_INT32;
-
     *is_withas_table = OG_FALSE;
 
-    sql_withas = (sql_withas_t *)stmt->context->withas_entry;
-    if (sql_withas == NULL) {
+    if (withas == NULL) {
         return OG_SUCCESS;
     }
     /* if found table in with as list, can't use with as list to check tables in sub query sql
@@ -275,36 +429,31 @@ status_t sql_try_match_withas_table(sql_stmt_t *stmt, sql_table_t *query_table, 
     nok: with A as (select * from t1), B as (select * from B) select * from A,B
     nok: with A as (select * from B), B as (select * from t1) select * from A,B
     ok:  with A as (select * from t1), B as (select * from A) select * from A,B */
-    for (i = 0; i < sql_withas->withas_factors->count; i++) {
-        factor = (sql_withas_factor_t *)cm_galist_get(sql_withas->withas_factors, i);
-        if (cm_text_equal(&query_table->user.value, &factor->user.value) &&
-            cm_text_equal(&query_table->name.value, &factor->name.value)) {
-            if (sql_withas->cur_match_idx == i) {
-                OG_SRC_THROW_ERROR(factor->name.loc, ERR_SQL_SYNTAX_ERROR,
-                    "recursive WITH clause must have column alias list");
-                return OG_ERROR;
-            }
+    if (withas->cur_match_idx != OG_INVALID_ID32) {
+        OG_RETURN_IFERR(enforce_recursive_cte_constraint(withas, query_table));
+    }
 
-            /* match the nearest and firstly withas table in select level */
-            tmp_delta = CM_DELTA(stmt->node_stack.depth, factor->depth);
-            if (tmp_delta < delta || (tmp_delta == delta && level < factor->level)) {
-                match_idx = i;
-                delta = tmp_delta;
-                level = factor->level;
-            }
+    factor = traverse_backward_local_cte_chain(withas, query_table);
+    if (factor == NULL) {
+        factor = explore_parent_query_cte_hierarchy(stmt, query_table);
+    }
+    if (factor == NULL) {
+        if (withas->cur_match_idx == OG_INVALID_ID32) {
+            iterate_all_cte_matching_candidates(withas, query_table, is_withas_table);
+            return OG_SUCCESS;
+        }
+        factor = search_predefined_cte_nodes(withas, query_table);
+        if (factor == NULL) {
+            return OG_SUCCESS;
         }
     }
 
-    if (match_idx != OG_INVALID_ID32) {
-        factor = (sql_withas_factor_t *)cm_galist_get(sql_withas->withas_factors, match_idx);
-        *is_withas_table = OG_TRUE;
-        query_table->type = WITH_AS_TABLE;
-        query_table->select_ctx = (sql_select_t *)factor->subquery_ctx;
-        query_table->select_ctx->is_withas = OG_TRUE;
-        query_table->entry = NULL;
-        factor->refs++;
-    }
-
+    *is_withas_table = OG_TRUE;
+    query_table->type = WITH_AS_TABLE;
+    query_table->select_ctx = (sql_select_t *)factor->subquery_ctx;
+    query_table->select_ctx->withas_id = factor->id;
+    query_table->entry = NULL;
+    factor->refs++;
     return OG_SUCCESS;
 }
 

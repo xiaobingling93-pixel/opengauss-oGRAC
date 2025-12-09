@@ -15,6 +15,12 @@ select f_int1, f_int2 from t_withas2 where f_int1 in (with t_tmp1 as (select f_i
 insert into t_withas2 (with cr as (select * from t_withas2) select * from cr);
 insert into t_withas2 (with cr as (select * from t_withas2) select * from cr union select * from cr);
 select * from t_withas2 order by f_int1 desc;
+with tmp as (select * from t_withas1) (select * from tmp);
+with tmp as (select * from t_withas1) select * from tmp union all (
+    with tmp2 as (select * from t_withas2) select * from tmp
+);
+with t1 as (select f_int1 from t_withas1) select 1 from (
+    with t1 as (select f_int2 from t_withas1), t2 as (select f_int2 from t1) select f_int2 from t2);
 
 CREATE TABLE "HOUSEHOLD_DEMOGRAPHICS"
 (
