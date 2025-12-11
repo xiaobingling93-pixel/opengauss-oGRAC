@@ -305,17 +305,16 @@ SQL> EXPLAIN SELECT DISTINCT id FROM (SELECT DISTINCT id FROM test_order_t1 orde
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
-----------------------------------------------------------------------------------------------------------
-| Id | Operation                     | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
-----------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT              |       |               | 0    | 10016 | 0         |       |        |
-| 1  |   HASH DISTINCT               |       |               | 0    | 10016 | 0         |       |        |
-| 2  |       SUBSELECT               | SYS   | T             | 0    | 10008 | 0         |       |        |
-| 3  |         HASH DISTINCT         |       |               | 0    | 10008 | 0         |       |        |
-| 4  |             TABLE ACCESS FULL | SYS   | TEST_ORDER_T1 | 0    | 10000 | 0         |       |        |
-----------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |               | 0    | 10008 | 0         |       |        |
+| 1  |   HASH DISTINCT             |       |               | 0    | 10008 | 0         |       |        |
+| 2  |       SUBSELECT             | SYS   | T             | 0    | 10000 | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | TEST_ORDER_T1 | 0    | 10000 | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
 
-9 rows fetched.
+8 rows fetched.
 
 SQL> SELECT DISTINCT id FROM (SELECT DISTINCT id FROM test_order_t1 order by 1) t;
 
