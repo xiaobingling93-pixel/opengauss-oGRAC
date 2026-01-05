@@ -1251,6 +1251,9 @@ status_t sql_build_join_tree(sql_stmt_t *stmt, plan_assist_t *plan_ass, sql_join
     OG_RETURN_IFERR(sql_stack_safe(stmt));
     OGSQL_SAVE_STACK(stmt);
     SET_NODE_STACK_CURR_QUERY(stmt, plan_ass->query);
+    if (sql_dynamic_sampling_table_stats(stmt, plan_ass) != OG_SUCCESS) {
+        cm_reset_error();
+    }
     status_t ret = sql_build_join_tree_cost(stmt, plan_ass, join_root);
     SQL_RESTORE_NODE_STACK(stmt);
     OGSQL_RESTORE_STACK(stmt);

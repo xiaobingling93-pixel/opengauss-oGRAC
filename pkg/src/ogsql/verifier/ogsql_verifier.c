@@ -972,6 +972,16 @@ void sql_set_ancestor_level(sql_select_t *select_ctx, uint32 temp_level)
     }
 }
 
+uint32 sql_get_dynamic_sampling_level(sql_stmt_t *stmt)
+{
+    if (stmt->context->hint_info == NULL ||
+        stmt->context->hint_info->opt_params == NULL ||
+        stmt->context->hint_info->opt_params->dynamic_sampling == OG_INVALID_ID32) {
+            return g_instance->sql.cbo_dyn_sampling;
+        }
+    return stmt->context->hint_info->opt_params->dynamic_sampling;
+}
+
 #ifdef __cplusplus
 }
 #endif

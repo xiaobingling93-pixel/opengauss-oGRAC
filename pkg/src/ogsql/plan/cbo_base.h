@@ -406,8 +406,8 @@ variant_t *get_high_value(knl_handle_t handle, dc_entity_t *entity, uint32 col_i
 variant_t *get_table_low_value(sql_stmt_t *stmt, sql_table_t *table, uint32 col_id, variant_t *ret_var);
 variant_t *get_table_high_value(sql_stmt_t *stmt, sql_table_t *table, uint32 col_id, variant_t *ret_var);
 
-bool32 judge_stats_empty(cbo_stats_table_t *tab_stats);
-bool32 judge_table_stats_empty(knl_handle_t handle, sql_table_t *table);
+bool32 check_stats_empty(cbo_stats_table_t *tab_stats);
+bool32 check_table_stats_empty(knl_handle_t handle, sql_table_t *table);
 bool32 is_join_driver_table(plan_assist_t *pa, sql_table_t *table);
 bool32 if_scale_cost_by_limit(plan_assist_t *pa, sql_table_t *table, uint16 scan_flag, cbo_rownum_info_t *rf);
 void scale_output_card_by_limit(plan_assist_t *pa, sql_table_t *table);

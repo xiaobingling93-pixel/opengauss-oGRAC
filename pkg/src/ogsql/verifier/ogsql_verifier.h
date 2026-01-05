@@ -338,6 +338,8 @@ status_t sql_gen_group_rs_by_expr(sql_stmt_t *stmt, galist_t *rs_col, expr_node_
 status_t sql_add_ref_func_node(sql_verifier_t *verif, expr_node_t *node);
 void sql_set_ancestor_level(sql_select_t *select_ctx, uint32 temp_level);
 
+uint32 sql_get_dynamic_sampling_level(sql_stmt_t *stmt);
+
 #ifdef __cplusplus
 }
 #endif
