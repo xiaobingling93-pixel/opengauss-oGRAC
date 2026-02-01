@@ -1,0 +1,166 @@
+
+
+SQL> create table table1(a int, b int, c varchar(100));
+
+Succeed.
+
+SQL> create table table2(a int, b int, c varchar(100));
+
+Succeed.
+
+SQL> 
+SQL> insert into table1 values(1,2,'123124');
+
+1 rows affected.
+
+SQL> insert into table1 values(1,2,'123124');
+
+1 rows affected.
+
+SQL> insert into table1 values(1,2,'123124');
+
+1 rows affected.
+
+SQL> 
+SQL> insert into table2 values(1,2,'123124');
+
+1 rows affected.
+
+SQL> insert into table2 values(1,2,'123124');
+
+1 rows affected.
+
+SQL> insert into table2 values(1,2,'123124');
+
+1 rows affected.
+
+SQL> insert into table2 values(1,2,'123124');
+
+1 rows affected.
+
+SQL> insert into table2 values(1,2,'123124');
+
+1 rows affected.
+
+SQL> 
+SQL> 
+SQL> ANALYZE TABLE table1 COMPUTE STATISTICS;
+
+Succeed.
+
+SQL> ANALYZE TABLE table2 COMPUTE STATISTICS;
+
+Succeed.
+
+SQL> 
+SQL> explain select * from table1, table2 where table2.rowid= table1.rowid;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |        | 1    | 4    | 0         |       |        |
+| 1  |   NESTED LOOPS              |       |        | 1    | 4    | 0         |       |        |
+| 2  |       TABLE ACCESS FULL     | SYS   | TABLE1 | 3    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS BY ROWID | SYS   | TABLE2 | 1    | 0    | 0         |       |        |
+| 4  |         ROWID SCAN          | SYS   | TABLE2 | 1    | 0    | 0         |       |        |
+------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - access: ROWID = ROWID                                   
+
+12 rows fetched.
+
+SQL> 
+SQL> explain select * from table1, table2 where table1.rowid= table2.rowid;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |        | 1    | 4    | 0         |       |        |
+| 1  |   NESTED LOOPS              |       |        | 1    | 4    | 0         |       |        |
+| 2  |       TABLE ACCESS FULL     | SYS   | TABLE1 | 3    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS BY ROWID | SYS   | TABLE2 | 1    | 0    | 0         |       |        |
+| 4  |         ROWID SCAN          | SYS   | TABLE2 | 1    | 0    | 0         |       |        |
+------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - access: ROWID = ROWID                                   
+
+12 rows fetched.
+
+SQL> 
+SQL> explain select * from table1,table2 where table1.rowid=21312;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |        | 1    | 4    | 0         |       |        |
+| 1  |   NESTED LOOPS          |       |        | 1    | 4    | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | TABLE1 | 3    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | TABLE2 | 5    | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: ROWID = 21312                                   
+
+11 rows fetched.
+
+SQL> 
+SQL> explain select * from table1  where table1.rowid in ('000000000020680000', '000000000020680001');
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |        | 1    | 0    | 0         |       |        |
+| 1  |     TABLE ACCESS BY ROWID | SYS   | TABLE1 | 1    | 0    | 0         |       |        |
+| 2  |       ROWID SCAN          | SYS   | TABLE1 | 1    | 0    | 0         |       |        |
+----------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: ROWID IN ('000000000020680000', '000000000020680001')
+
+10 rows fetched.
+
+SQL> 
+SQL> explain select * from table1 where table1.rowid = '000000000020680000';
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |        | 1    | 0    | 0         |       |        |
+| 1  |     TABLE ACCESS BY ROWID | SYS   | TABLE1 | 1    | 0    | 0         |       |        |
+| 2  |       ROWID SCAN          | SYS   | TABLE1 | 1    | 0    | 0         |       |        |
+----------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: ROWID = '000000000020680000'                    
+
+10 rows fetched.
+
+SQL> 
+SQL> drop table table1;
+
+Succeed.
+
+SQL> 
+SQL> drop table table2;
+
+Succeed.
+
+SQL> 
+SQL> commit;
+Succeed.
+
+
+
+

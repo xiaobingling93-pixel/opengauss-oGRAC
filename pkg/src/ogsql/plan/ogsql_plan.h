@@ -136,6 +136,8 @@ static inline bool32 sql_reserved_word_indexable(plan_assist_t *pa, expr_node_t 
                 }
                 pa->col_use_flag |= USE_SELF_JOIN_COL;
                 return OG_TRUE;
+            } else if (pa->tables[tab]->plan_id == pa->tables[tab_id]->plan_id) {
+                return tab < tab_id;
             }
             return OG_FALSE;
 
@@ -181,7 +183,6 @@ void reset_select_node_cbo_status(select_node_t *node);
 void sql_collect_select_nodes(biqueue_t *queue, select_node_t *node);
 typedef status_t (*query_visit_func_t)(sql_stmt_t *stmt, sql_query_t *query);
 status_t visit_select_node(sql_stmt_t *stmt, select_node_t *node, query_visit_func_t visit_func);
-bool32 sql_expr_is_certain(plan_assist_t *pa, expr_tree_t *expr, var_column_t *v_col);
 void sql_init_plan_assist(sql_stmt_t *stmt, plan_assist_t *plan_ass, sql_query_t *query, sql_node_type_t type,
                           plan_assist_t *parent);
 uint32 get_query_plan_flag(sql_query_t *query);

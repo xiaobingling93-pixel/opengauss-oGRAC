@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------------
  */
+#include "cbo_base.h"
 #include "plan_scan.h"
 #include "plan_query.h"
 #include "cbo_join.h"
@@ -111,6 +112,521 @@ static inline bool32 check_apply_table_index(plan_assist_t *pa, sql_table_t *tab
     return OG_TRUE;
 }
 
+typedef struct st_rowid_scan_ctx {
+    sql_stmt_t *stmt;
+    plan_assist_t *pa;
+    sql_table_t *table;
+    bool32 is_temp;
+} rowid_scan_ctx_t;
+
+typedef struct st_certainty_check_ctx {
+    plan_assist_t *pa;
+    var_column_t *v_col;
+} certainty_check_ctx_t;
+
+typedef status_t (*rowid_set_binary_op_t)(sql_stmt_t*, plan_rowid_set_t*, plan_rowid_set_t*, 
+                                           plan_rowid_set_t*, bool32);
+
+static status_t alloc_rowid_array(sql_stmt_t *stmt, sql_array_t *arr, bool32 is_temp, char *name)
+{
+    return is_temp ? sql_array_init(arr, KNL_ROWID_ARRAY_SIZE, stmt, sql_stack_alloc)
+                   : sql_create_array(stmt->context, arr, name, KNL_ROWID_ARRAY_SIZE);
+}
+
+static void copy_rowid_items(plan_rowid_set_t *dst, plan_rowid_set_t *src, uint32 offset)
+{
+    size_t byte_count;
+    if (src->array.count == 0) {
+        return;
+    }
+    byte_count = src->array.count * sizeof(pointer_t);
+    (void)memcpy_s(dst->array.items + offset, byte_count, src->array.items, byte_count);
+}
+
+static status_t merge_rowid_arrays(sql_stmt_t *stmt, plan_rowid_set_t *left, plan_rowid_set_t *right,
+                                    plan_rowid_set_t *out, bool32 is_temp)
+{
+    OG_RETURN_IFERR(alloc_rowid_array(stmt, &out->array, is_temp, NULL));
+    copy_rowid_items(out, left, 0);
+    copy_rowid_items(out, right, left->array.count);
+    out->type = RANGE_LIST_NORMAL;
+    out->array.count = left->array.count + right->array.count;
+    return OG_SUCCESS;
+}
+
+static bool32 handle_union_special_cases(plan_rowid_set_t *left, plan_rowid_set_t *right, 
+                                          plan_rowid_set_t *out, bool32 *done)
+{
+    *done = OG_TRUE;
+    if (left->type == RANGE_LIST_FULL || right->type == RANGE_LIST_FULL) {
+        out->type = RANGE_LIST_FULL;
+        return OG_TRUE;
+    }
+    if (left->type == RANGE_LIST_EMPTY) {
+        *out = *right;
+        return OG_TRUE;
+    }
+    if (right->type == RANGE_LIST_EMPTY) {
+        *out = *left;
+        return OG_TRUE;
+    }
+    if (left->array.count + right->array.count > KNL_ROWID_ARRAY_SIZE) {
+        out->type = RANGE_LIST_FULL;
+        return OG_TRUE;
+    }
+    *done = OG_FALSE;
+    return OG_FALSE;
+}
+
+status_t sql_union_rowid_set(sql_stmt_t *stmt, plan_rowid_set_t *l_set, plan_rowid_set_t *r_set,
+                             plan_rowid_set_t *rowid_set, bool32 is_temp)
+{
+    bool32 handled;
+    if (handle_union_special_cases(l_set, r_set, rowid_set, &handled)) {
+        return OG_SUCCESS;
+    }
+    return merge_rowid_arrays(stmt, l_set, r_set, rowid_set, is_temp);
+}
+
+static bool32 handle_intersect_special_cases(plan_rowid_set_t *left, plan_rowid_set_t *right,
+                                              plan_rowid_set_t *out, bool32 *done)
+{
+    *done = OG_TRUE;
+    if (left->type == RANGE_LIST_EMPTY || right->type == RANGE_LIST_EMPTY) {
+        out->type = RANGE_LIST_EMPTY;
+        return OG_TRUE;
+    }
+    if (left->type == RANGE_LIST_FULL) {
+        *out = *right;
+        return OG_TRUE;
+    }
+    if (right->type == RANGE_LIST_FULL) {
+        *out = *left;
+        return OG_TRUE;
+    }
+    *done = OG_FALSE;
+    return OG_FALSE;
+}
+
+status_t sql_intersect_rowid_set(sql_stmt_t *stmt, plan_rowid_set_t *l_set, plan_rowid_set_t *r_set,
+                                 plan_rowid_set_t *rowid_set)
+{
+    bool32 handled;
+    if (handle_intersect_special_cases(l_set, r_set, rowid_set, &handled)) {
+        return OG_SUCCESS;
+    }
+    *rowid_set = (l_set->array.count > r_set->array.count) ? *r_set : *l_set;
+    return OG_SUCCESS;
+}
+
+status_t sql_init_plan_rowid_set(sql_stmt_t *stmt, plan_rowid_set_t **rowid_set, bool32 is_temp)
+{
+    OG_RETURN_IFERR(sql_stack_alloc(stmt, sizeof(plan_rowid_set_t), (void **)rowid_set));
+    return alloc_rowid_array(stmt, &((*rowid_set)->array), is_temp, "ROWID set");
+}
+
+static bool32 verify_ancestor_column(plan_assist_t *pa, expr_node_t *node, uint32 tab)
+{
+    plan_assist_t *ancestor_pa;
+    if (CBO_HAS_ONLY_FLAG(pa, CBO_CHECK_FILTER_IDX | CBO_CHECK_ANCESTOR_DRIVER)) {
+        return OG_FALSE;
+    }
+    ancestor_pa = sql_get_ancestor_pa(pa, NODE_ANCESTOR(node));
+    if (ancestor_pa != NULL && get_pa_table_by_id(ancestor_pa, tab)->plan_id == OG_INVALID_ID32) {
+        return OG_FALSE;
+    }
+    pa->col_use_flag |= USE_ANCESTOR_COL;
+    pa->max_ancestor = MAX(NODE_ANCESTOR(node), pa->max_ancestor);
+    return OG_TRUE;
+}
+
+static bool32 verify_join_column(plan_assist_t *pa, uint32 col_tab, uint32 ref_tab)
+{
+    if (CBO_HAS_FLAG(pa, CBO_CHECK_FILTER_IDX)) {
+        return OG_FALSE;
+    }
+    if (pa->tables[col_tab]->plan_id >= pa->tables[ref_tab]->plan_id) {
+        return OG_FALSE;
+    }
+    if (!chk_tab_with_oper_map(pa, col_tab, ref_tab)) {
+        return OG_FALSE;
+    }
+    pa->col_use_flag |= USE_SELF_JOIN_COL;
+    return OG_TRUE;
+}
+
+static bool32 check_column_certain(certainty_check_ctx_t *ctx, expr_node_t *node)
+{
+    uint32 tab = NODE_TAB(node);
+    return (NODE_ANCESTOR(node) > 0) ? verify_ancestor_column(ctx->pa, node, tab)
+                                     : verify_join_column(ctx->pa, tab, ctx->v_col->tab);
+}
+
+static bool32 check_group_certain(plan_assist_t *pa, expr_node_t *node)
+{
+    if (NODE_VM_ANCESTOR(node) == 0) {
+        return OG_FALSE;
+    }
+    pa->col_use_flag |= USE_ANCESTOR_COL;
+    pa->max_ancestor = MAX(NODE_VM_ANCESTOR(node), pa->max_ancestor);
+    return OG_TRUE;
+}
+
+static bool32 check_select_certain(expr_node_t *node)
+{
+    sql_select_t *sel = (sql_select_t *)VALUE_PTR(var_object_t, &node->value)->ptr;
+    return (sel->type == SELECT_AS_VARIANT) && (sel->parent_refs->count == 0);
+}
+
+static bool32 is_always_certain_type(expr_node_type_t t)
+{
+    return (t == EXPR_NODE_CONST) || (t == EXPR_NODE_PARAM) || (t == EXPR_NODE_CSR_PARAM) ||
+           (t == EXPR_NODE_PL_ATTR) || (t == EXPR_NODE_SEQUENCE) || (t == EXPR_NODE_PRIOR);
+}
+
+static status_t certainty_visitor(visit_assist_t *va, expr_node_t **node)
+{
+    certainty_check_ctx_t ctx;
+    expr_node_type_t t;
+    if (!va->result0) {
+        return OG_SUCCESS;
+    }
+    ctx.pa = (plan_assist_t *)va->param0;
+    ctx.v_col = (var_column_t *)va->param1;
+    t = (*node)->type;
+    if (is_always_certain_type(t)) {
+        return OG_SUCCESS;
+    }
+    if (t == EXPR_NODE_COLUMN) {
+        va->result0 = check_column_certain(&ctx, *node);
+    } else if (t == EXPR_NODE_RESERVED) {
+        va->result0 = sql_reserved_word_indexable(ctx.pa, *node, ctx.v_col->tab);
+    } else if (t == EXPR_NODE_GROUP) {
+        va->result0 = check_group_certain(ctx.pa, *node);
+    } else if (t == EXPR_NODE_SELECT) {
+        va->result0 = check_select_certain(*node);
+    } else if (t == EXPR_NODE_V_ADDR) {
+        va->result0 = sql_pair_type_is_plvar(*node);
+    } else {
+        va->result0 = OG_FALSE;
+    }
+    return OG_SUCCESS;
+}
+
+bool32 sql_expr_is_certain(plan_assist_t *pa, expr_tree_t *expr, var_column_t *v_col)
+{
+    visit_assist_t va;
+    sql_init_visit_assist(&va, NULL, NULL);
+    va.param0 = pa;
+    va.param1 = v_col;
+    va.result0 = OG_TRUE;
+    va.excl_flags = VA_EXCL_PRIOR;
+    (void)visit_expr_tree(&va, expr, certainty_visitor);
+    return va.result0;
+}
+
+static bool32 is_rowid_ref(expr_tree_t *e, uint32 tid)
+{
+    expr_node_t *r = e->root;
+    return (r->type == EXPR_NODE_RESERVED) && (r->value.v_rid.res_id == RES_WORD_ROWID) && 
+           (r->value.v_rid.tab_id == tid);
+}
+
+bool32 sql_rowid_expr_matched(expr_tree_t *expr, uint32 table_id)
+{
+    return is_rowid_ref(expr, table_id);
+}
+
+bool32 sql_rowid_cmp_matched(plan_assist_t *pa, sql_table_t *table, var_column_t *v_col,
+                             expr_tree_t *l_expr, expr_tree_t *r_expr)
+{
+    return is_rowid_ref(l_expr, table->id) && sql_expr_is_certain(pa, r_expr, v_col);
+}
+
+status_t sql_fetch_expr_rowids(expr_tree_t *expr, plan_rowid_set_t *rid_set)
+{
+    expr_tree_t *cur;
+    for (cur = expr; cur != NULL; cur = cur->next) {
+        OG_RETURN_IFERR(sql_array_put(&rid_set->array, cur));
+    }
+    return OG_SUCCESS;
+}
+
+static bool32 is_rowid_in_cmp(cmp_type_t t)
+{
+    return (t == CMP_TYPE_IN) || (t == CMP_TYPE_EQUAL_ANY) || (t == CMP_TYPE_EQUAL_ALL);
+}
+
+static expr_tree_t *extract_rowid_expr(plan_assist_t *pa, sql_table_t *tbl, var_column_t *vc, cmp_node_t *cmp)
+{
+    expr_tree_t *l = cmp->left;
+    expr_tree_t *r = cmp->right;
+    if (is_rowid_in_cmp(cmp->type) || cmp->type == CMP_TYPE_EQUAL) {
+        if (sql_rowid_cmp_matched(pa, tbl, vc, l, r)) {
+            return r;
+        }
+    }
+    if (cmp->type == CMP_TYPE_EQUAL) {
+        if (sql_rowid_cmp_matched(pa, tbl, vc, r, l)) {
+            return l;
+        }
+    }
+    return NULL;
+}
+
+status_t sql_try_fetch_expr_rowid(sql_stmt_t *stmt, plan_assist_t *pa, sql_table_t *table,
+                                  cmp_node_t *node, plan_rowid_set_t *rid_set)
+{
+    var_column_t vc;
+    expr_tree_t *rid_expr;
+    CM_POINTER2(node, rid_set);
+    vc.tab = table->id;
+    vc.col = OG_INVALID_ID16;
+    vc.datatype = OG_TYPE_STRING;
+    rid_expr = extract_rowid_expr(pa, table, &vc, node);
+    if (rid_expr == NULL) {
+        rid_set->type = RANGE_LIST_FULL;
+        return OG_SUCCESS;
+    }
+    OG_RETURN_IFERR(sql_fetch_expr_rowids(rid_expr, rid_set));
+    rid_set->type = RANGE_LIST_NORMAL;
+    return OG_SUCCESS;
+}
+
+static status_t intersect_wrapper_fn(sql_stmt_t *s, plan_rowid_set_t *l, plan_rowid_set_t *r,
+                                      plan_rowid_set_t *o, bool32 temp)
+{
+    return sql_intersect_rowid_set(s, l, r, o);
+}
+
+static status_t process_binary_node(rowid_scan_ctx_t *c, cond_node_t *n, plan_rowid_set_t *out,
+                                     rowid_set_binary_op_t op)
+{
+    plan_rowid_set_t *ls = NULL;
+    plan_rowid_set_t *rs = NULL;
+    OG_RETURN_IFERR(sql_create_rowid_set(c->stmt, c->pa, c->table, n->left, &ls, c->is_temp));
+    OG_RETURN_IFERR(sql_create_rowid_set(c->stmt, c->pa, c->table, n->right, &rs, c->is_temp));
+    return op(c->stmt, ls, rs, out, c->is_temp);
+}
+
+static status_t create_rowid_set_impl(rowid_scan_ctx_t *ctx, cond_node_t *node, plan_rowid_set_t *result)
+{
+    if (node->type == COND_NODE_AND) {
+        return process_binary_node(ctx, node, result, intersect_wrapper_fn);
+    }
+    if (node->type == COND_NODE_OR) {
+        return process_binary_node(ctx, node, result, sql_union_rowid_set);
+    }
+    if (node->type == COND_NODE_TRUE) {
+        result->type = RANGE_LIST_FULL;
+        return OG_SUCCESS;
+    }
+    if (node->type == COND_NODE_FALSE) {
+        result->type = RANGE_LIST_EMPTY;
+        return OG_SUCCESS;
+    }
+    if (node->type == COND_NODE_COMPARE) {
+        return sql_try_fetch_expr_rowid(ctx->stmt, ctx->pa, ctx->table, node->cmp, result);
+    }
+    return OG_SUCCESS;
+}
+
+status_t sql_create_rowid_set(sql_stmt_t *stmt, plan_assist_t *pa, sql_table_t *table,
+                              cond_node_t *node, plan_rowid_set_t **plan_rid_set, bool32 is_temp)
+{
+    rowid_scan_ctx_t ctx;
+    OG_RETURN_IFERR(sql_init_plan_rowid_set(stmt, plan_rid_set, is_temp));
+    ctx.stmt = stmt;
+    ctx.pa = pa;
+    ctx.table = table;
+    ctx.is_temp = is_temp;
+    return create_rowid_set_impl(&ctx, node, *plan_rid_set);
+}
+
+static void set_full_scan_mode(sql_table_t *tbl)
+{
+    tbl->cost = RBO_COST_FULL_TABLE_SCAN;
+    tbl->scan_mode = SCAN_MODE_TABLE_FULL;
+    tbl->rowid_usable = OG_FALSE;
+    tbl->rowid_set = NULL;
+}
+
+static void set_rowid_scan_mode(sql_table_t *tbl, plan_rowid_set_t *set, bool32 is_temp)
+{
+    tbl->cost = RBO_COST_ROWID_SCAN;
+    tbl->scan_mode = SCAN_MODE_ROWID;
+    tbl->rowid_usable = OG_TRUE;
+    tbl->rowid_set = is_temp ? NULL : (void *)set;
+}
+
+status_t sql_get_rowid_cost(sql_stmt_t *stmt, plan_assist_t *pa, cond_node_t *cond,
+                            sql_table_t *table, bool32 is_temp)
+{
+    plan_rowid_set_t *set = NULL;
+    OG_RETURN_IFERR(sql_create_rowid_set(stmt, pa, table, cond, &set, is_temp));
+    if (set->type == RANGE_LIST_FULL) {
+        set_full_scan_mode(table);
+    } else {
+        set_rowid_scan_mode(table, set, is_temp);
+    }
+    return OG_SUCCESS;
+}
+
+static bool32 compare_plan_order(plan_assist_t *pa, uint32 src, uint32 dst)
+{
+    uint32 src_pid = pa->tables[src]->plan_id;
+    uint32 dst_pid = pa->tables[dst]->plan_id;
+    if (src_pid == dst_pid) {
+        return OG_TRUE;
+    }
+    return (src_pid < dst_pid) && chk_tab_with_oper_map(pa, src, dst);
+}
+
+bool32 check_rowid_certain(plan_assist_t *pa, expr_node_t *node, uint32 table_id)
+{
+    uint32 tab = ROWID_NODE_TAB(node);
+    if (ROWID_NODE_ANCESTOR(node) > 0) {
+        return !CBO_HAS_ONLY_FLAG(pa, CBO_CHECK_FILTER_IDX | CBO_CHECK_ANCESTOR_DRIVER);
+    }
+    if (CBO_HAS_FLAG(pa, CBO_CHECK_FILTER_IDX)) {
+        return OG_FALSE;
+    }
+    return compare_plan_order(pa, tab, table_id);
+}
+
+static expr_tree_t *find_rowid_peer(cmp_node_t *cmp, uint32 tid)
+{
+    expr_tree_t *l = cmp->left;
+    expr_tree_t *r = cmp->right;
+    if (!TREE_IS_RES_ROWID(l) || !TREE_IS_RES_ROWID(r)) {
+        return NULL;
+    }
+    if (ROWID_EXPR_TAB(l) == tid) {
+        return r;
+    }
+    if (ROWID_EXPR_TAB(r) == tid) {
+        return l;
+    }
+    return NULL;
+}
+
+bool32 check_rowid_cmp_certain(plan_assist_t *pa, cmp_node_t *cmp, uint32 tab_id)
+{
+    expr_tree_t *peer = find_rowid_peer(cmp, tab_id);
+    return (peer == NULL) ? OG_TRUE : check_rowid_certain(pa, peer->root, tab_id);
+}
+
+bool32 check_rowid_cond_certain(plan_assist_t *pa, cond_node_t *cond_node, uint32 tab_id)
+{
+    if (cond_node->type == COND_NODE_AND) {
+        return check_rowid_cond_certain(pa, cond_node->left, tab_id) &&
+               check_rowid_cond_certain(pa, cond_node->right, tab_id);
+    }
+    if (cond_node->type == COND_NODE_COMPARE && cond_node->cmp->type == CMP_TYPE_EQUAL) {
+        return check_rowid_cmp_certain(pa, cond_node->cmp, tab_id);
+    }
+    return OG_TRUE;
+}
+
+bool32 check_rowid_join_for_hash(plan_assist_t *pa, uint32 tab_id)
+{
+    return (pa->table_count == 1) || check_rowid_cond_certain(pa, pa->cond->root, tab_id);
+}
+
+static bool32 is_cbo_disabled(sql_stmt_t *stmt, sql_query_t *query)
+{
+    if (stmt->context->opt_by_rbo) {
+        return OG_TRUE;
+    }
+    if (!CBO_ON) {
+        stmt->context->opt_by_rbo = OG_TRUE;
+        return OG_TRUE;
+    }
+    if (HAS_SPEC_TYPE_HINT(query->hint_info, OPTIM_HINT, HINT_KEY_WORD_RULE)) {
+        stmt->context->opt_by_rbo = OG_TRUE;
+        return OG_TRUE;
+    }
+    return OG_FALSE;
+}
+
+static bool32 verify_table_stats(sql_stmt_t *stmt, sql_table_t *tbl)
+{
+    if (!is_analyzed_table(stmt, tbl)) {
+        stmt->context->opt_by_rbo = OG_TRUE;
+        return OG_FALSE;
+    }
+    return OG_TRUE;
+}
+
+static bool32 verify_all_tables_stats(sql_stmt_t *stmt, sql_query_t *query)
+{
+    uint32 i;
+    for (i = 0; i < query->tables.count; i++) {
+        if (!verify_table_stats(stmt, (sql_table_t *)sql_array_get(&query->tables, i))) {
+            return OG_FALSE;
+        }
+    }
+    return OG_TRUE;
+}
+
+bool32 sql_match_cbo_cond(sql_stmt_t *stmt, sql_table_t *table, sql_query_t *query)
+{
+    if (is_cbo_disabled(stmt, query)) {
+        return OG_FALSE;
+    }
+    if (table != NULL) {
+        (void)verify_table_stats(stmt, table);
+        return !stmt->context->opt_by_rbo;
+    }
+    return verify_all_tables_stats(stmt, query);
+}
+
+#define CBO_DEFAULT_INDEX_ROWID_PAGE_COST (double)0.20
+
+void cbo_check_rowid_cost(sql_stmt_t *stmt, plan_assist_t *pa, sql_table_t *table)
+{
+    if (!sql_match_cbo_cond(stmt, table, pa->query)) {
+        return;
+    }
+    table->cost = CBO_DEFAULT_INDEX_ROWID_PAGE_COST;
+    table->card = 1;
+}
+
+static bool32 check_rowid_hint(sql_table_t *tbl)
+{
+    if (!TABLE_HAS_ACCESS_METHOD_HINT(tbl)) {
+        return OG_TRUE;
+    }
+    return HAS_SPEC_TYPE_HINT(tbl->hint_info, INDEX_HINT, HINT_KEY_WORD_ROWID);
+}
+
+bool32 cbo_can_rowid_scan(plan_assist_t *pa, sql_table_t *table)
+{
+    if (pa->cond == NULL || !table->rowid_exists) {
+        return OG_FALSE;
+    }
+    if (!check_rowid_join_for_hash(pa, table->id)) {
+        return OG_FALSE;
+    }
+    return check_rowid_hint(table);
+}
+
+bool32 sql_try_choose_rowid_scan(plan_assist_t *pa, sql_table_t *table)
+{
+    if (!cbo_can_rowid_scan(pa, table)) {
+        return OG_FALSE;
+    }
+    if (sql_get_rowid_cost(pa->stmt, pa, pa->cond->root, table, OG_TRUE) != OG_SUCCESS) {
+        cm_reset_error();
+        return OG_FALSE;
+    }
+    if (table->scan_mode != SCAN_MODE_ROWID) {
+        return OG_FALSE;
+    }
+    cbo_check_rowid_cost(pa->stmt, pa, table);
+    return OG_TRUE;
+}
+
 static inline bool32 check_apply_table_full_scan(plan_assist_t *pa, sql_table_t *table)
 {
     if (HAS_SPEC_TYPE_HINT(table->hint_info, INDEX_HINT, HINT_KEY_WORD_FULL)) {
@@ -139,6 +655,10 @@ status_t sql_check_table_indexable(sql_stmt_t *stmt, plan_assist_t *pa, sql_tabl
     }
 
     OG_RETSUC_IFTRUE(table->remote_type != REMOTE_TYPE_LOCAL);
+
+    if (pa->table_count == 1) {
+        OG_RETSUC_IFTRUE(sql_try_choose_rowid_scan(pa, table));
+    }
 
     sql_init_table_indexable(table, NULL);
 
@@ -218,7 +738,13 @@ static status_t sql_create_scan_plan(sql_stmt_t *stmt, plan_assist_t *pa, cond_t
     scan_plan->cost = table->cost;
     scan_plan->start_cost = table->startup_cost;
     scan_plan->rows = table->card;
-
+    if (table->rowid_usable) {
+        if (table->rowid_set == NULL) {
+            OG_RETURN_IFERR(sql_create_rowid_set(stmt, pa, table, cond->root, (plan_rowid_set_t**)&table->rowid_set, OG_FALSE));
+        }
+        scan_plan->scan_p.rowid_set = (plan_rowid_set_t*)table->rowid_set;
+        return OG_SUCCESS;
+    }
     return sql_create_scan_ranges(stmt, pa, table, &scan_plan->scan_p);
 }
 
