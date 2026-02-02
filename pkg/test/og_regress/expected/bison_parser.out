@@ -4281,5 +4281,148 @@ SQL> alter system set use_bison_parser = false;
 Succeed.
 
 SQL> 
+SQL> 
+SQL> alter system set use_bison_parser = true;
 
+Succeed.
 
+SQL> CREATE TABLE bison_test (
+  2     id INT NOT NULL,
+  3     name CHAR(50),
+  4     job VARCHAR(30),
+  5     salary NUMBER
+  6 );
+
+Succeed.
+
+SQL> --success
+SQL> INSERT INTO bison_test VALUES (1, 'jack', 'teacher', 2000);
+
+1 rows affected.
+
+SQL> CREATE INDEX idx ON bison_test(id);
+
+Succeed.
+
+SQL> ALTER INDEX idx REBUILD;
+
+Succeed.
+
+SQL> ALTER INDEX idx UNUSABLE;
+
+Succeed.
+
+SQL> ALTER INDEX idx RENAME TO idx_id;
+
+Succeed.
+
+SQL> ALTER INDEX idx_id RENAME TO idx;
+
+Succeed.
+
+SQL> ALTER INDEX idx INITRANS 2;
+
+Succeed.
+
+SQL> 
+SQL> drop table bison_test;
+
+Succeed.
+
+SQL> CREATE TABLE sales (
+  2     id INT,
+  3     sale_date DATE,
+  4     amount NUMBER
+  5 )
+  6 PARTITION BY RANGE (sale_date) (
+  7     PARTITION p1 VALUES LESS THAN ('2024-01-01'),
+  8     PARTITION p2 VALUES LESS THAN ('2025-01-01'),
+  9     PARTITION p3 VALUES LESS THAN ('2026-  2 01-01')
+ 10 );
+
+Succeed.
+
+SQL> 
+SQL> INSERT INTO sales VALUES (1, '2023-06-15', 1000);
+
+1 rows affected.
+
+SQL> INSERT INTO sales VALUES (2, '2024-06-15', 2000);
+
+1 rows affected.
+
+SQL> INSERT INTO sales VALUES (3, '2025-06-15', 3000);
+
+1 rows affected.
+
+SQL> 
+SQL> CREATE INDEX global_idx ON sales(id);
+
+Succeed.
+
+SQL> CREATE INDEX local_idx ON sales(sale_date) LOCAL;
+
+Succeed.
+
+SQL> ALTER INDEX global_idx REBUILD;
+
+Succeed.
+
+SQL> ALTER INDEX global_idx UNUSABLE;
+
+Succeed.
+
+SQL> ALTER INDEX global_idx RENAME TO global_idx_new;
+
+Succeed.
+
+SQL> ALTER INDEX global_idx_new RENAME TO global_idx;
+
+Succeed.
+
+SQL> ALTER INDEX global_idx INITRANS 5;
+
+Succeed.
+
+SQL> ALTER INDEX local_idx REBUILD PARTITION p1;
+
+Succeed.
+
+SQL> ALTER INDEX local_idx REBUILD PARTITION p2;
+
+Succeed.
+
+SQL> ALTER INDEX local_idx MODIFY PARTITION p1 UNUSABLE;
+
+Succeed.
+
+SQL> ALTER INDEX local_idx MODIFY PARTITION p2 UNUSABLE;
+
+Succeed.
+
+SQL> ALTER INDEX local_idx MODIFY PARTITION p1 COALESCE;
+
+Succeed.
+
+SQL> ALTER INDEX local_idx MODIFY PARTITION p2 INITRANS 3;
+
+Succeed.
+
+SQL> ALTER INDEX global_idx UNUSABLE;
+
+Succeed.
+
+SQL> ALTER INDEX global_idx REBUILD;
+
+Succeed.
+
+SQL> 
+SQL> drop table sales;
+
+Succeed.
+
+SQL> alter system set use_bison_parser = false;
+
+Succeed.
+
+SQL> 
