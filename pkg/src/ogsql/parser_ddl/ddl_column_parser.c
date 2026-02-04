@@ -505,10 +505,25 @@ static status_t sql_try_parse_column_ex(sql_stmt_t *stmt, lex_t *lex, knl_column
     return sql_parse_col_ex_with_input_word(stmt, lex, column, word);
 }
 
+/*
+ * most reserved words can be used as column names when quoted with double quotes,
+ * but ROWID is an exception (note: "ROWID" is not allowed, but "rowid" is allowed).
+ *
+ */
+static inline status_t sql_check_quoted_col_name(word_t *word)
+{
+    if (word->type == WORD_TYPE_DQ_STRING) {
+        text_t rowid_text = {  "ROWID", 5 };
+        if (cm_compare_text((text_t *)&word->text, &rowid_text) == 0) {
+            return OG_ERROR;
+        }
+    }
+    return OG_SUCCESS;
+}
 
 static inline status_t sql_check_col_name_vaild(word_t *word)
 {
-    if (!IS_VARIANT(word)) {
+    if (!IS_VARIANT(word) || sql_check_quoted_col_name(word) != OG_SUCCESS) {
         OG_SRC_THROW_ERROR_EX(word->text.loc, ERR_SQL_SYNTAX_ERROR, "invalid column name '%s'", W2S(word));
         return OG_ERROR;
     }
