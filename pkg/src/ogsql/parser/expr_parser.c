@@ -1222,6 +1222,12 @@ static status_t sql_parse_orcl_typmod_bison(type_word_t *type, pmode_t pmod, typ
             typmode->size = sizeof(date_t);
             return OG_SUCCESS;
 
+        case DTYP_ROWID:
+            typmode->datatype = OG_TYPE_CHAR;
+            typmode->size = sizeof(char) * ROWID_LENGTH;
+            typmode->is_rowid_type = OG_TRUE;
+            return OG_SUCCESS;
+
         case DTYP_TIMESTAMP:
             return sql_parse_timestamp_mod_bison(type, typmode, pmod, typword);
 
@@ -1353,6 +1359,12 @@ static status_t sql_parse_orcl_typmod(lex_t *lex, pmode_t pmod, typmode_t *typmo
         case DTYP_DATE:
             typmode->datatype = OG_TYPE_DATE;
             typmode->size = sizeof(date_t);
+            return OG_SUCCESS;
+
+        case DTYP_ROWID:
+            typmode->datatype = OG_TYPE_CHAR;
+            typmode->size = sizeof(char) * ROWID_LENGTH;
+            typmode->is_rowid_type = OG_TRUE;
             return OG_SUCCESS;
 
         case DTYP_TIMESTAMP:
@@ -1503,6 +1515,12 @@ static status_t sql_parse_native_typmod(lex_t *lex, pmode_t pmod, typmode_t *typ
         case DTYP_DATE:
             typmode->datatype = OG_TYPE_DATE;
             typmode->size = sizeof(date_t);
+            return OG_SUCCESS;
+
+        case DTYP_ROWID:
+            typmode->datatype = OG_TYPE_CHAR;
+            typmode->size = sizeof(char) * ROWID_LENGTH;
+            typmode->is_rowid_type = OG_TRUE;
             return OG_SUCCESS;
 
         case DTYP_TIMESTAMP:
@@ -1656,6 +1674,12 @@ static status_t sql_parse_native_typmod_bison(char *user, type_word_t *type, pmo
         case DTYP_DATE:
             typmode->datatype = OG_TYPE_DATE;
             typmode->size = sizeof(date_t);
+            return OG_SUCCESS;
+
+        case DTYP_ROWID:
+            typmode->datatype = OG_TYPE_CHAR;
+            typmode->size = sizeof(char) * ROWID_LENGTH;
+            typmode->is_rowid_type = OG_TRUE;
             return OG_SUCCESS;
 
         case DTYP_TIMESTAMP:

@@ -71,6 +71,7 @@ typedef enum st_nologing_type {
 #define KNL_COLUMN_FLAG_DEFAULT_NULL   0x00000200 /* default text, empty string treated as '' or null */
 #define KNL_COLUMN_FLAG_ARRAY          0x00000400 /* column is an array */
 #define KNL_COLUMN_FLAG_JSONB          0x00000800 /* column is an jsonb, actually is blob */
+#define KNL_COLUMN_FLAG_ROWID_TYPE     0x00001000 /* column is rowid type */
 
 #define KNL_COLUMN_INVISIBLE(col) \
     ((col)->flags & (KNL_COLUMN_FLAG_HIDDEN | KNL_COLUMN_FLAG_DELETED | KNL_COLUMN_FLAG_VIRTUAL))
@@ -85,6 +86,7 @@ typedef enum st_nologing_type {
 #define KNL_COLUMN_IS_DEFAULT_NULL(col)   (((col)->flags & KNL_COLUMN_FLAG_DEFAULT_NULL) != 0)
 #define KNL_COLUMN_IS_ARRAY(col)          (((col)->flags & KNL_COLUMN_FLAG_ARRAY) != 0)
 #define KNL_COLUMN_IS_JSONB(col)          (((col)->flags & KNL_COLUMN_FLAG_JSONB) != 0)
+#define KNL_COLUMN_IS_ROWID_TYPE(col)     (((col)->flags & KNL_COLUMN_FLAG_ROWID_TYPE) != 0)
 
 /* mode of for update */
 typedef enum st_rowmark_type {

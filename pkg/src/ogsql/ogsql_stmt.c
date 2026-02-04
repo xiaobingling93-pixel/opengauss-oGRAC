@@ -6043,6 +6043,114 @@ status_t sql_convert_char(knl_session_t *session, variant_t *v, uint32 def_size,
     return OG_SUCCESS;
 }
 
+static int8 sql_char2base(char ch)
+{
+    /*
+    'A'-'Z': [0,25]
+    'a'-'z': [26,51]
+    '0'-'9': [52,61]
+    '+': 62
+    '/': 63
+    */
+    if ((ch >= 'A') && (ch <= 'Z')) {
+        return (ch - 'A');
+    } else if ((ch >= 'a') && (ch <= 'z')) {
+        return ((ch - 'a') + 26);
+    } else if ((ch >= '0') && (ch <= '9')) {
+        return ((ch - '0') + 52);
+    } else if (ch == '+') {
+        return 62;
+    } else if (ch == '/') {
+        return 63;
+    }
+    return -1;
+}
+
+static uint64 sql_get_rowid_parts_number(variant_t *var, uint32 left, uint32 right)
+{
+    uint64 result = 0;
+    for (uint32 i = left; i < right; i++) {
+        result = (result << ROWID_CHAR_BITS) ^ sql_char2base(var->v_text.str[i]);
+    }
+    return result;
+}
+
+static status_t sql_check_rowid_parts_is_valid(variant_t *var)
+{
+    uint32 left = 0;
+    uint32 right = ROWID_DATA_OBJECT_LEN;
+    uint64 data_object_number = sql_get_rowid_parts_number(var, left, right);
+    if (data_object_number >= (1LL << ROWID_DATA_OBJECT_BITS)) {
+        OG_THROW_ERROR_EX(ERR_TEXT_FORMAT_ERROR, "rowid. The Data Object Number can contain at most %d bits, "
+            "and the user input \"%.*s\" (which represents %llu) exceeds this range.",
+            ROWID_DATA_OBJECT_BITS, ROWID_DATA_OBJECT_LEN,
+            var->v_text.str + left, data_object_number);
+        return OG_ERROR;
+    }
+
+    left = right;
+    right += ROWID_RELATIVE_FILE_LEN;
+    uint64 relative_file_number = sql_get_rowid_parts_number(var, left, right);
+    if (relative_file_number >= (1LL << ROWID_RELATIVE_FILE_BITS)) {
+        OG_THROW_ERROR_EX(ERR_TEXT_FORMAT_ERROR, "rowid. The Relative File Number can contain at most %d bits, "
+            "and the user input \"%.*s\" (which represents %llu) exceeds this range.",
+            ROWID_RELATIVE_FILE_BITS, ROWID_RELATIVE_FILE_LEN,
+            var->v_text.str + left, relative_file_number);
+        return OG_ERROR;
+    }
+
+    left = right;
+    right += ROWID_BLOCK_NUMBER_LEN;
+    uint64 block_number = sql_get_rowid_parts_number(var, left, right);
+    if (block_number >= (1LL << ROWID_BLOCK_NUMBER_BITS)) {
+        OG_THROW_ERROR_EX(ERR_TEXT_FORMAT_ERROR, "rowid. The Block Number can contain at most %d bits, "
+            "and the user input \"%.*s\" (which represents %llu) exceeds this range.",
+            ROWID_BLOCK_NUMBER_BITS, ROWID_BLOCK_NUMBER_LEN,
+            var->v_text.str + left, block_number);
+        return OG_ERROR;
+    }
+
+    left = right;
+    right += ROWID_ROW_NUMBER_LEN;
+    uint64 row_number = sql_get_rowid_parts_number(var, left, right);
+    if (row_number >= (1LL << ROWID_ROW_NUMBER_BITS)) {
+        OG_THROW_ERROR_EX(ERR_TEXT_FORMAT_ERROR, "rowid. The Row Number can contain at most %d bits, "
+            "and the user input \"%.*s\" (which represents %llu) exceeds this range.",
+            ROWID_ROW_NUMBER_BITS, ROWID_ROW_NUMBER_LEN,
+            var->v_text.str + left, row_number);
+        return OG_ERROR;
+    }
+
+    return OG_SUCCESS;
+}
+
+status_t sql_check_rowid_type_is_valid(variant_t *var)
+{
+    bool32 is_null = true;
+    if (var->v_text.len != ROWID_LENGTH) {
+        OG_THROW_ERROR_EX(ERR_TEXT_FORMAT_ERROR, "rowid. "
+            "The rowid must be 18 characters long");
+        return OG_ERROR;
+    }
+    for (uint32 i = 0; i < ROWID_LENGTH; i++) {
+        char c = var->v_text.str[i];
+        if (~sql_char2base(c)) {
+            OG_THROW_ERROR_EX(ERR_TEXT_FORMAT_ERROR, "rowid. The rowid can only contain: "
+                "'A'-'Z', 'a'-'z', '1'-'9', '+', and '/', but '%c' was found.", c);
+            return OG_ERROR;
+        }
+        is_null &= (c == 'A');
+    }
+
+    if (is_null) {
+        OG_THROW_ERROR(ERR_TEXT_FORMAT_ERROR, "rowid. The data object number, relative file number, "
+            "block number, and row number cannot all be zero.");
+        return OG_ERROR;
+    }
+
+    return sql_check_rowid_parts_is_valid(var);
+}
+
 status_t sql_convert_char_cb(knl_handle_t session, text_t *text, uint32 def_size, bool32 is_char)
 {
     variant_t v;

@@ -128,6 +128,16 @@ extern const undo_rowid_t g_invalid_undo_rowid;
 /* to decide whether the ROWID is an invalid temp-table rowid */
 #define IS_INVALID_TEMP_TABLE_ROWID(rowid) ((uint32)((rowid)->vmid == OG_INVALID_ID32))
 
+#define ROWID_DATA_OBJECT_LEN     6
+#define ROWID_RELATIVE_FILE_LEN   3
+#define ROWID_BLOCK_NUMBER_LEN    6
+#define ROWID_ROW_NUMBER_LEN      3
+#define ROWID_CHAR_BITS           6
+#define ROWID_DATA_OBJECT_BITS    32
+#define ROWID_RELATIVE_FILE_BITS  10
+#define ROWID_BLOCK_NUMBER_BITS   22
+#define ROWID_ROW_NUMBER_BITS     15
+
 #define IS_SAME_PAGID(id1, id2)          ((id1).page == (id2).page && (id1).file == (id2).file)
 #define IS_SAME_PAGID_BY_ROWID(id1, id2) ((id1).page == (id2).page && (id1).file == (id2).file)
 #define IS_SAME_TEMP_PAGEID(id1, id2)    ((id1).vmid == (id2).vmid)
