@@ -1215,6 +1215,12 @@ create table t_reserverd_test(true int);
 create table t_reserverd_test(false int);
 create table t_reserverd_test(user int);
 
+--- quoted keyword can be column name, but "ROWID" is an exception
+drop table if exists t_reserverd_test;
+create table t_reserverd_test("rowid" int);
+drop table if exists t_reserverd_test;
+create table test4("ROWID" int);
+
 --test special no arg func
 create table t_special_no_arg_func(a varchar(100));
 insert into t_special_no_arg_func select curdate;

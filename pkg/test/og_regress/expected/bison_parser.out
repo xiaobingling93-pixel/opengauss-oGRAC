@@ -3932,6 +3932,23 @@ SQL> create table t_reserverd_test(user int);
 
 OG-00601, [1:31]Sql syntax error: invalid column name 'user'
 SQL> 
+SQL> --- quoted keyword can be column name, but "ROWID" is an exception
+SQL> drop table if exists t_reserverd_test;
+
+Succeed.
+
+SQL> create table t_reserverd_test("rowid" int);
+
+Succeed.
+
+SQL> drop table if exists t_reserverd_test;
+
+Succeed.
+
+SQL> create table test4("ROWID" int);
+
+OG-00601, [1:20]Sql syntax error: invalid column name 'ROWID'
+SQL> 
 SQL> --test special no arg func
 SQL> create table t_special_no_arg_func(a varchar(100));
 
