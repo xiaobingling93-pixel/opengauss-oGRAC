@@ -194,7 +194,7 @@ static inline void cm_combine_datetime_typmode(const typmode_t *tm1, const typmo
 {
     tmr->datatype = (get_datatype_weight(tm1->datatype) > get_datatype_weight(tm2->datatype)) ? tm1->datatype :
         tm2->datatype;
-    tmr->size = 8;
+    tmr->size = MAX(tm1->size, tm2->size);
     tmr->precision = MAX(tm1->precision, tm2->precision);
 }
 

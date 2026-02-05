@@ -225,128 +225,201 @@ status_t sql_verify_query_distinct(sql_verifier_t *verif, sql_query_t *query)
     return OG_SUCCESS;
 }
 
-static void sql_verify_select_rs_column_precision(rs_column_t *select_rs_col, rs_column_t *query_rs_col)
+static void og_sql_combine_str_type_mod_func(rs_column_t *rs_column_slct, rs_column_t *rs_column_qry)
 {
-    if (OG_IS_NUMBER_TYPE(select_rs_col->datatype)) {
-        if (select_rs_col->size != query_rs_col->size || select_rs_col->precision != query_rs_col->precision ||
-            select_rs_col->scale != query_rs_col->scale) {
-            if (OG_IS_NUMBER2_TYPE(select_rs_col->datatype)) {
-                select_rs_col->size = MAX_DEC2_BYTE_SZ;
-            } else {
-                select_rs_col->size = MAX_DEC_BYTE_SZ;
-            }
-            select_rs_col->precision = OG_UNSPECIFIED_NUM_PREC;
-            select_rs_col->scale = OG_UNSPECIFIED_NUM_SCALE;
-        }
-    } else if (OG_IS_DOUBLE_TYPE(select_rs_col->datatype)) {
-        select_rs_col->size = sizeof(double);
-        select_rs_col->precision = OG_UNSPECIFIED_NUM_PREC;
-        select_rs_col->scale = OG_UNSPECIFIED_NUM_SCALE;
-    } else if (OG_IS_DATETIME_TYPE(select_rs_col->datatype)) {
-        select_rs_col->typmod.precision = MAX(select_rs_col->typmod.precision, query_rs_col->typmod.precision);
-    } else if (OG_IS_YMITVL_TYPE2(select_rs_col->datatype, query_rs_col->datatype)) {
-        select_rs_col->typmod.year_prec = MAX(select_rs_col->typmod.year_prec, query_rs_col->typmod.year_prec);
-    } else if (OG_IS_DSITVL_TYPE2(select_rs_col->datatype, query_rs_col->datatype)) {
-        select_rs_col->typmod.day_prec = MAX(select_rs_col->typmod.day_prec, query_rs_col->typmod.day_prec);
-        select_rs_col->typmod.frac_prec = MAX(select_rs_col->typmod.frac_prec, query_rs_col->typmod.frac_prec);
+    if (rs_column_slct->datatype != rs_column_qry->datatype) {
+        rs_column_slct->datatype = OG_TYPE_STRING;
     }
+    
+    if (!rs_column_slct->typmod.is_char && rs_column_qry->typmod.is_char) {
+        rs_column_slct->size = MAX(rs_column_slct->size,
+            MIN(rs_column_qry->size * OG_CHAR_TO_BYTES_RATIO, OG_MAX_COLUMN_SIZE));
+        return;
+    }
+
+    rs_column_slct->size = MAX(rs_column_slct->size, rs_column_qry->size);
+    return;
 }
 
-// NUMBER/DECIMAL and NUMBER2 -> NUMBER/DECIMAL
-// UINT32 and NUMBER2 -> NUMBER2
-// Other cases are consistent with NUMBER
-static void sql_combine_number2_typmod(rs_column_t *select_rs_col, rs_column_t *query_rs_col)
+static void og_verify_slect_rs_string_type(rs_column_t *rs_column_slct, rs_column_t *rs_column_qry)
 {
-    if (OG_IS_NUMBER2_TYPE(query_rs_col->datatype)) {
-        if (OG_IS_DECIMAL_TYPE(select_rs_col->datatype) ||
-            (select_rs_col->datatype > OG_TYPE_NUMBER && select_rs_col->datatype != OG_TYPE_UINT32)) {
-            return;
-        }
-    } else {  // OG_IS_NUMBER2_TYPE(select_rs_col->datatype)
-        if (query_rs_col->datatype < OG_TYPE_NUMBER ||
-            (query_rs_col->datatype > OG_TYPE_NUMBER && query_rs_col->datatype == OG_TYPE_UINT32)) {
-            return;
-        }
-    }
+    uint16 res_size = 0;
+    uint16 qry_rs_size = 0;
+    uint16 selct_rs_size = 0;
 
-    select_rs_col->datatype = query_rs_col->datatype;
-    if (select_rs_col->size < query_rs_col->size) {
-        select_rs_col->size = query_rs_col->size;
-    }
-}
-
-static void sql_combine_string_typmod(rs_column_t *select_rs_col, rs_column_t *query_rs_col)
-{
-    if (select_rs_col->datatype != query_rs_col->datatype) {
-        select_rs_col->datatype = OG_TYPE_STRING;
-    }
-    if (!select_rs_col->typmod.is_char && query_rs_col->typmod.is_char) {
-        uint32 byte_size = MIN(query_rs_col->size * OG_CHAR_TO_BYTES_RATIO, OG_MAX_COLUMN_SIZE);
-        select_rs_col->size = MAX(select_rs_col->size, byte_size);
+    if (OG_IS_STRING_TYPE(rs_column_qry->datatype) && rs_column_qry->typmod.is_char) {
+        selct_rs_size = (uint16)cm_get_datatype_strlen(rs_column_slct->datatype, rs_column_slct->size);
+        res_size = MAX(MIN(rs_column_qry->size * OG_CHAR_TO_BYTES_RATIO, OG_MAX_COLUMN_SIZE), selct_rs_size);
+    } else if (OG_IS_STRING_TYPE(rs_column_slct->datatype) && rs_column_slct->typmod.is_char) {
+        qry_rs_size = (uint16)cm_get_datatype_strlen(rs_column_qry->datatype, rs_column_qry->size);
+        res_size = ((rs_column_slct->size * OG_CHAR_TO_BYTES_RATIO) > qry_rs_size) ? rs_column_slct->size : qry_rs_size;
     } else {
-        select_rs_col->size = MAX(select_rs_col->size, query_rs_col->size);
+        qry_rs_size = (uint16)cm_get_datatype_strlen(rs_column_qry->datatype, rs_column_qry->size);
+        selct_rs_size = (uint16)cm_get_datatype_strlen(rs_column_slct->datatype, rs_column_slct->size);
+        res_size = MAX(selct_rs_size, qry_rs_size);
     }
+
+    (!OG_IS_STRING_TYPE(rs_column_slct->datatype)) && (rs_column_slct->typmod.mode = 0);
+
+    rs_column_slct->size = MAX(rs_column_slct->size, res_size);
+    rs_column_slct->datatype = OG_TYPE_STRING;
+    return;
 }
 
-static void sql_verify_select_rs_datatype(rs_column_t *select_rs_col, rs_column_t *query_rs_col)
+static void og_verify_slect_rs_binary_size(rs_column_t *rs_column_slct, rs_column_t *rs_column_qry)
 {
-    uint16 size = 0;
-    uint16 size2 = 0;
-
-    if ((OG_IS_STRING_TYPE(select_rs_col->datatype) && OG_IS_CLOB_TYPE(query_rs_col->datatype)) ||
-        (OG_IS_STRING_TYPE(query_rs_col->datatype) && OG_IS_CLOB_TYPE(select_rs_col->datatype))) {
-        select_rs_col->datatype = OG_TYPE_CLOB;
-    } else if (OG_IS_STRING_TYPE2(select_rs_col->datatype, query_rs_col->datatype)) {
-        sql_combine_string_typmod(select_rs_col, query_rs_col);
+    if (OG_IS_STRING_TYPE(rs_column_slct->datatype) && rs_column_slct->typmod.is_char) {
+        uint16 size = MIN(rs_column_slct->size * OG_CHAR_TO_BYTES_RATIO, OG_MAX_COLUMN_SIZE);
+        rs_column_slct->size = MAX(size, rs_column_qry->size);
         return;
-    } else if (OG_IS_STRING_TYPE(select_rs_col->datatype) || OG_IS_STRING_TYPE(query_rs_col->datatype)) {
-        size = (uint16)cm_get_datatype_strlen(query_rs_col->datatype, query_rs_col->size);
-        size2 = (uint16)cm_get_datatype_strlen(select_rs_col->datatype, select_rs_col->size);
-        size = MAX(size, size2);
-        if (select_rs_col->datatype != query_rs_col->datatype) {
-            select_rs_col->datatype = OG_TYPE_STRING;
+    }
+
+    if (OG_IS_STRING_TYPE(rs_column_qry->datatype) && rs_column_qry->typmod.is_char) {
+        uint16 size = MIN(rs_column_qry->size * OG_CHAR_TO_BYTES_RATIO, OG_MAX_COLUMN_SIZE);
+        rs_column_slct->size = MAX(size, rs_column_slct->size);
+        return;
+    }
+
+    uint16 qry_rs_size = (uint16)cm_get_datatype_strlen(rs_column_qry->datatype, rs_column_qry->size);
+    uint16 selct_rs_size = (uint16)cm_get_datatype_strlen(rs_column_slct->datatype, rs_column_slct->size);
+    rs_column_slct->size = MAX(qry_rs_size, selct_rs_size);
+    return;
+}
+
+static inline bool32 is_varlen_str_type(og_type_t datatype)
+{
+    return datatype == OG_TYPE_VARCHAR || datatype == OG_TYPE_STRING;
+}
+
+static void og_verify_slect_rs_binary_type(rs_column_t *rs_column_slct, rs_column_t *rs_column_qry)
+{
+    og_verify_slect_rs_binary_size(rs_column_slct, rs_column_qry);
+
+    if (is_varlen_str_type(rs_column_slct->datatype) || is_varlen_str_type(rs_column_qry->datatype)) {
+        rs_column_slct->datatype = OG_TYPE_VARBINARY;
+        return;
+    }
+
+    if (OG_IS_BINARY_TYPE(rs_column_qry->datatype)) {
+        rs_column_slct->datatype = rs_column_qry->datatype;
+        return;
+    }
+
+    return;
+}
+
+static void og_verify_slect_rs_raw_type(rs_column_t *rs_column_slct, rs_column_t *rs_column_qry)
+{
+    og_verify_slect_rs_binary_size(rs_column_slct, rs_column_qry);
+    rs_column_slct->datatype = OG_TYPE_RAW;
+    return;
+}
+
+// Cols from different queries may have different types, need to adjust the datatype and ensure consistent result set.
+// such as 'select col(char) from t1 union select col(lob) from t2' --> result col is lob,
+// 'select NULL from t1 union select col(varchar) from t2' --> result col is varchar
+static void og_verify_select_rs_typmod(rs_column_t *rs_column_slct, rs_column_t *rs_column_qry)
+{
+    typmode_t combined_typemod = {0};
+    bool32 is_select_null = RS_COLUMN_IS_RESERVED_NULL(rs_column_slct);
+    bool32 is_query_null = RS_COLUMN_IS_RESERVED_NULL(rs_column_qry);
+
+    // If select col is NULL (no actual type), use the query column type.
+    if (is_select_null) {
+        rs_column_slct->typmod = rs_column_qry->typmod;
+        return;
+    }
+
+    // If query col is NULL, use the select column type directly.
+    OG_RETVOID_IFTRUE(is_query_null);
+
+    if (OG_IS_STRING_TYPE2(rs_column_slct->datatype, rs_column_qry->datatype)) {
+        og_sql_combine_str_type_mod_func(rs_column_slct, rs_column_qry);
+        return;
+    }
+
+    if (OG_SUCCESS != cm_combine_typmode(rs_column_slct->typmod, is_select_null, rs_column_qry->typmod,
+        is_query_null, &combined_typemod)) {
+        cm_reset_error();
+    } else {
+        rs_column_slct->typmod = combined_typemod;
+        return;
+    }
+
+    bool32 slct_is_lob = OG_IS_LOB_TYPE(rs_column_slct->datatype);
+    bool32 qry_is_lob = OG_IS_LOB_TYPE(rs_column_qry->datatype);
+    if (slct_is_lob || qry_is_lob) {
+        rs_column_slct->datatype = qry_is_lob ? rs_column_qry->datatype : rs_column_slct->datatype;
+        return;
+    }
+
+    bool32 slct_is_raw = OG_IS_RAW_TYPE(rs_column_slct->datatype);
+    bool32 qry_is_raw = OG_IS_RAW_TYPE(rs_column_qry->datatype);
+    if (slct_is_raw || qry_is_raw) {
+        og_verify_slect_rs_raw_type(rs_column_slct, rs_column_qry);
+        return;
+    }
+
+    bool32 slct_is_bin = OG_IS_BINARY_TYPE(rs_column_slct->datatype);
+    bool32 qry_is_bin = OG_IS_BINARY_TYPE(rs_column_qry->datatype);
+    if (slct_is_bin || qry_is_bin) {
+        og_verify_slect_rs_binary_type(rs_column_slct, rs_column_qry);
+        return;
+    }
+
+    bool32 slct_is_str = OG_IS_STRING_TYPE(rs_column_slct->datatype);
+    bool32 qry_is_str = OG_IS_STRING_TYPE(rs_column_qry->datatype);
+    if (slct_is_str || qry_is_str) {
+        og_verify_slect_rs_string_type(rs_column_slct, rs_column_qry);
+        return;
+    }
+
+    bool32 slct_is_bool = OG_IS_BOOLEAN_TYPE(rs_column_slct->datatype);
+    bool32 qry_is_bool = OG_IS_BOOLEAN_TYPE(rs_column_qry->datatype);
+    if (slct_is_bool || qry_is_bool) {
+        rs_column_slct->size = OG_MAX_BOOL_STRLEN;
+        rs_column_slct->datatype = OG_TYPE_BOOLEAN;
+    }
+
+    return;
+}
+
+static bool32 og_selct_rs_datatype_matched(const typmode_t *select_rs_typmod, const typmode_t *query_rs_typmod)
+{
+    OG_RETVALUE_IFTRUE(select_rs_typmod->is_array != query_rs_typmod->is_array, OG_FALSE);
+
+    OG_RETVALUE_IFTRUE(!var_datatype_matched(select_rs_typmod->datatype, query_rs_typmod->datatype) &&
+        !var_datatype_matched(query_rs_typmod->datatype, select_rs_typmod->datatype), OG_FALSE);
+
+    OG_RETVALUE_IFTRUE(OG_IS_LOB_TYPE(select_rs_typmod->datatype) && OG_IS_LOB_TYPE(query_rs_typmod->datatype) &&
+        select_rs_typmod->datatype != query_rs_typmod->datatype, OG_FALSE);
+
+    return OG_TRUE;
+}
+
+static status_t sql_verify_slect_rs_col(sql_verifier_t *verif, sql_query_t *query, uint32 col_idx)
+{
+    rs_column_t *rs_column_qry = (rs_column_t *)cm_galist_get(query->rs_columns, col_idx);
+    rs_column_t *rs_column_slct = (rs_column_t *)cm_galist_get(query->owner->rs_columns, col_idx);
+
+    if (!og_selct_rs_datatype_matched(&rs_column_slct->typmod, &rs_column_qry->typmod)) {
+        if (rs_column_slct->datatype == OG_TYPE_CURSOR || rs_column_qry->datatype == OG_TYPE_CURSOR) {
+            OG_SRC_THROW_ERROR(query->loc, ERR_SQL_SYNTAX_ERROR, "unexpected cursor expression");
+            return OG_ERROR;
         }
-    } else if ((select_rs_col->datatype == OG_TYPE_UINT32 && query_rs_col->datatype == OG_TYPE_INTEGER) ||
-               (select_rs_col->datatype == OG_TYPE_INTEGER && query_rs_col->datatype == OG_TYPE_UINT32)) {
-        select_rs_col->datatype = OG_TYPE_BIGINT;
-        select_rs_col->size = OG_BIGINT_SIZE;
-    } else if (OG_IS_NUMBER2_TYPE(select_rs_col->datatype) || OG_IS_NUMBER2_TYPE(query_rs_col->datatype)) {
-        sql_combine_number2_typmod(select_rs_col, query_rs_col);
-        return;
-    } else if ((select_rs_col->datatype <= query_rs_col->datatype && query_rs_col->datatype != OG_TYPE_UINT32) ||
-               select_rs_col->datatype == OG_TYPE_UINT32) {
-        select_rs_col->datatype = query_rs_col->datatype;
-        size = query_rs_col->size;
-    }
-
-    if (select_rs_col->size < size) {
-        select_rs_col->size = size;
-    }
-}
-
-static status_t sql_verify_select_rs_column(sql_verifier_t *verif, sql_query_t *query, uint32 i)
-{
-    rs_column_t *select_rs_col = (rs_column_t *)cm_galist_get(query->owner->rs_columns, i);
-    rs_column_t *query_rs_col = (rs_column_t *)cm_galist_get(query->rs_columns, i);
-
-    if (select_rs_col->typmod.is_array != query_rs_col->typmod.is_array ||
-        !var_datatype_matched(query_rs_col->datatype, select_rs_col->datatype)) {
         OG_SRC_THROW_ERROR(query->loc, ERR_SQL_SYNTAX_ERROR,
-                           "expression must have same datatype as corresponding expression");
+            "expression must have same datatype as corresponding expression");
         return OG_ERROR;
     }
 
-    if ((verif->has_union || verif->has_minus || verif->has_except_intersect) && (select_rs_col->typmod.is_array)) {
-        OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "unexpected array expression");
-        return OG_ERROR;
+    if (verif->has_union || verif->has_minus || verif->has_except_intersect) {
+        if (rs_column_slct->typmod.is_array) {
+            OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "unexpected array expression");
+            return OG_ERROR;
+        }
     }
 
-    sql_verify_select_rs_datatype(select_rs_col, query_rs_col);
-
-    /* the precision and scale of NUMBER/DECIMAL/NUMERIC should be zero,
-       the precision of TIMESTAMP WITH TIME ZONE/TIMESTAMP WITH LOCAL TIME ZONE/TIMESTAMP/DATE should be the
-       bigger one */
-    sql_verify_select_rs_column_precision(select_rs_col, query_rs_col);
+    og_verify_select_rs_typmod(rs_column_slct, rs_column_qry);
     return OG_SUCCESS;
 }
 
@@ -369,7 +442,7 @@ static status_t sql_verify_select_rs_columns(sql_verifier_t *verif, sql_query_t 
     }
 
     for (uint32 i = 0; i < query->owner->rs_columns->count; ++i) {
-        OG_RETURN_IFERR(sql_verify_select_rs_column(verif, query, i));
+        OG_RETURN_IFERR(sql_verify_slect_rs_col(verif, query, i));
     }
 
     if (query->owner->type == SELECT_AS_RESULT) {

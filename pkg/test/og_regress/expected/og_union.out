@@ -564,31 +564,31 @@ SQL> desc -q select NULL X from dual union select 1.0 from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(72 BYTE)                    
+X                                            NUMBER                              
 
 SQL> desc -q select NULL X from dual union select cast(2.3 as number(30, 2)) from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(72 BYTE)                    
+X                                            NUMBER(30, 2)                       
 
 SQL> desc -q select NULL X from dual union select sysdate from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(48 BYTE)                    
+X                                            DATE                                
 
 SQL> desc -q select NULL X from dual union select 'asdasdasd' from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(9 BYTE)                     
+X                                            CHAR(9 BYTE)                        
 
 SQL> desc -q select NULL X from dual union select 'asdasdasd' from dual union select NULL from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(9 BYTE)                     
+X                                            CHAR(9 BYTE)                        
 
 SQL> desc -q select NULL X from dual union select NULL from dual;
 
@@ -600,7 +600,7 @@ SQL> desc -q select 'asdasdasd' X from dual union select NULL from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(9 BYTE)                     
+X                                            CHAR(9 BYTE)                        
 
 SQL> desc -q select 'asdasdasd' X from dual union select NULL from dual union select to_char(sin(1)) from dual;
 
@@ -648,7 +648,7 @@ SQL> desc -q select NULL X from dual union select '' + 1 from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(72 BYTE)                    
+X                                            NUMBER                              
 
 SQL> desc -q select '' X from dual union select '' + 1 from dual;
 
@@ -660,19 +660,19 @@ SQL> desc -q select '' X from dual minus select '' from dual union select NULL f
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR                             
+X                                            CHAR                                
 
 SQL> desc -q select '' X from dual minus select '1' from dual union select NULL from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(1 BYTE)                     
+X                                            CHAR(1 BYTE)                        
 
 SQL> desc -q select '2' X from dual minus select '1' from dual union select NULL from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(1 BYTE)                     
+X                                            CHAR(1 BYTE)                        
 
 SQL> desc -q select '2' X from dual minus select '1' from dual union select '' from dual;
 
@@ -696,7 +696,7 @@ SQL> desc -q select null - null X from dual minus select null from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(72 BYTE)                    
+X                                            NUMBER                              
 
 SQL> desc -q select null - null X from dual minus select null || null from dual;
 
@@ -750,31 +750,31 @@ SQL> desc -q select cast(dummy as number(38)) X from dual minus select NULL from
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(72 BYTE)                    
+X                                            NUMBER(38)                          
 
 SQL> desc -q select cast(dummy as number(38)) X from dual minus select NULL from dual union select NULL from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(72 BYTE)                    
+X                                            NUMBER(38)                          
 
 SQL> desc -q select (select to_date('') from dual) X from dual minus select NULL from dual union select NULL from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(48 BYTE)                    
+X                                            DATE                                
 
 SQL> desc -q select (select to_date('') from dual) X from dual minus select NULL from dual union select systimestamp(0) from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(48 BYTE)                    
+X                                            TIMESTAMP(0) WITH TIME ZONE         
 
 SQL> desc -q select X from (select to_date('') X from dual) minus select NULL from dual union select systimestamp(2) from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(48 BYTE)                    
+X                                            TIMESTAMP(2) WITH TIME ZONE         
 
 SQL> 
 SQL> 
@@ -1022,7 +1022,7 @@ SQL> desc -q select cast('1' as raw(100)) X from dual union select '123' from du
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(3 BYTE)                     
+X                                            RAW(3)                              
 
 SQL> create or replace view UNION_VIEW_TEST1 as select NULL || cast('1' as char(100)) X from dual union select '123' from dual;
 
@@ -1105,7 +1105,7 @@ SQL> desc -q select cast('123' as binary(30)) X from dual union select cast('123
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(30 BYTE)                    
+X                                            BINARY(30)                          
 
 SQL> desc -q select cast('123' as binary(30)) X from dual union select cast('123' as raw(30)) from dual;
 
@@ -1118,13 +1118,13 @@ SQL> desc -q select interval '12-1' year to month X from dual union select NULL 
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(10 BYTE)                    
+X                                            INTERVAL YEAR(2) TO MONTH           
 
 SQL> desc -q select null from dual union select interval '12-1' year to month X from dual union select NULL from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-NULL                                         VARCHAR(10 BYTE)                    
+NULL                                         INTERVAL YEAR(2) TO MONTH           
 
 SQL> desc -q select interval '12-1' year(2) to month X from dual union select interval '123-1' year(4) to month from dual;
 
@@ -1154,7 +1154,7 @@ SQL> desc -q select null from dual union select interval '0 0:0:1' day to second
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-NULL                                         VARCHAR(24 BYTE)                    
+NULL                                         INTERVAL DAY(2) TO SECOND(6)        
 
 SQL> desc -q select numtodsinterval(999999, 'second') H from dual union select interval '0 0:0:1' day to second X from dual;
 
@@ -1258,32 +1258,32 @@ SQL> desc -q select -null X from dual minus select null from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(72 BYTE)                    
+X                                            NUMBER                              
 
 SQL> desc -q select -null X from dual minus select +null from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-X                                            VARCHAR(72 BYTE)                    
+X                                            NUMBER                              
 
 SQL> 
 SQL> desc -q select null from dual union select null from dual union select 2.3 from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-NULL                                         VARCHAR(72 BYTE)                    
+NULL                                         NUMBER                              
 
 SQL> desc -q select null from dual union select null from dual union select 2.3 from dual minus select null from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-NULL                                         VARCHAR(72 BYTE)                    
+NULL                                         NUMBER                              
 
 SQL> desc -q select null from dual union select null from dual union select 'abcd' from dual minus select null from dual union select 'hijklmn' from dual;
 
 Name                                Null?    Type                                
 ----------------------------------- -------- ------------------------------------
-NULL                                         VARCHAR(7 BYTE)                     
+NULL                                         CHAR(7 BYTE)                        
 
 SQL> 
 SQL> -- testing for BOOLEAN union
