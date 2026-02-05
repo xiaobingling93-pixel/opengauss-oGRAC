@@ -608,6 +608,7 @@ static status_t sql_open_table_cursor(sql_stmt_t *stmt, sql_cursor_t *cursor, sq
         OG_RETURN_IFERR(sql_convert_to_scn(stmt, table->version.expr, scn_type, &table_cur->scn));
     }
 
+    is_select = is_select && cursor->select_ctx;
     if (OG_IS_SUBSELECT_TABLE(table->type)) {
         OG_RETURN_IFERR(sql_alloc_cursor(stmt, &table_cur->sql_cur));
         table_cur->sql_cur->scn = table_cur->scn;

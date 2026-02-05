@@ -523,6 +523,8 @@ knl_global_syncpoint_def g_knl_syncpoint[] = {
       knl_syncpoint_inject_errcode, 0 },
     { CTC_SQL_ALLOC_CONTEXT_FAIL, OG_FALSE, "CTC_SQL_ALLOC_CONTEXT_FAIL", 0,
       knl_syncpoint_inject_errcode, 0 },
+    { CBO_CANNOT_REWRITE_BY_INDEX, OG_FALSE, "CBO_CANNOT_REWRITE_BY_INDEX", 0,
+      knl_syncpoint_inject_errcode, 0 },
 };
 
 #define KNL_SYNCPOINT_COUNT (sizeof(g_knl_syncpoint) / sizeof(g_knl_syncpoint[0]))

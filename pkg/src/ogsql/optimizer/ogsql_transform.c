@@ -32,6 +32,7 @@
 #include "ogsql_cond_rewrite.h"
 #include "ogsql_plan.h"
 #include "ogsql_subquery_rewrite.h"
+#include "ogsql_hash_mtrl_rewrite.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -199,6 +200,9 @@ status_t ogsql_apply_rule_set_2(sql_stmt_t *statement, sql_query_t *qry)
     OG_RETURN_IFERR(ogsql_tranf_table_type(statement, qry));
     // transform sub-select to table
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_subquery_rewrite);
+    
+    // transform sub_select by hash mtrl.
+    OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_var_subquery_rewrite);
     return OG_SUCCESS;
 }
 

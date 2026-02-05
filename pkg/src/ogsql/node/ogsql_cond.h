@@ -119,6 +119,26 @@ typedef struct st_join_cond {
 } join_cond_t;
 /* * Evaluate an expression tree of a compare node */
 
+typedef enum en_collect_type {
+    COLL_TYPE_IGNORE = 0,     // Ignore Mode: Ignore specific conditions
+    COLL_TYPE_TRAVERSAL,      // Traversal Mode: Collect each condition individually
+    COLL_TYPE_OVERALL,        // Overall Mode: Collect every condition
+} collect_type_t;
+
+typedef struct st_cond_collect_helper {
+    sql_stmt_t *statement;
+    void *p_arg0;
+    void *p_arg1;
+    void *p_arg2;
+    void **pp_arg0;
+    uint32 arg0;
+    uint32 arg1;
+    galist_t *cond;
+    collect_type_t type;
+    bool32 is_stoped;
+    bool32 cptr_false;
+} cond_collect_helper_t;
+
 #define SQL_EXEC_CMP_OPERAND(expr, var, res, pending, stmt)       \
     do {                                                          \
         if (sql_exec_expr((stmt), (expr), (var)) != OG_SUCCESS) { \
@@ -198,6 +218,10 @@ status_t sql_exec_escape_character(expr_tree_t *expr, variant_t *var, char *esca
 status_t sql_try_simplify_new_cond(sql_stmt_t *stmt, cond_node_t *cond);
 join_tbl_bitmap_t sql_collect_table_ids_in_expr(expr_tree_t *expr, galist_t *outer_rels_list, uint8 *check);
 join_tbl_bitmap_t sql_collect_table_ids_in_cond(cond_node_t *cond_node, galist_t *outer_rels_list, uint8 *check);
+
+status_t traverse_and_collect_conds(cond_collect_helper_t *cond_collector, cond_node_t *node);
+status_t cond_collector_init(cond_collect_helper_t *cond_context, sql_stmt_t *statement,
+                             ga_alloc_func_t alloc_func);
 
 // compare node can be pushed up and used as join condition:
 // 1.expr1 (flag==HAS_PARENT_COLS) = expr2(flag==HAS_SELF_COLS)
