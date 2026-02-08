@@ -28,12 +28,12 @@ function packageTarget() {
   mkdir -p ${OGRAC_IMAGE}
   mv -f ograc.tar.gz ${OGRAC_IMAGE}
   cd ${CURRENT_PATH}
-  bash "${CURRENT_PATH}"/rpm_build_ograc.sh
+  bash "${CURRENT_PATH}"/packet_build_ograc.sh
 }
 
 function buildCtOmPackage() {
   bash "${CURRENT_PATH}"/build_ograc_om.sh
-  bash "${CURRENT_PATH}"/rpm_build_og_om.sh
+  bash "${CURRENT_PATH}"/packet_build_og_om.sh
   if [ $? -ne 0 ]; then
       echo "build og_om fail"
       return 1
@@ -58,8 +58,8 @@ function newPackageTarget() {
   ls -la
   mkdir -p ${pkg_real_path}/{action,repo,config,common,dss,odbc}
   cp -arf "${CURRENT_PATH}"/versions.yml ${pkg_real_path}/
-  cp -arf "${OGRACDB_BIN}"/rpm/RPMS/"${ENV_TYPE}"/ograc*.rpm ${pkg_real_path}/repo/
-  cp -arf "${OGDB_CODE_PATH}"/temp/og_om/rpm/RPMS/"${ENV_TYPE}"/og_om*.rpm ${pkg_real_path}/repo/
+  cp -arf "${OGRACDB_BIN}"/ograc*.tar.gz ${pkg_real_path}/repo/
+  cp -arf "${OGDB_CODE_PATH}"/temp/og_om/og_om*.tar.gz ${pkg_real_path}/repo/
   cp -arf "${OGDB_CODE_PATH}"/pkg/deploy/action/* ${pkg_real_path}/action/
   cp -arf "${OGDB_CODE_PATH}"/pkg/deploy/config/* ${pkg_real_path}/config/
   cp -arf "${OGDB_CODE_PATH}"/common/* ${pkg_real_path}/common/

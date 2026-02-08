@@ -116,6 +116,6 @@ if [ "$ograc_in_container" -eq 0 ]; then
 fi
 
 chmod 660 /dev/shm/ograc* > /dev/null 2>&1
-chown -hR "${ograc_user}":"${deploy_group}" /dev/shm/ograc*
+chown -hR "${ograc_user}":"${deploy_group}" /dev/shm/ograc* > /dev/null 2>&1
 logAndEchoInfo "start success"
 exit 0

@@ -2,43 +2,40 @@
 set +x
 CURRENT_PATH=$(dirname $(readlink -f $0))
 SCRIPT_NAME=${CURRENT_PATH}/$(basename $0)
-TARGET_RPM_PACKAGE_NAME=""
-INSTALLED_RPM_PACKAGE_NAME=""
+TARGET_PACKAGE_NAME=""
 BACKUP_FILE_NAME=$1
 version=$(cat ${BACKUP_FILE_NAME}/versions.yml | grep -E "Version:" | awk '{print $2}' | sed 's/\([0-9]*\.[0-9]*\)\(\.[0-9]*\)\?\.[A-Z].*/\1\2/')
 source ${CURRENT_PATH}/og_om_log.sh
 
-function get_target_rpm_package_name() {
-    TARGET_RPM_PACKAGE_NAME=$(ls ${BACKUP_FILE_NAME}/repo | grep og_om-${version})
-}
+OG_OM_INSTALL_PATH="/opt/ograc/og_om"
 
-function get_installed_rpm_package_name() {
-    INSTALLED_RPM_PACKAGE_NAME=$(rpm -qa | grep "og_om")
+function get_target_package_name() {
+    TARGET_PACKAGE_NAME=$(ls ${BACKUP_FILE_NAME}/repo | grep og_om-${version})
 }
 
 function main() {
     logAndEchoInfo "Begin to start og_om rollback. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 
-    get_target_rpm_package_name
-    if [[ -z "${TARGET_RPM_PACKAGE_NAME}" ]]; then
-        logAndEchoError "Obtain target rollback rpm package name failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    get_target_package_name
+    if [[ -z "${TARGET_PACKAGE_NAME}" ]]; then
+        logAndEchoError "Obtain target rollback package name failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         return 1
     fi
 
-    # 卸载已安装的rpm包
-    get_installed_rpm_package_name
-    if [ -n "${INSTALLED_RPM_PACKAGE_NAME}" ]; then
-        rpm -e ${INSTALLED_RPM_PACKAGE_NAME}
+    # 卸载已安装的og_om
+    if [ -d "${OG_OM_INSTALL_PATH}" ]; then
+        rm -rf ${OG_OM_INSTALL_PATH}
         if [ $? -ne 0 ]; then
-            logAndEchoError "Uninstall old rpm package failed.[Line:${LINENO}, File:${SCRIPT_NAME}]"
+            logAndEchoError "Uninstall old og_om failed.[Line:${LINENO}, File:${SCRIPT_NAME}]"
             return 1
         fi
     fi
 
-    # 回滚target版本rpm包
-    rpm -ivh ${BACKUP_FILE_NAME}/repo/${TARGET_RPM_PACKAGE_NAME}
+    # 回滚到target版本
+    mkdir -p ${OG_OM_INSTALL_PATH}
+    tar -zxf ${BACKUP_FILE_NAME}/repo/${TARGET_PACKAGE_NAME} -C ${OG_OM_INSTALL_PATH}
     if [ $? -ne 0 ]; then
-        logAndEchoError "install target rpm package failed.[Line:${LINENO}, File:${SCRIPT_NAME}]"
+        logAndEchoError "Install target package failed.[Line:${LINENO}, File:${SCRIPT_NAME}]"
         return 1
     fi
 

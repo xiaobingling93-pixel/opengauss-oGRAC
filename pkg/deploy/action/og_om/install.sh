@@ -7,15 +7,18 @@ MAIN_PATH=$(dirname $(dirname ${CURRENT_PATH}))
 source ${CURRENT_PATH}/og_om_log.sh
 version=$(cat ${CURRENT_PATH}/../../versions.yml | grep -E "Version:" | awk '{print $2}' | \sed 's/\([0-9]*\.[0-9]*\)\(\.[0-9]*\)\?\.[A-Z].*/\1\2/')
 
-function check_rpm_exist()
+OG_OM_INSTALL_PATH="/opt/ograc/og_om"
+
+function check_installed()
 {
-    rpm -qa | grep "og_om"
+    [ -d "${OG_OM_INSTALL_PATH}" ] && [ "$(ls -A ${OG_OM_INSTALL_PATH} 2>/dev/null)" ]
     return $?
 }
 
-function install_ctom_rpm()
+function install_og_om()
 {
-    rpm -ivh ${MAIN_PATH}/repo/og_om-${version}*.rpm
+    mkdir -p ${OG_OM_INSTALL_PATH}
+    tar -zxf ${MAIN_PATH}/repo/og_om-${version}*.tar.gz -C ${OG_OM_INSTALL_PATH}
     return $?
 }
 
@@ -29,20 +32,19 @@ function main()
         fi
         return 0
     fi
-    
-    check_rpm_exist > /dev/null 2>&1
+    check_installed > /dev/null 2>&1
     if [ $? -eq 0 ]; then
-        logAndEchoInfo "Rpm package has been installed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-        logAndEchoInfo "Begin to remove old rpm package."
-        rpm -ev og_om
+        logAndEchoInfo "og_om has been installed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        logAndEchoInfo "Begin to remove old installation."
+        rm -rf ${OG_OM_INSTALL_PATH}
         if [ $? -ne 0 ]; then
-            logAndEchoError "Remove old rpm package failed."
+            logAndEchoError "Remove old installation failed."
             return 1
         fi
-        logAndEchoInfo "Remove old rpm package success"
+        logAndEchoInfo "Remove old installation success"
     fi
 
-    install_ctom_rpm > /dev/null 2>&1
+    install_og_om > /dev/null 2>&1
     if [ $? -eq 0 ]; then
         logAndEchoInfo "Success to install. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         return 0

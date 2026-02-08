@@ -144,16 +144,11 @@ function check_sem_id() {
     fi
 }
 
-function uninstall_rpm()
+function uninstall_ograc()
 {
-    RPM_PACK_ORG_PATH="/opt/ograc/image/oGRAC-RUN-LINUX-64bit"
-    result=`rpm -qa ograc | wc -l`
-    if [ ${result} -ne 0 ]; then
-        rpm -ev ograc --nodeps
-    fi
-
-    if [ -d ${RPM_PACK_ORG_PATH} ]; then
-        rm -rf ${RPM_PACK_ORG_PATH}
+    INSTALL_BASE_PATH="/opt/ograc/image"
+    if [ -d ${INSTALL_BASE_PATH} ]; then
+        rm -rf ${INSTALL_BASE_PATH}
     fi
 }
 
