@@ -369,19 +369,21 @@ function install_dbstor() {
     return 0
 }
 
-function install_rpm() {
-    RPM_PATH=${CURRENT_PATH}/../repo/ograc-*.rpm
-    RPM_UNPACK_PATH_FILE="/opt/ograc/image/ograc_connector/ogracKernel/oGRAC-DATABASE-LINUX-64bit"
-    RPM_PACK_ORG_PATH="/opt/ograc/image"
+function install_ograc() {
+    TAR_PATH=${CURRENT_PATH}/../repo/ograc-*.tar.gz
+    UNPACK_PATH_FILE="/opt/ograc/image/ograc_connector/ogracKernel/oGRAC-DATABASE-LINUX-64bit"
+    INSTALL_BASE_PATH="/opt/ograc/image"
 
-    if [ ! -f  "${CURRENT_PATH}"/../repo/ograc-*.rpm ]; then
-        echo "ograc.rpm is not exist."
+    if [ ! -f ${TAR_PATH} ]; then
+        echo "ograc tar.gz is not exist."
         exit 1
     fi
 
-    rpm -ivh --replacepkgs ${RPM_PATH} --nodeps --force
+    mkdir -p ${INSTALL_BASE_PATH}
+    tar -zxf ${TAR_PATH} -C ${INSTALL_BASE_PATH}
+    chmod +x -R ${INSTALL_BASE_PATH}
 
-    tar -zxf ${RPM_UNPACK_PATH_FILE}/oGRAC-RUN-LINUX-64bit.tar.gz -C ${RPM_PACK_ORG_PATH}
+    tar -zxf ${UNPACK_PATH_FILE}/oGRAC-RUN-LINUX-64bit.tar.gz -C ${INSTALL_BASE_PATH}
     if [[ ${use_dorado["${deploy_mode}"]} ]];then
         install_dbstor
         if [ $? -ne 0 ];then
@@ -389,11 +391,11 @@ function install_rpm() {
             exit 1
         fi
     fi
-    chmod -R 750 ${RPM_PACK_ORG_PATH}/oGRAC-RUN-LINUX-64bit
-    chown ${ograc_user}:${ograc_group} -hR ${RPM_PACK_ORG_PATH}/
-    chown root:root ${RPM_PACK_ORG_PATH}
+    chmod -R 750 ${INSTALL_BASE_PATH}/oGRAC-RUN-LINUX-64bit
+    chown ${ograc_user}:${ograc_group} -hR ${INSTALL_BASE_PATH}/
+    chown root:root ${INSTALL_BASE_PATH}
     if [[ ${deploy_mode} == "dss" ]];then
-        cp  ${RPM_PACK_ORG_PATH}/oGRAC-RUN-LINUX-64bit/lib/* /usr/lib64/
+        cp  ${INSTALL_BASE_PATH}/oGRAC-RUN-LINUX-64bit/lib/* /usr/lib64/
         chown ${ograc_user}:${ograc_group} -hR /usr/lib64/libog*
     fi
 }
@@ -845,8 +847,8 @@ if [[ "${rpminstalled_check}" == "0" ]]; then
     cp -rfp ${CURRENT_PATH}/../common /opt/ograc/
     cp -rfp ${CURRENT_PATH}/wsr_report /opt/ograc/action
     cp -rfp ${CURRENT_PATH}/dbstor /opt/ograc/action
-    # 适配开源场景，使用file，不使用dbstor，提前安装ogracrpm包
-    install_rpm
+    # 适配开源场景，使用file，不使用dbstor，提前安装ograc包
+    install_ograc
 fi
 
 if [[ "${rpminstalled_check}" == "1" ]]; then

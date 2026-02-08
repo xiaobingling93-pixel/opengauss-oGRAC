@@ -7,15 +7,17 @@ FORCE_TYPE=$2
 
 source ${CURRENT_PATH}/og_om_log.sh
 
-function check_rpm_exist()
+OG_OM_INSTALL_PATH="/opt/ograc/og_om"
+
+function check_installed()
 {
-    rpm -qa | grep "og_om"
+    [ -d "${OG_OM_INSTALL_PATH}" ] && [ "$(ls -A ${OG_OM_INSTALL_PATH} 2>/dev/null)" ]
     return $?
 }
 
-function uninstall_ctom_rpm()
+function uninstall_og_om()
 {
-    rpm -ev og_om
+    rm -rf ${OG_OM_INSTALL_PATH}
     return $?
 }
 
@@ -42,11 +44,11 @@ function main()
         exit 1
     fi
 
-    check_rpm_exist > /dev/null 2>&1
+    check_installed > /dev/null 2>&1
     if [ $? -eq 0 ]; then
-        logAndEchoInfo "Start to uninstall rpm bag. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        logAndEchoInfo "Start to uninstall og_om. [Line:${LINENO}, File:${SCRIPT_NAME}]"
 
-        uninstall_ctom_rpm > /dev/null 2>&1
+        uninstall_og_om > /dev/null 2>&1
         if [ $? -eq 0 ]; then
             logAndEchoInfo "Success to uninstall. [Line:${LINENO}, File:${SCRIPT_NAME}]"
             return 0
@@ -56,10 +58,9 @@ function main()
         fi
 
     else
-        logAndEchoInfo "rpm bag does not exist, no need to uninstall. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+        logAndEchoInfo "og_om is not installed, no need to uninstall. [Line:${LINENO}, File:${SCRIPT_NAME}]"
         return 0
     fi
 }
 
 main
-

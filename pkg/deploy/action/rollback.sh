@@ -226,44 +226,41 @@ function install_dbstor(){
     return 0
 }
 
-function install_rpm()
+function install_ograc()
 {
-    RPM_PATH="${backup_path}/repo/ograc-*.rpm"
-    RPM_UNPACK_PATH_FILE="/opt/ograc/image/ograc_connector/ogracKernel/oGRAC-DATABASE-LINUX-64bit"
-    RPM_PACK_ORG_PATH="/opt/ograc/image"
+    TAR_PATH="${backup_path}/repo/ograc-*.tar.gz"
+    UNPACK_PATH_FILE="/opt/ograc/image/ograc_connector/ogracKernel/oGRAC-DATABASE-LINUX-64bit"
+    INSTALL_BASE_PATH="/opt/ograc/image"
 
-    echo "RPM_PATH is : ${RPM_PATH}"
-    if [ ! -f  "${backup_path}"/repo/ograc-*.rpm ]; then
-        echo "ograc.rpm is not exist."
+    echo "TAR_PATH is : ${TAR_PATH}"
+    if [ ! -f ${TAR_PATH} ]; then
+        echo "ograc tar.gz is not exist."
         exit 1
     fi
 
-    rpm -ivh --replacepkgs ${RPM_PATH} --nodeps --force
+    mkdir -p ${INSTALL_BASE_PATH}
+    tar -zxf ${TAR_PATH} -C ${INSTALL_BASE_PATH}
+    chmod +x -R ${INSTALL_BASE_PATH}
 
-    tar -zxf ${RPM_UNPACK_PATH_FILE}/oGRAC-RUN-LINUX-64bit.tar.gz -C ${RPM_PACK_ORG_PATH}
+    tar -zxf ${UNPACK_PATH_FILE}/oGRAC-RUN-LINUX-64bit.tar.gz -C ${INSTALL_BASE_PATH}
     if [ x"${deploy_mode}" != x"file" ];then
-        echo "start rollback rpm package"
+        echo "start rollback ograc package"
         install_dbstor
         if [ $? -ne 0 ];then
             sh ${CURRENT_PATH}/uninstall.sh ${config_install_type}
             exit 1
         fi
     fi
-    chmod -R 750 ${RPM_PACK_ORG_PATH}/oGRAC-RUN-LINUX-64bit
-    chown ${deploy_user}:${deploy_group} -hR ${RPM_PACK_ORG_PATH}/oGRAC-RUN-LINUX-64bit
-    chown root:root ${RPM_PACK_ORG_PATH}
+    chmod -R 750 ${INSTALL_BASE_PATH}/oGRAC-RUN-LINUX-64bit
+    chown ${deploy_user}:${deploy_group} -hR ${INSTALL_BASE_PATH}/oGRAC-RUN-LINUX-64bit
+    chown root:root ${INSTALL_BASE_PATH}
 }
 
-function uninstall_rpm()
+function uninstall_ograc()
 {
-    RPM_PACK_ORG_PATH="/opt/ograc/image/oGRAC-RUN-LINUX-64bit"
-    result=`rpm -qa ograc | wc -l`
-    if [ ${result} -ne 0 ]; then
-        rpm -ev ograc --nodeps
-    fi
-
-    if [ -d ${RPM_PACK_ORG_PATH} ]; then
-        rm -rf ${RPM_PACK_ORG_PATH}
+    INSTALL_BASE_PATH="/opt/ograc/image"
+    if [ -d ${INSTALL_BASE_PATH} ]; then
+        rm -rf ${INSTALL_BASE_PATH}
     fi
 }
 
@@ -283,8 +280,8 @@ function do_rollback() {
         fi
         mount -t nfs -o sec="${kerberos_type}",vers=4.0,timeo="${NFS_TIMEO}",nosuid,nodev "${share_logic_ip}":/"${storage_share_fs}" /mnt/dbdata/remote/share_"${storage_share_fs}"
     fi
-    uninstall_rpm
-    install_rpm
+    uninstall_ograc
+    install_ograc
 
     for rollback_module in "${ROLLBACK_ORDER[@]}";
     do

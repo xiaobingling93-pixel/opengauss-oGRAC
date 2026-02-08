@@ -266,9 +266,7 @@ case "$ACTION" in
         correct_ctom_files_mod  # 修改action/og_om路径下文件权限
         mod_prepare  # 预安装：修改owner，进行文件cp
         do_deploy ${INSTALL_NAME} ${INSTALL_TYPE}
-        if [ -f /opt/ograc/installed_by_rpm ]; then
-            correct_ctom_files_ownmod
-        fi
+        correct_ctom_files_ownmod
         chmod 600 /opt/ograc/og_om/service/ograc_exporter/config/get_logicrep_info.sql
         exit $?
         ;;
@@ -303,6 +301,7 @@ case "$ACTION" in
         correct_ctom_files_mod
         mod_prepare
         do_deploy ${UPGRADE_NAME}
+        correct_ctom_files_ownmod
         exit $?
         ;;
     post_upgrade)
@@ -313,6 +312,7 @@ case "$ACTION" in
         correct_ctom_files_mod
         mod_prepare
         do_deploy ${ROLLBACK_NAME}
+        correct_ctom_files_ownmod
         exit $?
         ;;
     *)

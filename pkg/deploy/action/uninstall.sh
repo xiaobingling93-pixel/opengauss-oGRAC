@@ -64,16 +64,11 @@ function initUserAndGroup()
     usermod -a -G ${deploy_group} ograc
 }
 
-function uninstall_rpm()
+function uninstall_ograc()
 {
-    RPM_PACK_ORG_PATH="/opt/ograc/image/oGRAC-RUN-LINUX-64bit"
-    result=`rpm -qa ograc | wc -l`
-    if [ ${result} -ne 0 ]; then
-        rpm -ev ograc --nodeps
-    fi
-
-    if [ -d ${RPM_PACK_ORG_PATH} ]; then
-        rm -rf ${RPM_PACK_ORG_PATH}
+    INSTALL_BASE_PATH="/opt/ograc/image"
+    if [ -d ${INSTALL_BASE_PATH} ]; then
+        rm -rf ${INSTALL_BASE_PATH}
     fi
 }
 
@@ -110,7 +105,7 @@ function umount_fs() {
     fi
     rm -rf /mnt/dbdata/remote/share_"${storage_share_fs}"/node"${node_id}"_install_record.json > /dev/null 2>&1
 
-    sysctl fs.nfs.nfs_callback_tcpport=0
+    sysctl fs.nfs.nfs_callback_tcpport=0 > /dev/null 2>&1
     # 取消nfs挂载
     umount -f -l /mnt/dbdata/remote/share_${storage_share_fs} > /dev/null 2>&1
     umount -f -l /mnt/dbdata/remote/archive_${storage_archive_fs} > /dev/null 2>&1
@@ -172,7 +167,7 @@ do
 done
 
 if [ ! -f /opt/ograc/installed_by_rpm ]; then
-    uninstall_rpm
+    uninstall_ograc
 fi
 
 # 如果uninstall_type为override 执行以下操作

@@ -668,11 +668,9 @@ class DRDeployPreCheck(object):
         conf_params = read_json_config(self.conf)
         if self.site == "active" or conf_params.get("ograc_in_container") != "0":
             return check_result
-        check_cantain_cmd = "rpm -qa |grep ograc"
-        check_ctom_cmd = "rpm -qa |grep og_om"
-        cantain_result_code, _, _ = exec_popen(check_cantain_cmd)
-        ctom_result_code, _, _ = exec_popen(check_ctom_cmd)
-        if not cantain_result_code or not ctom_result_code:
+        ograc_installed = os.path.isdir("/opt/ograc/image") and os.listdir("/opt/ograc/image")
+        og_om_installed = os.path.isdir("/opt/ograc/og_om") and os.listdir("/opt/ograc/og_om")
+        if ograc_installed or og_om_installed:
             check_result.append("oGRAC standby has been installed, please check!")
         return check_result
 
