@@ -1166,7 +1166,7 @@ status_t sql_execute_query_plan(sql_stmt_t *stmt, sql_cursor_t *cur, plan_node_t
             break;
 
         case PLAN_NODE_MERGE_SORT_GROUP:
-            status = sql_execute_merge_sort_group(stmt, cur, plan);
+            status = ogsql_merge_sort_with_group(stmt, cur, plan);
             break;
 
         case PLAN_NODE_HASH_GROUP:
