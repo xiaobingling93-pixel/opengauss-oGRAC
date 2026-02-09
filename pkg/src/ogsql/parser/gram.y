@@ -157,7 +157,7 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
     alter_index_action_t   *alter_idx_act;
 }
 
-%type <res>    stmtblock stmtmulti InsertStmt SelectStmt simple_select DeleteStmt select_with_parens select_no_parens UpdateStmt select_clause MergeStmt DropStmt merge_insert merge_when_insert_clause ReplaceStmt TruncateStmt FlashStmt CommentStmt AnalyzeStmt CreatedbStmt CreateUserStmt CreateRoleStmt CreateTenantStmt AlterStmt
+%type <res>    stmtblock stmtmulti InsertStmt SelectStmt simple_select DeleteStmt select_with_parens select_no_parens UpdateStmt select_clause MergeStmt DropStmt merge_insert merge_when_insert_clause ReplaceStmt TruncateStmt FlashStmt CommentStmt AnalyzeStmt CreatedbStmt CreateUserStmt CreateRoleStmt CreateTenantStmt AlterIndexStmt
 %type <list>   ctext_expr_list ctext_row indirection opt_indirection values_clause insert_column_list when_expr_clause_list when_cond_clause_list func_name within_group_clause sort_clause opt_sort_clause sortby_list opt_partition_clause expr_list target_list opt_target_list opt_type_modifiers opt_float opt_array_bounds
 %type <list>   all_insert_into_list set_clause_list set_clause multiple_set_clause return_clause delete_target_list expr_list_with_select_rows json_column_list siblings_clause with_clause cte_list pivot_in_list pivot_clause_list select_pivot_clause unpivot_in_list expr_or_implicit_row_list cube_clause rollup_clause
 %type <list>   group_sets_item group_sets_list grouping_sets_clause group_by_cartesian_item group_by_list group_clause locked_rels_list columnref_list opt_siblings_clause replace_set_clause_list
@@ -463,7 +463,7 @@ stmtmulti:
         | CreateUserStmt
         | CreateRoleStmt
         | CreateTenantStmt
-        | AlterStmt
+        | AlterIndexStmt
         | /*EMPTY*/ { $$ = NULL; }
     ;
 
@@ -8122,7 +8122,7 @@ alter_index_action:
  	             
  	    ;
  	 
-AlterStmt:
+AlterIndexStmt:
  	        ALTER INDEX_P any_name alter_index_action
  	            {
  	                knl_alindex_def_t *def = NULL;
