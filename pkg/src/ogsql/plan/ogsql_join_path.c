@@ -274,6 +274,9 @@ static status_t sql_create_base_jtable(join_assist_t *ja, sql_table_t *table, sq
 
     jtable->table_type = BASE_TABLE;
     sql_bitmap_make_singleton(table->id, &jtable->table_ids);
+    jtable->base_table_id = table->id;
+    jtable->is_base_table = true;
+    jtable->table = table;
 
     cm_bilist_init(&jtable->paths);
     jtable->cheapest_total_path = NULL;
@@ -1555,6 +1558,10 @@ static status_t sql_build_base_jtable_path(join_assist_t *ja, sql_table_t *table
         }
     }
 
+    if (ja->pa->cond != NULL && ja->pa->cond->incl_flags != 0 && cond != NULL) {
+        cond->incl_flags = ja->pa->cond->incl_flags;
+    }
+
     OG_RETURN_IFERR(sql_check_table_indexable(ja->stmt, ja->pa, table, cond));
     jtable->rows = table->card;
 
@@ -2143,6 +2150,16 @@ static status_t sql_build_nestloop_path(join_assist_t *ja, sql_join_type_t joint
     path->cost.startup_cost =  temp_path_p->cost.startup_cost;
     path->cost.cost =  temp_path_p->cost.cost;
     OG_RETURN_IFERR(sql_add_nestloop_path_single(ja, jtable, path, &join_cost_ws, sjoininfo, restricts));
+    // charge the rowid scan;
+    if (path->tables.count == 2) {
+        // if there is two base table join result, try to change the inner loop to rowid scan;
+        struct st_sql_join_table* left_jtable = path->left->parent;
+        struct st_sql_join_table* right_jtable = path->right->parent;
+        if (left_jtable->is_base_table && right_jtable->is_base_table) {
+            sql_table_t* right_table=right_jtable->table;
+            OG_RETSUC_IFTRUE(sql_try_choose_rowid_scan(ja->pa, right_table));
+        }
+    }
     return OG_SUCCESS;
 }
 

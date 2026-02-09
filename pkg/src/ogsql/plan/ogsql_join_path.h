@@ -146,6 +146,10 @@ typedef struct st_sql_join_table {
     double rows;
     int encode_width;
 
+    bool is_base_table;
+    int base_table_id;
+    sql_table_t* table;
+    
     // 路径列表(等价于 reloptinfo.pathlist)
     bilist_t paths;
     sql_join_path_t* cheapest_total_path;
@@ -210,6 +214,7 @@ typedef struct st_join_assist {
     bilist_t full_join_clauses;
     bilist_t join_info_list;
     cond_tree_t *cond;
+    cond_tree_t *cond_tree_origin;
     sql_table_t *tables_sort_by_id[OG_MAX_JOIN_TABLES];      // sorted by id
     join_grouped_table_t* root_grouped_table;
     join_grouped_table_t* dp_grouped_table;

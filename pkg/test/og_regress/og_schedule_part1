@@ -1,3 +1,4 @@
+test: og_rowid_scan
 test: og_json_1
 test: og_resource_manager
 test: og_stat
@@ -26,4 +27,3 @@ test: og_index_enhance
 test: og_explain_predicates_1
 test: og_explain_predicates_2
 test: og_union_datatype
-test: og_ddl_parse
