@@ -28,6 +28,5 @@ test: og_explain_predicates_1
 test: og_explain_predicates_2
 test: og_union_datatype
 test: og_dynamic_sampling
-
-
 test: og_autotrace
+test: og_hash_join
