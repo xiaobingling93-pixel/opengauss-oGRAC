@@ -446,6 +446,11 @@ sql_table_t *sql_get_driver_table(plan_assist_t *plan_ass)
     return plan_ass->plan_tables[0];
 }
 
+/* ==========================================================================
+ * Statistics Validation
+ * Check table, column, and index statistics availability for dynamic sampling.
+ * ========================================================================== */
+
 bool32 check_stats_empty(cbo_stats_table_t *tab_stats)
 {
     return (bool32)(tab_stats == NULL ||
@@ -455,55 +460,57 @@ bool32 check_stats_empty(cbo_stats_table_t *tab_stats)
 
 bool32 check_table_stats_empty(knl_handle_t handle, sql_table_t *table)
 {
-    if (table != NULL && table->type == NORMAL_TABLE) {
-        dc_entity_t *entity = DC_ENTITY(&table->entry->dc);
-        cbo_stats_table_t *tab_stats = knl_get_cbo_table(handle, entity);
-        return check_stats_empty(tab_stats);
+    if (table == NULL || table->type != NORMAL_TABLE) {
+        return OG_FALSE;
     }
-    return OG_FALSE;
+    dc_entity_t *entity = DC_ENTITY(&table->entry->dc);
+    cbo_stats_table_t *tab_stats = knl_get_cbo_table(handle, entity);
+    return check_stats_empty(tab_stats);
 }
 
-// check whether the table is empty and has no column statistics
-static bool32 check_table_empty_column_stats(sql_stmt_t *stmt, sql_table_t *table)
+// Check whether a single condition column lacks statistics (skip LOB columns).
+static inline bool32 is_column_stat_missing(sql_stmt_t *stmt, dc_entity_t *entity, uint32 col_id)
 {
-    cbo_stats_column_t *col_stat = NULL;
+    knl_column_t *column = dc_get_column(entity, col_id);
+    if (COLUMN_IS_LOB(column)) {
+        return OG_FALSE;
+    }
+    cbo_stats_column_t *col_stat = knl_get_cbo_column(&stmt->session->knl_session, entity, col_id);
+    return (bool32)(col_stat == NULL || col_stat->analyse_time == 0);
+}
+
+// Check whether any condition column in the table lacks statistics.
+static bool32 has_missing_column_stats(sql_stmt_t *stmt, sql_table_t *table)
+{
     dc_entity_t *entity = DC_ENTITY(&table->entry->dc);
-    query_field_t *query_field = NULL;
     bilist_node_t *node = cm_bilist_head(&table->query_fields);
 
     for (; node != NULL; node = BINODE_NEXT(node)) {
-        query_field = BILIST_NODE_OF(query_field_t, node, bilist_node);
+        query_field_t *query_field = BILIST_NODE_OF(query_field_t, node, bilist_node);
         OG_CONTINUE_IFTRUE(!query_field->is_cond_col);
 
-        knl_column_t *column = dc_get_column(entity, query_field->col_id);
-        OG_CONTINUE_IFTRUE(COLUMN_IS_LOB(column));
-
-        col_stat = knl_get_cbo_column(&stmt->session->knl_session, entity, query_field->col_id);
-        if (col_stat == NULL || col_stat->analyse_time == 0) {
+        if (is_column_stat_missing(stmt, entity, query_field->col_id)) {
             OG_LOG_DEBUG_INF(
                 "[DYNAMIC_SAMPLING] Table[%s] column[%u] has no stats, need column sampling.",
                 T2S(&table->name.value), query_field->col_id);
             return OG_TRUE;
         }
     }
+
     OG_LOG_DEBUG_INF(
         "[DYNAMIC_SAMPLING] Table[%s] all condition columns have stats.",
         T2S(&table->name.value));
     return OG_FALSE;
 }
 
-// check whether the table is empty and has no index statistics.
-static bool32 check_empty_table_index_stats(sql_table_t *table, knl_index_desc_t *index, cbo_stats_index_t *idx_stats)
+// Check whether any index column matches a query condition column.
+static bool32 is_index_col_matching_cond(sql_table_t *table, knl_index_desc_t *index)
 {
-    // check if the index statistics information exists and has been analyzed.
-    OG_RETVALUE_IFTRUE((idx_stats != NULL && idx_stats->analyse_time != 0), OG_FALSE);
-
-    query_field_t *query_field = NULL;
     bilist_node_t *node = cm_bilist_head(&table->query_fields);
     for (; node != NULL; node = BINODE_NEXT(node)) {
-        query_field = BILIST_NODE_OF(query_field_t, node, bilist_node);
+        query_field_t *query_field = BILIST_NODE_OF(query_field_t, node, bilist_node);
         OG_CONTINUE_IFTRUE(!query_field->is_cond_col);
-        
+
         for (uint32 i = 0; i < index->column_count; i++) {
             uint32 col_id = index->columns[i];
             knl_column_t *knl_col = knl_get_column(table->entry->dc.handle, col_id);
@@ -514,8 +521,30 @@ static bool32 check_empty_table_index_stats(sql_table_t *table, knl_index_desc_t
     return OG_FALSE;
 }
 
-// Check whether sampling of the table is required.
-static bool32 check_table_for_sampling(sql_stmt_t *stmt, sql_table_t *table,
+// Check whether a specific index needs dynamic sampling.
+static bool32 has_missing_index_stats(sql_table_t *table, knl_index_desc_t *index,
+    cbo_stats_index_t *idx_stats)
+{
+    OG_RETVALUE_IFTRUE((idx_stats != NULL && idx_stats->analyse_time != 0), OG_FALSE);
+    return is_index_col_matching_cond(table, index);
+}
+
+/* ==========================================================================
+ * Sampling Decision
+ * Determine whether a table needs dynamic sampling and what type.
+ * ========================================================================== */
+
+// Calculate total modification rows from table monitoring info.
+static inline int64 calc_table_mod_rows(stats_table_mon_t *tab_mon)
+{
+    if (tab_mon == NULL) {
+        return 0L;
+    }
+    return (int64)(tab_mon->inserts + tab_mon->updates + tab_mon->deletes);
+}
+
+// Check whether the table data has been modified enough to warrant re-sampling.
+static bool32 need_resample_by_modification(sql_stmt_t *stmt, sql_table_t *table,
     knl_analyze_dynamic_type_t *dynamic_type)
 {
     dc_entity_t *entity = DC_ENTITY(&table->entry->dc);
@@ -523,10 +552,11 @@ static bool32 check_table_for_sampling(sql_stmt_t *stmt, sql_table_t *table,
     stats_table_mon_t *tab_mon = knl_cbo_get_table_mon(KNL_SESSION(stmt), entity);
 
     OG_RETVALUE_IFTRUE((tab_stat == NULL), OG_FALSE);
-    int64 mod_rows = (tab_mon != NULL) ? (int64)(tab_mon->inserts + tab_mon->updates + tab_mon->deletes) : 0L;
+    int64 mod_rows = calc_table_mod_rows(tab_mon);
     OG_RETVALUE_IFTRUE((mod_rows <= 0), OG_FALSE);
     OG_RETVALUE_IFTRUE((tab_mon != NULL && tab_mon->is_change), OG_FALSE);
 
+    // Empty table with modifications — full sampling required.
     if (tab_stat->rows == 0) {
         *dynamic_type = STATS_ALL;
         OG_LOG_DEBUG_INF(
@@ -535,26 +565,28 @@ static bool32 check_table_for_sampling(sql_stmt_t *stmt, sql_table_t *table,
         return OG_TRUE;
     }
 
-    // SAMP_MOD_RATE_THRESHOLD = 0.2
-    double modRate = (double)mod_rows / tab_stat->rows;
-    if (tab_stat->rows <= SMALL_TABLE_SAMPLING_THRD(KNL_SESSION(stmt)) && modRate >= SAMP_MOD_RATE_THRESHOLD) {
+    // Small table with high modification rate — full sampling required. (threshold = 0.2)
+    double mod_rate = (double)mod_rows / tab_stat->rows;
+    if (tab_stat->rows <= SMALL_TABLE_SAMPLING_THRD(KNL_SESSION(stmt)) &&
+        mod_rate >= SAMP_MOD_RATE_THRESHOLD) {
         *dynamic_type = STATS_ALL;
         OG_LOG_DEBUG_INF(
             "[DYNAMIC_SAMPLING] Table[%s] is small and modified heavily (modRate=%.2f), set type to STATS_ALL.",
-            T2S(&table->name.value), modRate);
+            T2S(&table->name.value), mod_rate);
         return OG_TRUE;
     }
 
     OG_LOG_DEBUG_WAR(
         "[DYNAMIC_SAMPLING] Table[%s] modification rate (modRate=%.2f) is below threshold, no sampling needed.",
-        T2S(&table->name.value), modRate);
+        T2S(&table->name.value), mod_rate);
     return OG_FALSE;
 }
 
-static bool32 check_dynamic_sampling_table(sql_stmt_t *stmt, sql_table_t *table,
+// Determine the appropriate dynamic sampling type for a table.
+static bool32 determine_sampling_type(sql_stmt_t *stmt, sql_table_t *table,
     knl_analyze_dynamic_type_t *dynamic_type)
 {
-    // If the table has no statistics, perform full sampling.
+    // No statistics at all — perform full sampling.
     if (check_table_stats_empty(KNL_SESSION(stmt), table)) {
         *dynamic_type = STATS_ALL;
         OG_LOG_DEBUG_INF(
@@ -566,11 +598,11 @@ static bool32 check_dynamic_sampling_table(sql_stmt_t *stmt, sql_table_t *table,
     // Only normal tables are eligible for dynamic sampling.
     OG_RETVALUE_IFTRUE((table->type != NORMAL_TABLE), OG_FALSE);
 
-    // Check if the table needs sampling due to data modifications.
-    OG_RETVALUE_IFTRUE((check_table_for_sampling(stmt, table, dynamic_type)), OG_TRUE);
+    // Data modifications may trigger re-sampling.
+    OG_RETVALUE_IFTRUE((need_resample_by_modification(stmt, table, dynamic_type)), OG_TRUE);
 
-    //  Check if the table has statistics for columns used in query conditions.
-    if (check_table_empty_column_stats(stmt, table)) {
+    // Missing column statistics trigger column-level sampling.
+    if (has_missing_column_stats(stmt, table)) {
         *dynamic_type = STATS_COLUMNS;
         return OG_TRUE;
     }
@@ -581,58 +613,87 @@ static bool32 check_dynamic_sampling_table(sql_stmt_t *stmt, sql_table_t *table,
     return OG_FALSE;
 }
 
-// The number of pages in a non temporary table is zero, it will return OG_FALSE
-static bool32 calc_normal_table_pages(sql_stmt_t *stmt, sql_table_t *table, uint64 *total_pages)
+/* ==========================================================================
+ * Page Estimation & Sample Ratio Calculation
+ * Estimate table pages and compute sampling ratios for dynamic sampling.
+ * ========================================================================== */
+
+// Estimate total pages for a partitioned table based on its scan info.
+static bool32 estimate_part_table_pages(sql_stmt_t *stmt, sql_table_t *table,
+    dc_entity_t *entity, uint64 *total_pages)
+{
+    uint32 pages = 0;
+
+    if (HAS_NO_SCAN_INFO(table) || PART_TABLE_FULL_SCAN(table)) {
+        knl_estimate_table_rows(&pages, NULL, KNL_SESSION(stmt), entity, CBO_GLOBAL_PART_NO);
+        *total_pages += (uint64)pages;
+    } else if (PART_TABLE_EMPTY_SCAN(table)) {
+        return OG_FALSE;
+    } else if (PART_TABLE_SCAN_ALL_PART_NO_SAVED(table)) {
+        for (uint32 i = 0; i < PART_TABLE_SCAN_SAVED_PART_COUNT(table); i++) {
+            uint32 part_no = PART_TABLE_SCAN_PART_NO(table, i);
+            knl_estimate_table_rows(&pages, NULL, KNL_SESSION(stmt), entity, part_no);
+            *total_pages += (uint64)pages;
+        }
+    } else {
+        uint32 max_part_no = knl_get_max_rows_part(entity);
+        knl_estimate_table_rows(&pages, NULL, KNL_SESSION(stmt), entity, max_part_no);
+        *total_pages += PART_TABLE_SCAN_TOTAL_PART_COUNT(table) * (uint64)pages;
+    }
+
+    OG_LOG_DEBUG_INF(
+        "[DYNAMIC_SAMPLING] Table[%s] is partitioned. Calc total_pages=%llu.",
+        T2S(&table->name.value), *total_pages);
+    return OG_TRUE;
+}
+
+// Estimate pages for a non-partitioned table.
+static void estimate_plain_table_pages(sql_stmt_t *stmt, sql_table_t *table,
+    dc_entity_t *entity, uint64 *total_pages)
+{
+    uint32 pages = 0;
+    knl_estimate_table_rows(&pages, NULL, KNL_SESSION(stmt), entity, CBO_GLOBAL_PART_NO);
+    *total_pages += (uint64)pages;
+    OG_LOG_DEBUG_INF(
+        "[DYNAMIC_SAMPLING] Table[%s] is not partitioned. Calc total_pages=%llu.",
+        T2S(&table->name.value), *total_pages);
+}
+
+// Ensure zero-page tables get minimum page count; reject non-LTT session temp tables.
+static bool32 ensure_min_pages(dc_entity_t *entity, uint64 *total_pages)
+{
+    if (*total_pages > 0) {
+        return OG_TRUE;
+    }
+    OG_RETVALUE_IFTRUE((!IS_LTT_BY_NAME(entity->table.desc.name) &&
+        entity->entry->type == DICT_TYPE_TEMP_TABLE_SESSION), OG_FALSE);
+    *total_pages = CBO_MIN_SAMPLING_PAGE;
+    return OG_TRUE;
+}
+
+// Calculate total pages for a normal table, dispatching by partition status.
+static bool32 estimate_table_total_pages(sql_stmt_t *stmt, sql_table_t *table, uint64 *total_pages)
 {
     OG_RETVALUE_IFTRUE((table->type != NORMAL_TABLE), OG_FALSE);
-    uint32 pages = 0;
+
     dc_entity_t *entity = DC_ENTITY(&table->entry->dc);
     OG_RETVALUE_IFTRUE((IS_DUAL_TABLE(&entity->table) || IS_SYS_TABLE(&entity->table)), OG_FALSE);
 
     if (IS_PART_TABLE(&entity->table)) {
-        if (HAS_NO_SCAN_INFO(table) || PART_TABLE_FULL_SCAN(table)) {
-            knl_estimate_table_rows(&pages, NULL, KNL_SESSION(stmt), entity, CBO_GLOBAL_PART_NO);
-            *total_pages += (uint64)pages;
-        } else if (PART_TABLE_EMPTY_SCAN(table)) {
-            return OG_FALSE;
-        } else if (PART_TABLE_SCAN_ALL_PART_NO_SAVED(table)) {
-            for (uint32 i = 0; i < PART_TABLE_SCAN_SAVED_PART_COUNT(table); i++) {
-                uint32 part_no = PART_TABLE_SCAN_PART_NO(table, i);
-                knl_estimate_table_rows(&pages, NULL, KNL_SESSION(stmt), entity, part_no);
-                *total_pages += (uint64)pages;
-            }
-        } else {
-            uint32 max_part_no = knl_get_max_rows_part(entity);
-            knl_estimate_table_rows(&pages, NULL, KNL_SESSION(stmt), entity, max_part_no);
-            *total_pages += PART_TABLE_SCAN_TOTAL_PART_COUNT(table) * (uint64)pages;
-        }
-        // If it is an empty scan, return false directly without printing the log.
-        OG_LOG_DEBUG_INF(
-            "[DYNAMIC_SAMPLING] Table[%s] is partitioned. Calc total_pages=%llu.",
-            T2S(&table->name.value), *total_pages);
+        OG_RETVALUE_IFTRUE(!estimate_part_table_pages(stmt, table, entity, total_pages), OG_FALSE);
     } else {
-        // If the table is not partitioned, the number of pages is calculated directly.
-        knl_estimate_table_rows(&pages, NULL, KNL_SESSION(stmt), entity, CBO_GLOBAL_PART_NO);
-        *total_pages += (uint64)pages;
-        OG_LOG_DEBUG_INF(
-            "[DYNAMIC_SAMPLING] Table[%s] is not partitioned. Calc total_pages=%llu.",
-            T2S(&table->name.value), *total_pages);
+        estimate_plain_table_pages(stmt, table, entity, total_pages);
     }
 
-    if (*total_pages == 0) {
-        /*
-         * If it is a temporary session table, the sampling is set to the minimum number of sampling pages.
-         * If it is not, sampling cannot be performed and false is returned.
-         */
-        OG_RETVALUE_IFTRUE((!IS_LTT_BY_NAME(entity->table.desc.name) &&
-            entity->entry->type == DICT_TYPE_TEMP_TABLE_SESSION), OG_FALSE);
-        *total_pages = CBO_MIN_SAMPLING_PAGE;
-    }
-    return OG_TRUE;
+    return ensure_min_pages(entity, total_pages);
 }
 
-static uint32 g_dynamic_sampling_blocks[CBO_MAX_DYN_SAMPLING_LEVEL] = {0, 10, 32, 64, 128, 256, 512, 1024, 4096};
-static void calc_sample_ratio(knl_analyze_tab_def_t *def, uint64 total_pages, uint32 level)
+static uint32 g_dynamic_sampling_blocks[CBO_MAX_DYN_SAMPLING_LEVEL] = {
+    0, 10, 32, 64, 128, 256, 512, 1024, 4096
+};
+
+// Compute the sampling ratio based on the total pages and the configured level.
+static void compute_sample_ratio(knl_analyze_tab_def_t *def, uint64 total_pages, uint32 level)
 {
     if (level == CBO_MAX_DYN_SAMPLING_LEVEL) {
         def->sample_ratio = STATS_MAX_ESTIMATE_PERCENT;
@@ -650,7 +711,12 @@ static void calc_sample_ratio(knl_analyze_tab_def_t *def, uint64 total_pages, ui
         level, total_pages, pages, def->sample_ratio);
 }
 
-static status_t execute_with_stat_tracking(sql_stmt_t *stmt, status_t (*execute_func)(knl_handle_t, void*), void *arg)
+/* ==========================================================================
+ * Sampling Execution Primitives
+ * Low-level helpers for executing sampling operations and handling errors.
+ * ========================================================================== */
+
+static status_t exec_with_stat_tracking(sql_stmt_t *stmt, status_t (*execute_func)(knl_handle_t, void*), void *arg)
 {
     sql_record_knl_stats_info(stmt);
     status_t status = execute_func(&stmt->session->knl_session, arg);
@@ -658,7 +724,7 @@ static status_t execute_with_stat_tracking(sql_stmt_t *stmt, status_t (*execute_
     return status;
 }
 
-static void log_dynamic_sampling_failure(sql_table_t *table, uint32 part_no)
+static void log_sampling_failure(sql_table_t *table, uint32 part_no)
 {
     if (part_no != CBO_GLOBAL_PART_NO) {
         OG_LOG_DEBUG_ERR(
@@ -671,94 +737,114 @@ static void log_dynamic_sampling_failure(sql_table_t *table, uint32 part_no)
     }
 }
 
-static status_t partition_try_sample(sql_stmt_t *stmt, sql_table_t *table,
+static status_t try_analyze_partition(sql_stmt_t *stmt, sql_table_t *table,
     knl_analyze_tab_def_t *def, uint32 part_no)
 {
-    status_t status = execute_with_stat_tracking(stmt,
+    status_t status = exec_with_stat_tracking(stmt,
         (status_t (*)(knl_handle_t, void*))knl_analyze_table_dynamic, def);
     if (status != OG_SUCCESS) {
-        log_dynamic_sampling_failure(table, part_no);
+        log_sampling_failure(table, part_no);
     }
     return status;
 }
 
-static void get_dynamic_sampling_table_stats(sql_stmt_t *stmt, sql_table_t *table,
+/* ==========================================================================
+ * Table Dynamic Sampling
+ * Orchestrates partition-aware table sampling and column collection.
+ * ========================================================================== */
+
+// Attempt to sample each saved partition; fall back to max_part_no on failure.
+static status_t try_analyze_saved_partitions(sql_stmt_t *stmt, sql_table_t *table,
+    knl_analyze_tab_def_t *def, dc_entity_t *entity)
+{
+    for (uint32 i = 0; i < PART_TABLE_SCAN_SAVED_PART_COUNT(table); i++) {
+        def->part_no = PART_TABLE_SCAN_PART_NO(table, i);
+        uint32 pages = 0;
+        uint32 rows = 0;
+
+        knl_estimate_table_rows(&pages, &rows, (knl_handle_t)stmt->session, entity, def->part_no);
+        OG_CONTINUE_IFTRUE(pages == 0);
+
+        status_t status = try_analyze_partition(stmt, table, def, def->part_no);
+        if (status == OG_SUCCESS) {
+            return status;
+        }
+    }
+
+    // Fallback: sample the partition with the most rows.
+    cbo_stats_table_t *tab_stats = entity->cbo_table_stats;
+    def->part_no = (tab_stats == NULL) ? 0 : tab_stats->max_part_no;
+    return try_analyze_partition(stmt, table, def, def->part_no);
+}
+
+static void analyze_table_stats(sql_stmt_t *stmt, sql_table_t *table,
     knl_analyze_tab_def_t *def, status_t *status)
 {
     OG_LOG_DEBUG_INF(
         "[DYNAMIC_SAMPLING] Start dynamic sampling table[%s], method[%d].",
         T2S(&table->name.value), def->method_opt.option);
+
     dc_entity_t *entity = DC_ENTITY(&table->entry->dc);
-    cbo_stats_table_t *tab_stats = entity->cbo_table_stats;
-    
-    if (IS_PART_TABLE(&entity->table) && !PART_TABLE_FULL_SCAN(table) && PART_TABLE_SCAN_ALL_PART_NO_SAVED(table)) {
-        bool32 is_analyzed = OG_FALSE;
+    bool32 sample_by_partition = IS_PART_TABLE(&entity->table) &&
+        !PART_TABLE_FULL_SCAN(table) && PART_TABLE_SCAN_ALL_PART_NO_SAVED(table);
 
-        for (uint32 i = 0; i < PART_TABLE_SCAN_SAVED_PART_COUNT(table); i++) {
-            def->part_no = PART_TABLE_SCAN_PART_NO(table, i);
-            uint32 pages = 0;
-            uint32 rows = 0;
-
-            knl_estimate_table_rows(&pages, &rows, (knl_handle_t)stmt->session, entity, def->part_no);
-            OG_CONTINUE_IFTRUE(pages == 0);
-
-            *status = partition_try_sample(stmt, table, def, def->part_no);
-
-            if (*status == OG_SUCCESS) {
-                is_analyzed = OG_TRUE;
-                break;
-            }
-        }
-
-        if (!is_analyzed) {
-            def->part_no = (tab_stats == NULL) ? 0 : tab_stats->max_part_no;
-            *status = partition_try_sample(stmt, table, def, def->part_no);
-        }
+    if (sample_by_partition) {
+        *status = try_analyze_saved_partitions(stmt, table, def, entity);
     } else {
-        *status = partition_try_sample(stmt, table, def, CBO_GLOBAL_PART_NO);
+        *status = try_analyze_partition(stmt, table, def, CBO_GLOBAL_PART_NO);
     }
 }
 
-// Collect and summarize specific column information in the table.
-static void get_specified_columns(sql_stmt_t *stmt, sql_table_t *table, knl_analyze_tab_def_t *def)
+// Determine whether a column should be included in the sampling column list.
+static inline bool32 should_collect_column(sql_stmt_t *stmt, dc_entity_t *entity,
+    query_field_t *query_field, knl_analyze_dynamic_type_t dynamic_type)
+{
+    if (!query_field->is_cond_col) {
+        return OG_FALSE;
+    }
+    if (dynamic_type != STATS_COLUMNS) {
+        return OG_TRUE;
+    }
+    knl_column_t *column = dc_get_column(entity, query_field->col_id);
+    if (COLUMN_IS_LOB(column)) {
+        return OG_FALSE;
+    }
+    cbo_stats_column_t *col_stat = knl_get_cbo_column(&stmt->session->knl_session, entity, query_field->col_id);
+    return (bool32)(col_stat == NULL || col_stat->analyse_time == 0);
+}
+
+// Collect condition column IDs that need statistics into def->specify_cols.
+static void collect_sampling_columns(sql_stmt_t *stmt, sql_table_t *table, knl_analyze_tab_def_t *def)
 {
     OG_LOG_DEBUG_INF("[DYNAMIC_SAMPLING] Start get specified columns.");
-    query_field_t *query_field = NULL;
-    cbo_stats_column_t *col_stat = NULL;
+
     dc_entity_t *entity = DC_ENTITY(&table->entry->dc);
-    bilist_node_t *node = cm_bilist_head(&table->query_fields);
     knl_stats_specified_cols *spec_cols = &def->specify_cols;
     spec_cols->cols_count = 0;
 
+    bilist_node_t *node = cm_bilist_head(&table->query_fields);
     for (; node != NULL; node = BINODE_NEXT(node)) {
-        query_field = BILIST_NODE_OF(query_field_t, node, bilist_node);
-        OG_CONTINUE_IFTRUE(!query_field->is_cond_col);
-        if (def->dynamic_type == STATS_COLUMNS) {
-            knl_column_t *column = dc_get_column(entity, query_field->col_id);
-            OG_CONTINUE_IFTRUE(COLUMN_IS_LOB(column));
-            col_stat = knl_get_cbo_column(&stmt->session->knl_session, entity, query_field->col_id);
-            OG_CONTINUE_IFTRUE(col_stat != NULL && col_stat->analyse_time != 0);
+        query_field_t *query_field = BILIST_NODE_OF(query_field_t, node, bilist_node);
+        if (should_collect_column(stmt, entity, query_field, def->dynamic_type)) {
+            spec_cols->specified_cols[spec_cols->cols_count] = query_field->col_id;
+            spec_cols->cols_count++;
         }
-        spec_cols->specified_cols[spec_cols->cols_count] = query_field->col_id;
-        spec_cols->cols_count++;
     }
 }
 
-static void sql_dynamic_sampling_table(sql_stmt_t *stmt, sql_table_t *table,
+static void do_table_sampling(sql_stmt_t *stmt, sql_table_t *table,
     knl_analyze_tab_def_t *def, uint64 total_pages)
 {
     def->owner = table->entry->user;
     def->name = table->name.value;
-    get_specified_columns(stmt, table, def);
+    collect_sampling_columns(stmt, table, def);
 
-    def->method_opt.option = FOR_SPECIFIED_INDEXED_COLUMNS;
-    if (def->dynamic_type == STATS_COLUMNS) {
-        def->method_opt.option = FOR_SPECIFIED_COLUMNS;
-    }
+    def->method_opt.option = (def->dynamic_type == STATS_COLUMNS) ?
+        FOR_SPECIFIED_COLUMNS : FOR_SPECIFIED_INDEXED_COLUMNS;
+    def->part_no = CBO_GLOBAL_PART_NO;
 
     status_t status = OG_SUCCESS;
-    def->part_no = CBO_GLOBAL_PART_NO;
-    get_dynamic_sampling_table_stats(stmt, table, def, &status);
+    analyze_table_stats(stmt, table, def, &status);
 
     SQL_LOG_OPTINFO(stmt,
         "[DYNAMIC_SAMPLING] stats_info: table[%u,%s], part_no[%u]; dynamic_sampling_rate=%f, "
@@ -767,24 +853,31 @@ static void sql_dynamic_sampling_table(sql_stmt_t *stmt, sql_table_t *table,
         total_pages, def->method_opt.option, status);
 }
 
-static void get_dynamic_sampling_index_stats(sql_stmt_t *stmt, sql_table_t *table, knl_index_desc_t *index,
-    knl_analyze_index_def_t *def, uint64 total_pages)
+/* ==========================================================================
+ * Index Dynamic Sampling
+ * Handle index-level dynamic sampling for tables that need it.
+ * ========================================================================== */
+
+static void analyze_single_index(sql_stmt_t *stmt, sql_table_t *table,
+    knl_index_desc_t *index, knl_analyze_index_def_t *def, uint64 total_pages)
 {
     def->name.str = index->name;
     def->name.len = (uint32)strlen(index->name);
     def->owner = table->entry->user;
     def->table_name = table->entry->name;
     def->table_owner = table->entry->user;
+
     OG_LOG_DEBUG_WAR("[DYNAMIC_SAMPLING] Start dynamic sampling table[%s], index[%s].",
         T2S(&table->name.value), index->name);
 
-    status_t status = execute_with_stat_tracking(stmt,
+    status_t status = exec_with_stat_tracking(stmt,
         (status_t (*)(knl_handle_t, void*))knl_analyze_index_dynamic, def);
     if (status != OG_SUCCESS) {
         OG_LOG_DEBUG_ERR(
             "[DYNAMIC_SAMPLING] Dynamic sampling failed, user_name=%s, table_name=%s, index_name=%s",
             T2S(&table->user.value), T2S_EX(&table->name.value), index->name);
     }
+
     SQL_LOG_OPTINFO(stmt,
         "[DYNAMIC_SAMPLING] stats_info: table[%u,%s], index[%u,%s]; "
         "dynamic_sampling_rate=%f, total_pages=%llu, status=%d",
@@ -792,27 +885,33 @@ static void get_dynamic_sampling_index_stats(sql_stmt_t *stmt, sql_table_t *tabl
         def->sample_ratio, total_pages, status);
 }
 
-static void sql_dynamic_sampling_table_indexes(sql_stmt_t *stmt, sql_table_t *table, uint64 total_pages,
-    knl_analyze_index_def_t *idx_def, uint32 level)
+static void do_index_sampling(sql_stmt_t *stmt, sql_table_t *table,
+    uint64 total_pages, knl_analyze_index_def_t *idx_def, uint32 level)
 {
-    knl_index_desc_t *index = NULL;
-    cbo_stats_index_t *idx_stats = NULL;
     dc_entity_t *entity = DC_ENTITY(&table->entry->dc);
     uint32 idx_count = knl_get_index_count(entity);
     OG_LOG_DEBUG_INF(
         "[DYNAMIC_SAMPLING] Table[%s] has %u indexes, checking for sampling.",
         T2S(&table->name.value), idx_count);
+
     for (uint32 i = 0; i < idx_count; i++) {
-        index = knl_get_index(entity, i);
+        knl_index_desc_t *index = knl_get_index(entity, i);
         OG_CONTINUE_IFTRUE(index->part_idx_invalid);
-        idx_stats = knl_get_cbo_index(KNL_SESSION(stmt), entity, index->id);
-        OG_CONTINUE_IFTRUE(!check_empty_table_index_stats(table, index, idx_stats));
+
+        cbo_stats_index_t *idx_stats = knl_get_cbo_index(KNL_SESSION(stmt), entity, index->id);
+        OG_CONTINUE_IFTRUE(!has_missing_index_stats(table, index, idx_stats));
+
         stmt->context->dynamic_sampling = level;
-        get_dynamic_sampling_index_stats(stmt, table, index, idx_def, total_pages);
+        analyze_single_index(stmt, table, index, idx_def, total_pages);
     }
 }
 
-static status_t sql_init_table_def(knl_analyze_tab_def_t *def)
+/* ==========================================================================
+ * Initialization & Top-Level Orchestration
+ * Memory allocation, definition initialization, and the main entry point.
+ * ========================================================================== */
+
+static status_t init_table_analyze_def(knl_analyze_tab_def_t *def)
 {
     MEMS_RETURN_IFERR(memset_sp(def, sizeof(knl_analyze_tab_def_t), 0, sizeof(knl_analyze_tab_def_t)));
     def->sample_level = BLOCK_SAMPLE;
@@ -822,42 +921,74 @@ static status_t sql_init_table_def(knl_analyze_tab_def_t *def)
     return OG_SUCCESS;
 }
 
-static status_t sql_alloc_tab_idx_def(sql_stmt_t *stmt, knl_analyze_tab_def_t **tab_def,
-    knl_analyze_index_def_t **idx_def)
+static status_t init_index_analyze_def(knl_analyze_index_def_t *def)
 {
-    OG_RETURN_IFERR(sql_push(stmt, sizeof(knl_analyze_tab_def_t), (void **)tab_def));
-    OG_RETURN_IFERR(sql_init_table_def(*tab_def));
-    OG_RETURN_IFERR(sql_push(stmt, sizeof(knl_analyze_index_def_t), (void **)idx_def));
-    MEMS_RETURN_IFERR(memset_sp(*idx_def, sizeof(knl_analyze_index_def_t), 0, sizeof(knl_analyze_index_def_t)));
-    (*idx_def)->sample_level = BLOCK_SAMPLE;
-    (*idx_def)->need_analyzed = OG_TRUE;
+    MEMS_RETURN_IFERR(memset_sp(def, sizeof(knl_analyze_index_def_t), 0, sizeof(knl_analyze_index_def_t)));
+    def->sample_level = BLOCK_SAMPLE;
+    def->need_analyzed = OG_TRUE;
     return OG_SUCCESS;
 }
 
-// Process each table for dynamic sampling.
-static status_t process_table_for_sampling(sql_stmt_t *stmt, plan_assist_t *pa, uint32 level,
+static status_t alloc_analyze_defs(sql_stmt_t *stmt, knl_analyze_tab_def_t **tab_def,
+    knl_analyze_index_def_t **idx_def)
+{
+    OG_RETURN_IFERR(sql_push(stmt, sizeof(knl_analyze_tab_def_t), (void **)tab_def));
+    OG_RETURN_IFERR(init_table_analyze_def(*tab_def));
+    OG_RETURN_IFERR(sql_push(stmt, sizeof(knl_analyze_index_def_t), (void **)idx_def));
+    OG_RETURN_IFERR(init_index_analyze_def(*idx_def));
+    return OG_SUCCESS;
+}
+
+// Prepare sampling ratios for a table. Returns OG_FALSE if the table should be skipped.
+static bool32 prepare_sample_ratio(sql_stmt_t *stmt, sql_table_t *table, uint64 *total_pages,
+    knl_analyze_tab_def_t *tab_def, knl_analyze_index_def_t *idx_def, uint32 level)
+{
+    OG_RETVALUE_IFTRUE(!estimate_table_total_pages(stmt, table, total_pages), OG_FALSE);
+    compute_sample_ratio(tab_def, *total_pages, level);
+    idx_def->sample_ratio = tab_def->sample_ratio / OG_PERCENT;
+    return OG_TRUE;
+}
+
+// Try dynamic sampling for a table. Returns OG_TRUE if full sampling was done (skip indexes).
+static bool32 try_table_dynamic_sampling(sql_stmt_t *stmt, sql_table_t *table,
+    knl_analyze_tab_def_t *tab_def, uint64 total_pages, uint32 level)
+{
+    if (!determine_sampling_type(stmt, table, &tab_def->dynamic_type)) {
+        return OG_FALSE;
+    }
+    TABLE_CBO_IS_DEAL(table) = OG_FALSE;
+    stmt->context->dynamic_sampling = level;
+    do_table_sampling(stmt, table, tab_def, total_pages);
+    return (bool32)(tab_def->dynamic_type == STATS_ALL);
+}
+
+// Process a single table for dynamic sampling (table + indexes).
+static void process_single_table(sql_stmt_t *stmt, sql_table_t *table, uint32 level,
+    knl_analyze_tab_def_t *tab_def, knl_analyze_index_def_t *idx_def)
+{
+    uint64 total_pages = 0;
+    if (!prepare_sample_ratio(stmt, table, &total_pages, tab_def, idx_def, level)) {
+        return;
+    }
+
+    // Full table sampling done — no need for index sampling.
+    if (try_table_dynamic_sampling(stmt, table, tab_def, total_pages, level)) {
+        return;
+    }
+
+    OG_LOG_DEBUG_INF(
+        "[DYNAMIC_SAMPLING] Table[%s] dynamic type is not STATS_ALL, checking indexes.",
+        T2S(&table->name.value));
+    do_index_sampling(stmt, table, total_pages, idx_def, level);
+}
+
+// Process all tables in the query for dynamic sampling.
+static status_t process_all_tables(sql_stmt_t *stmt, plan_assist_t *pa, uint32 level,
     knl_analyze_tab_def_t *tab_def, knl_analyze_index_def_t *idx_def)
 {
     for (uint32 i = 0; i < pa->query->tables.count; i++) {
         sql_table_t *table = (sql_table_t *)sql_array_get(&pa->query->tables, i);
-        uint64 total_pages = 0;
-
-        OG_CONTINUE_IFTRUE(!calc_normal_table_pages(stmt, table, &total_pages));
-
-        calc_sample_ratio(tab_def, total_pages, level);
-        idx_def->sample_ratio = tab_def->sample_ratio / OG_PERCENT;
-        
-        if (check_dynamic_sampling_table(stmt, table, &tab_def->dynamic_type)) {
-            TABLE_CBO_IS_DEAL(table) = OG_FALSE;
-            stmt->context->dynamic_sampling = level;
-            sql_dynamic_sampling_table(stmt, table, tab_def, total_pages);
-            OG_CONTINUE_IFTRUE(tab_def->dynamic_type == STATS_ALL);
-        }
-        OG_LOG_DEBUG_INF(
-            "[DYNAMIC_SAMPLING] Table[%s] dynamic type is not STATS_ALL, checking indexes.",
-            T2S(&table->name.value));
-
-        sql_dynamic_sampling_table_indexes(stmt, table, total_pages, idx_def, level);
+        process_single_table(stmt, table, level, tab_def, idx_def);
     }
     return OG_SUCCESS;
 }
@@ -873,13 +1004,13 @@ status_t sql_dynamic_sampling_table_stats(sql_stmt_t *stmt, plan_assist_t *pa)
     OGSQL_SAVE_STACK(stmt);
     knl_analyze_tab_def_t *tab_def = NULL;
     knl_analyze_index_def_t *idx_def = NULL;
-    if (sql_alloc_tab_idx_def(stmt, &tab_def, &idx_def) != OG_SUCCESS) {
+    if (alloc_analyze_defs(stmt, &tab_def, &idx_def) != OG_SUCCESS) {
         OG_LOG_DEBUG_WAR("[DYNAMIC_SAMPLING] Alloc memory failed.");
         OGSQL_RESTORE_STACK(stmt);
         return OG_ERROR;
     }
     
-    status_t status = process_table_for_sampling(stmt, pa, level, tab_def, idx_def);
+    status_t status = process_all_tables(stmt, pa, level, tab_def, idx_def);
     OGSQL_RESTORE_STACK(stmt);
     return status;
 }
