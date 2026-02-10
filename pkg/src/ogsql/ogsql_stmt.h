@@ -692,6 +692,7 @@ void srv_unlock_session_shard_dml_id(sql_stmt_t *stmt);
 status_t sql_alloc_for_slowsql_stat(sql_stmt_t *stmt);
 status_t sql_alloc_context(sql_stmt_t *stmt);
 status_t sql_send_parsed_stmt_normal(sql_stmt_t *stmt, uint16 columnCount);
+status_t ogsql_dml_trace_send_back(sql_stmt_t *statement);
 
 #define my_sender(stmt) ((stmt)->session->sender)
 #define SET_STMT_CONTEXT(stmt, ogx)             \
