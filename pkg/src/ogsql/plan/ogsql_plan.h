@@ -34,6 +34,8 @@
 extern "C" {
 #endif
 
+#define SAMP_MOD_RATE_THRESHOLD 0.8
+
 static inline expr_node_t *get_like_first_node(expr_node_t *node)
 {
     if (node->type == EXPR_NODE_FUNC) {

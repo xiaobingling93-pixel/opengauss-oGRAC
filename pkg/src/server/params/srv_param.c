@@ -1009,7 +1009,7 @@ config_item_t g_parameters[] = {
     { "PARALLEL_MAX_THREADS", OG_TRUE, ATTR_NONE, "16", NULL, NULL, "-", "[0,4096]", "OG_TYPE_INTEGER", NULL,
       PARAM_PARALLEL_MAX_THREADS, EFFECT_REBOOT, CFG_INS, sql_verify_als_parall_max_threads,
       sql_notify_als_parall_max_threads, NULL, NULL },
-    { "_OPT_CBO_STAT_SAMPLING_LEVEL", OG_TRUE, ATTR_NONE, "1", NULL, NULL, "-", "[0,9]", "OG_TYPE_INTEGER", NULL,
+    { "_OPT_CBO_STAT_SAMPLING_LEVEL", OG_TRUE, ATTR_NONE, "0", NULL, NULL, "-", "[0,9]", "OG_TYPE_INTEGER", NULL,
       PARAM_OPT_CBO_STAT_SAMPLING_LEVEL, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_cbo_dyn_sampling,
       sql_notify_als_cbo_dyn_sampling, NULL, NULL },
     { "_STRICT_CASE_DATATYPE", OG_TRUE, ATTR_NONE, "FALSE", NULL, NULL, "-", "FALSE, TRUE", "OG_TYPE_BOOLEAN", NULL,

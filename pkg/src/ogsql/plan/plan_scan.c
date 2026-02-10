@@ -1329,6 +1329,10 @@ status_t sql_create_query_scan_plan(sql_stmt_t *stmt, plan_assist_t *plan_ass, p
         return sql_create_join_plan(stmt, plan_ass, join_root, join_root->filter, plan);
     }
 
+    if (sql_dynamic_sampling_table_stats(stmt, plan_ass) != OG_SUCCESS) {
+        cm_reset_error();
+    }
+
     plan_ass->has_parent_join = (bool8)plan_ass->query->cond_has_acstor_col;
     CBO_SET_FLAGS(plan_ass, CBO_CHECK_FILTER_IDX | CBO_CHECK_JOIN_IDX);
     OG_RETURN_IFERR(sql_check_table_indexable(stmt, plan_ass, plan_ass->tables[0], plan_ass->cond));

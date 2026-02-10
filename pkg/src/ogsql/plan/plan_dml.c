@@ -725,6 +725,7 @@ status_t sql_generate_merge_into_plan(sql_stmt_t *stmt, sql_merge_t *merge_ctx, 
     merge_plan_t *merge_plan = NULL;
     sql_table_t *merge_into_table = (sql_table_t *)sql_array_get(&merge_ctx->query->tables, 0);
     sql_table_t *using_table = (sql_table_t *)sql_array_get(&merge_ctx->query->tables, 1);
+    plan_assist_t pa;
 
     OG_RETURN_IFERR(sql_alloc_mem(stmt->context, sizeof(plan_node_t), (void **)&merge_ctx->plan));
 
@@ -745,6 +746,11 @@ status_t sql_generate_merge_into_plan(sql_stmt_t *stmt, sql_merge_t *merge_ctx, 
         query->join_assist.join_node->type = JOIN_TYPE_INNER;
         query->join_assist.join_node->oper = JOIN_OPER_NL;
         query->join_assist.outer_node_count = 0;
+    }
+
+    sql_init_plan_assist(stmt, &pa, query, SQL_MERGE_NODE, parent);
+    if (sql_dynamic_sampling_table_stats(stmt, &pa) != OG_SUCCESS) {
+        cm_reset_error();
     }
 
     OG_RETURN_IFERR(sql_create_query_plan(stmt, query, SQL_MERGE_NODE, &merge_plan->next, NULL));
