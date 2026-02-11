@@ -1292,3 +1292,60 @@ drop table utc_timestamp;
 drop table sessiontimezone;
 
 alter system set use_bison_parser = false;
+
+
+alter system set use_bison_parser = true;
+CREATE TABLE bison_test (
+    id INT NOT NULL,
+    name CHAR(50),
+    job VARCHAR(30),
+    salary NUMBER
+);
+--success
+INSERT INTO bison_test VALUES (1, 'jack', 'teacher', 2000);
+CREATE INDEX idx ON bison_test(id);
+SELECT INDEX_NAME, PARTITIONED, STATUS, INI_TRANS FROM MY_INDEXES WHERE TABLE_NAME = 'BISON_TEST';
+ALTER INDEX idx REBUILD;
+ALTER INDEX idx UNUSABLE;
+ALTER INDEX idx RENAME TO idx_id;
+ALTER INDEX idx_id RENAME TO idx;
+ALTER INDEX idx INITRANS 5;
+SELECT INDEX_NAME, PARTITIONED, STATUS, INI_TRANS FROM MY_INDEXES WHERE TABLE_NAME = 'BISON_TEST';
+
+drop table bison_test;
+CREATE TABLE sales (
+    id INT,
+    sale_date DATE,
+    amount NUMBER
+)
+PARTITION BY RANGE (sale_date) (
+    PARTITION p1 VALUES LESS THAN ('2024-01-01'),
+    PARTITION p2 VALUES LESS THAN ('2025-01-01'),
+    PARTITION p3 VALUES LESS THAN ('2026-  2 01-01')
+);
+
+INSERT INTO sales VALUES (1, '2023-06-15', 1000);
+INSERT INTO sales VALUES (2, '2024-06-15', 2000);
+INSERT INTO sales VALUES (3, '2025-06-15', 3000);
+
+CREATE INDEX global_idx ON sales(id);
+CREATE INDEX local_idx ON sales(sale_date) LOCAL;
+SELECT INDEX_NAME, PARTITIONED, STATUS, INI_TRANS FROM MY_INDEXES WHERE TABLE_NAME = 'SALES';
+SELECT * FROM MY_IND_PARTITIONS WHERE INDEX_NAME='LOCAL_IDX';
+ALTER INDEX global_idx REBUILD;
+ALTER INDEX global_idx UNUSABLE;
+ALTER INDEX global_idx RENAME TO global_idx_new;
+ALTER INDEX global_idx_new RENAME TO global_idx;
+ALTER INDEX global_idx INITRANS 5;
+ALTER INDEX local_idx REBUILD PARTITION p1;
+ALTER INDEX local_idx REBUILD PARTITION p2;
+ALTER INDEX local_idx MODIFY PARTITION p1 UNUSABLE;
+ALTER INDEX local_idx MODIFY PARTITION p2 UNUSABLE;
+ALTER INDEX local_idx MODIFY PARTITION p1 COALESCE;
+ALTER INDEX local_idx MODIFY PARTITION p2 INITRANS 3;
+SELECT * FROM MY_IND_PARTITIONS WHERE INDEX_NAME='LOCAL_IDX';
+ALTER INDEX global_idx UNUSABLE;
+ALTER INDEX global_idx REBUILD;
+
+drop table sales;
+alter system set use_bison_parser = false;

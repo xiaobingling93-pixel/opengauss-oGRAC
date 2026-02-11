@@ -106,6 +106,15 @@ typedef struct st_knl_alindex_def {
     };
     uint8 is_for_create_db;
 } knl_alindex_def_t;
+typedef struct st_alter_index_action_def {
+    alter_index_type_t type;
+    text_t user;
+    union {
+        knl_alt_index_prop_t idx_def;     /* < for alter index property */
+        rebuild_index_def_t rebuild;      /* < for alter index rebuild */
+        modify_idxpart_def_t mod_idxpart; /* < for alter index modify partition */
+    };
+} alter_index_action_t;
 
 status_t knl_create_index(knl_handle_t handle, knl_handle_t stmt, knl_index_def_t *def);
 status_t knl_alter_index_coalesce(knl_handle_t session, knl_alindex_def_t *def);

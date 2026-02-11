@@ -90,6 +90,7 @@ static status_t strGetInt64(const char *str, int64 *value);
 static char* ds_unit_to_str(interval_unit_order_t order);
 static interval_unit_t get_interval_unit(interval_unit_order_t order);
 static interval_unit_t generate_interval_unit(interval_unit_order_t from, interval_unit_order_t to);
+static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_t *alter_idx_act, knl_alindex_def_t *def);
 
 %}
 
@@ -153,9 +154,10 @@ static interval_unit_t generate_interval_unit(interval_unit_order_t from, interv
     knl_device_def_t    *dev_def;
     createdb_instance_node *inode;
     user_option_t       *user_opt;
+    alter_index_action_t   *alter_idx_act;
 }
 
-%type <res>    stmtblock stmtmulti InsertStmt SelectStmt simple_select DeleteStmt select_with_parens select_no_parens UpdateStmt select_clause MergeStmt DropStmt merge_insert merge_when_insert_clause ReplaceStmt TruncateStmt FlashStmt CommentStmt AnalyzeStmt CreatedbStmt CreateUserStmt CreateRoleStmt CreateTenantStmt
+%type <res>    stmtblock stmtmulti InsertStmt SelectStmt simple_select DeleteStmt select_with_parens select_no_parens UpdateStmt select_clause MergeStmt DropStmt merge_insert merge_when_insert_clause ReplaceStmt TruncateStmt FlashStmt CommentStmt AnalyzeStmt CreatedbStmt CreateUserStmt CreateRoleStmt CreateTenantStmt AlterIndexStmt
 %type <list>   ctext_expr_list ctext_row indirection opt_indirection values_clause insert_column_list when_expr_clause_list when_cond_clause_list func_name within_group_clause sort_clause opt_sort_clause sortby_list opt_partition_clause expr_list target_list opt_target_list opt_type_modifiers opt_float opt_array_bounds
 %type <list>   all_insert_into_list set_clause_list set_clause multiple_set_clause return_clause delete_target_list expr_list_with_select_rows json_column_list siblings_clause with_clause cte_list pivot_in_list pivot_clause_list select_pivot_clause unpivot_in_list expr_or_implicit_row_list cube_clause rollup_clause
 %type <list>   group_sets_item group_sets_list grouping_sets_clause group_by_cartesian_item group_by_list group_clause locked_rels_list columnref_list opt_siblings_clause replace_set_clause_list
@@ -211,6 +213,7 @@ static interval_unit_t generate_interval_unit(interval_unit_order_t from, interv
 %type <ival>    opt_asc_desc opt_nulls_order opt_charset opt_collate opt_wait opt_truncate_options truncate_option truncate_options year_month_unit day_hour_minute_unit opt_year_month_unit no_arg_func_name_id
 %type <sortby>  sortby
 %type <limit_item> opt_limit limit_clause offset_clause select_limit
+%type <alter_idx_act> alter_index_action
 
 %token <str>    IDENT FCONST SCONST XCONST Op CmpOp COMMENTSTRING SET_USER_IDENT SET_IDENT UNDERSCORE_CHARSET FCONST_F FCONST_D OPER_CAT OPER_LSHIFT OPER_RSHIFT
 %token <ival>   ICONST PARAM
@@ -460,6 +463,7 @@ stmtmulti:
         | CreateUserStmt
         | CreateRoleStmt
         | CreateTenantStmt
+        | AlterIndexStmt
         | /*EMPTY*/ { $$ = NULL; }
     ;
 
@@ -7969,6 +7973,187 @@ CreateTenantStmt:
                     $$ = def;
                 }
         ;
+alter_index_action:
+ 	        UNUSABLE
+ 	            {
+ 	                alter_index_action_t *alter_idx_act = NULL;
+ 	                sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+ 	                if (sql_alloc_mem(stmt->context, sizeof(alter_index_action_t), (void **)&alter_idx_act) != OG_SUCCESS) {
+ 	                    parser_yyerror("alloc mem failed ");
+ 	                }
+ 	                alter_idx_act->type = ALINDEX_TYPE_UNUSABLE;
+ 	                $$ = alter_idx_act;
+ 	            }
+ 	        | COALESCE
+ 	            {
+ 	                alter_index_action_t *alter_idx_act = NULL;
+ 	                sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+ 	                if (sql_alloc_mem(stmt->context, sizeof(alter_index_action_t), (void **)&alter_idx_act) != OG_SUCCESS) {
+ 	                    parser_yyerror("alloc mem failed ");
+ 	                }
+ 	                alter_idx_act->type = ALINDEX_TYPE_COALESCE;
+ 	                $$ = alter_idx_act;
+ 	            }
+ 	        | INITRANS ICONST
+ 	            {
+ 	                alter_index_action_t *alter_idx_act = NULL;
+ 	                sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+ 	                if (sql_alloc_mem(stmt->context, sizeof(alter_index_action_t), (void **)&alter_idx_act) != OG_SUCCESS) {
+ 	                    parser_yyerror("alloc mem failed ");
+ 	                }
+ 	                alter_idx_act->type = ALINDEX_TYPE_INITRANS;
+ 	                alter_idx_act->idx_def.initrans = $2;
+ 	                $$ = alter_idx_act;
+ 	            }
+ 	        | RENAME TO any_name
+ 	            {
+ 	                alter_index_action_t *alter_idx_act = NULL;
+ 	                sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+ 	                if (sql_alloc_mem(stmt->context, sizeof(alter_index_action_t), (void **)&alter_idx_act) != OG_SUCCESS) {
+ 	                    parser_yyerror("alloc mem failed ");
+ 	                }
+ 	                alter_idx_act->type = ALINDEX_TYPE_RENAME;
+ 	                alter_idx_act->user = $3->owner;
+ 	                alter_idx_act->idx_def.new_name = $3->name;
+ 	                $$ = alter_idx_act;
+ 	            }
+            | REBUILD
+                {
+                    alter_index_action_t *alter_idx_act = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_alloc_mem(stmt->context, sizeof(alter_index_action_t), (void **)&alter_idx_act) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed ");
+                    }
+                    alter_idx_act->type = ALINDEX_TYPE_REBUILD;
+                    $$ = alter_idx_act;
+                }
+            | REBUILD PARTITION ColId
+                {
+                    alter_index_action_t *alter_idx_act = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_alloc_mem(stmt->context, sizeof(alter_index_action_t), (void **)&alter_idx_act) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed ");
+                    }
+                    alter_idx_act->type = ALINDEX_TYPE_REBUILD_PART;
+                    alter_idx_act->rebuild.part_name[0].str = $3;
+                    alter_idx_act->rebuild.part_name[0].len = strlen($3);
+                    $$ = alter_idx_act;
+                }
+            
+            | REBUILD SUBPARTITION ColId
+                {
+                    alter_index_action_t *alter_idx_act = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_alloc_mem(stmt->context, sizeof(alter_index_action_t), (void **)&alter_idx_act) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed ");
+                    }
+                    alter_idx_act->type = ALINDEX_TYPE_REBUILD_SUBPART;
+                    alter_idx_act->rebuild.part_name[0].str = $3;
+                    alter_idx_act->rebuild.part_name[0].len = strlen($3);
+                    $$ = alter_idx_act;
+                }
+            
+            | MODIFY_P PARTITION ColId UNUSABLE
+                {
+                    alter_index_action_t *alter_idx_act = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_alloc_mem(stmt->context, sizeof(alter_index_action_t), (void **)&alter_idx_act) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed ");
+                    }
+                    alter_idx_act->type = ALINDEX_TYPE_MODIFY_PART;
+                    alter_idx_act->mod_idxpart.part_name.str = $3;
+                    alter_idx_act->mod_idxpart.part_name.len = strlen($3);
+                    alter_idx_act->mod_idxpart.initrans = 0;
+                    $$ = alter_idx_act;
+                }
+            | MODIFY_P PARTITION ColId COALESCE
+                {
+                    alter_index_action_t *alter_idx_act = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_alloc_mem(stmt->context, sizeof(alter_index_action_t), (void **)&alter_idx_act) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed ");
+                    }
+                    alter_idx_act->type = ALINDEX_TYPE_MODIFY_PART;
+                    alter_idx_act->mod_idxpart.part_name.str = $3;
+                    alter_idx_act->mod_idxpart.part_name.len = strlen($3);
+                    alter_idx_act->mod_idxpart.initrans = (uint32)(-1);
+                    $$ = alter_idx_act;
+                }
+            | MODIFY_P PARTITION ColId INITRANS ICONST
+                {
+                    alter_index_action_t *alter_idx_act = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_alloc_mem(stmt->context, sizeof(alter_index_action_t), (void **)&alter_idx_act) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed ");
+                    }
+                    alter_idx_act->type = ALINDEX_TYPE_MODIFY_PART;
+                    alter_idx_act->mod_idxpart.part_name.str = $3;
+                    alter_idx_act->mod_idxpart.part_name.len = strlen($3);
+                    alter_idx_act->mod_idxpart.initrans = $5;
+                    $$ = alter_idx_act;
+                }
+            | MODIFY_P SUBPARTITION ColId UNUSABLE
+                {
+                    alter_index_action_t *alter_idx_act = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_alloc_mem(stmt->context, sizeof(alter_index_action_t), (void **)&alter_idx_act) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed ");
+                    }
+                    alter_idx_act->type = ALINDEX_TYPE_MODIFY_SUBPART;
+                    alter_idx_act->mod_idxpart.part_name.str = $3;
+                    alter_idx_act->mod_idxpart.part_name.len = strlen($3);
+                    alter_idx_act->mod_idxpart.initrans = 0;
+                    $$ = alter_idx_act;
+                }
+            | MODIFY_P SUBPARTITION ColId COALESCE
+                {
+                    alter_index_action_t *alter_idx_act = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_alloc_mem(stmt->context, sizeof(alter_index_action_t), (void **)&alter_idx_act) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed ");
+                    }
+                    alter_idx_act->type = ALINDEX_TYPE_MODIFY_SUBPART;
+                    alter_idx_act->mod_idxpart.part_name.str = $3;
+                    alter_idx_act->mod_idxpart.part_name.len = strlen($3);
+                    alter_idx_act->mod_idxpart.initrans = (uint32)(-1);
+                    $$ = alter_idx_act;
+                }
+
+ 	             
+ 	    ;
+ 	 
+AlterIndexStmt:
+ 	        ALTER INDEX_P any_name alter_index_action
+ 	            {
+ 	                knl_alindex_def_t *def = NULL;
+ 	                sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+ 	                text_t table;
+ 	                stmt->context->type = OGSQL_TYPE_ALTER_INDEX;
+ 	 
+ 	                if (sql_alloc_mem(stmt->context, sizeof(knl_alindex_def_t), (void **)&def) != OG_SUCCESS) {
+ 	                    parser_yyerror("alloc mem failed ");
+ 	                }
+ 	                def->user = $3->owner;
+ 	                def->name = $3->name;
+ 	                if (def->user.str == NULL) {
+ 	                    cm_str2text(stmt->session->curr_schema, &def->user);
+ 	                }
+ 	                if (knl_get_table_of_index(&stmt->session->knl_session, &def->user, &def->name, &table) != OG_SUCCESS) {
+ 	                    sql_check_user_priv(stmt, &def->user);
+ 	                    parser_yyerror("get_table_of_index failed ");
+ 	                }
+ 	                if (sql_regist_ddl_table(stmt, &def->user, &table)) {
+ 	                    parser_yyerror("regist_ddl_table failed ");
+ 	                }
+ 	 
+ 	                if (process_alter_index_action(stmt, $4, def) != OG_SUCCESS) {
+ 	                    parser_yyerror("process_alter_index_action failed ");
+ 	                }
+ 	                $$ = def;
+ 	            }
+                       
+ 	    ;
+ 	 
 
 role_name:
             ColId                           { $$ = $1; }
@@ -9169,6 +9354,77 @@ static interval_unit_t generate_interval_unit(interval_unit_order_t from, interv
     }
     return itvl_fmt;
 }
+
+static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_t *alter_idx_act, knl_alindex_def_t *def)
+ 	{
+ 	    def->type = alter_idx_act->type;
+
+        switch (alter_idx_act->type) {
+            case ALINDEX_TYPE_UNUSABLE:
+            case ALINDEX_TYPE_COALESCE:
+                break;
+
+            case ALINDEX_TYPE_INITRANS:
+                if (alter_idx_act->idx_def.initrans <= 0 || alter_idx_act->idx_def.initrans > OG_MAX_TRANS) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "%s must between 1 and %d", "initrans", OG_MAX_TRANS);
+                    return OG_ERROR;
+                }
+                def->idx_def.initrans = alter_idx_act->idx_def.initrans;
+                break;
+
+            case ALINDEX_TYPE_RENAME:
+                if (alter_idx_act->user.str != NULL && cm_compare_text(&alter_idx_act->user, &def->user) != 0) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "%s expected", T2S(&def->user));
+                    return OG_ERROR;
+                }
+                def->idx_def.new_name = alter_idx_act->idx_def.new_name;
+                break;
+
+            case ALINDEX_TYPE_REBUILD:
+                break;
+
+            case ALINDEX_TYPE_REBUILD_PART:
+                def->rebuild.specified_parts = 1;
+                def->rebuild.part_name[0] = alter_idx_act->rebuild.part_name[0];
+                break;
+
+            case ALINDEX_TYPE_REBUILD_SUBPART:
+                def->rebuild.specified_parts = 1;
+                def->rebuild.part_name[0] = alter_idx_act->rebuild.part_name[0];
+                break;
+
+            case ALINDEX_TYPE_MODIFY_PART:
+                def->mod_idxpart.part_name = alter_idx_act->mod_idxpart.part_name;
+            
+                if (alter_idx_act->mod_idxpart.initrans == (uint32)(-1)) {
+                    def->mod_idxpart.type = MODIFY_IDXPART_COALESCE;
+                } else if (alter_idx_act->mod_idxpart.initrans > 0) {
+                    if (alter_idx_act->mod_idxpart.initrans > OG_MAX_TRANS) {
+                        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "initrans must between 1 and %d", OG_MAX_TRANS);
+                        return OG_ERROR;
+                    }
+                    def->mod_idxpart.type = MODIFY_IDXPART_INITRANS;
+                    def->mod_idxpart.initrans = alter_idx_act->mod_idxpart.initrans;
+                } else {
+                    def->mod_idxpart.type = MODIFY_IDXPART_UNUSABLE;
+                }
+                break;
+
+            case ALINDEX_TYPE_MODIFY_SUBPART:
+                def->mod_idxpart.part_name = alter_idx_act->mod_idxpart.part_name;
+            
+                if (alter_idx_act->mod_idxpart.initrans == (uint32)(-1)) {
+                    def->mod_idxpart.type = MODIFY_IDXSUBPART_COALESCE;
+                } else {
+                    def->mod_idxpart.type = MODIFY_IDXSUBPART_UNUSABLE;
+                }
+                break;
+
+            default:
+                return OG_ERROR;
+        }
+        return OG_SUCCESS;
+ 	}
 
 /*
  * Must undefine this stuff before including scan.c, since it has different

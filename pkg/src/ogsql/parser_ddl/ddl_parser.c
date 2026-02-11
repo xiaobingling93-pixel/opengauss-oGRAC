@@ -366,7 +366,11 @@ static status_t sql_parse_ddl_alter(sql_stmt_t *stmt)
             break;
 
         case KEY_WORD_INDEX:
-            status = sql_parse_alter_index(stmt);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_alter_index(stmt);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
 
         case RES_WORD_USER:

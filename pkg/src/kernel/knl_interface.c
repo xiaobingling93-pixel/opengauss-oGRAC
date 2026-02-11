@@ -6815,7 +6815,6 @@ status_t knl_alter_index_coalesce(knl_handle_t session, knl_alindex_def_t *def)
     index_t *index = NULL;
     knl_session_t *se = (knl_session_t *)session;
     drlatch_t *ddl_latch = &se->kernel->db.ddl_latch;
-    text_t *table_name;
 
     if (knl_ddl_enabled(session, OG_TRUE) != OG_SUCCESS) {
         return OG_ERROR;
@@ -6824,10 +6823,8 @@ status_t knl_alter_index_coalesce(knl_handle_t session, knl_alindex_def_t *def)
     if (knl_ddl_latch_s(ddl_latch, session, NULL) != OG_SUCCESS) {
         return OG_ERROR;
     }
-    
-    table_name = &def->table;
 
-    if (knl_open_dc_by_index(se, &def->user, table_name, &def->name, &dc) != OG_SUCCESS) {
+    if (knl_open_dc_by_index(se, &def->user, NULL, &def->name, &dc) != OG_SUCCESS) {
         dls_unlatch(session, ddl_latch, NULL);
         return OG_ERROR;
     }
