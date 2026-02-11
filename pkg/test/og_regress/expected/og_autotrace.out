@@ -1,0 +1,75 @@
+
+
+SQL> DROP TABLE IF EXISTS autotrace_test;
+
+Succeed.
+
+SQL> CREATE TABLE autotrace_test(c1 int);
+
+Succeed.
+
+SQL> INSERT INTO autotrace_test VALUES(1);
+
+1 rows affected.
+
+SQL> COMMIT;
+
+Succeed.
+
+SQL> 
+SQL> SET AUTOTRACE ON;
+
+ON
+SQL> select * from autotrace_test;
+
+C1          
+------------
+1           
+
+1 rows fetched.
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------
+| Id | Operation             | Owner | Name           | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT      |       |                | 1    | 1    | 0         |       |        |
+| 1  |     TABLE ACCESS FULL | SYS   | AUTOTRACE_TEST | 1    | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------------
+
+6 rows fetched.
+
+SQL> SET AUTOTRACE TRACEONLY;
+
+TRACEONLY
+SQL> select * from autotrace_test;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------
+| Id | Operation             | Owner | Name           | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT      |       |                | 1    | 1    | 0         |       |        |
+| 1  |     TABLE ACCESS FULL | SYS   | AUTOTRACE_TEST | 1    | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------------
+
+6 rows fetched.
+
+SQL> SET AUTOTRACE OFF;
+
+OFF
+SQL> select * from autotrace_test;
+
+C1          
+------------
+1           
+
+1 rows fetched.
+
+SQL> 
+SQL> DROP TABLE IF EXISTS autotrace_test;
+Succeed.
+
+
+
+

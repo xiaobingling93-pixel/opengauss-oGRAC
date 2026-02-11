@@ -1170,6 +1170,14 @@ status_t sql_execute_fetch(sql_stmt_t *ogsql_stmt)
 
     if (ogsql_stmt->eof) {
         sql_unlock_lnk_tabs(ogsql_stmt);
+
+        if (NEED_TRACE(ogsql_stmt)) {
+            if (ogsql_dml_trace_send_back(ogsql_stmt) != OG_SUCCESS) {
+                sql_release_resource(ogsql_stmt, OG_FALSE);
+                return OG_ERROR;
+            }
+        }
+
         if (ogsql_stmt->eof) {
             sql_release_resource(ogsql_stmt, OG_FALSE);
             if (!pre_eof) {

@@ -1302,6 +1302,9 @@ status_t sql_execute(sql_stmt_t *stmt)
         status = sql_execute_expl_and_send(stmt);
     } else if (SQL_TYPE(stmt) < OGSQL_TYPE_DML_CEIL) {
         status = sql_execute_dml_and_send(stmt);
+        if (stmt->eof && status == OG_SUCCESS && NEED_TRACE(stmt)) {
+            status = ogsql_dml_trace_send_back(stmt);
+        }
     } else if (SQL_TYPE(stmt) == OGSQL_TYPE_ANONYMOUS_BLOCK) {
         status = ple_exec_anonymous_block(stmt);
         stmt->eof = OG_TRUE;
@@ -6239,6 +6242,35 @@ status_t sql_stmt_clone(sql_stmt_t *src, sql_stmt_t *sql_dest)
     sql_dest->fexec_info.fexec_buff_offset = 0;
     sql_dest->fexec_info.first_exec_buf = NULL;
 
+    return OG_SUCCESS;
+}
+
+static status_t stmt_init_4_dml_trace(sql_stmt_t *statement)
+{
+    if (statement == NULL) {
+        return OG_ERROR;
+    }
+    statement->lang_type = LANG_EXPLAIN;
+    statement->is_explain = OG_TRUE;
+    statement->eof = OG_FALSE;
+    statement->batch_rows = 0;
+    statement->session->send_pack->head->size = sizeof(cs_packet_head_t);
+    if (statement->cursor_stack.depth > 0) {
+        sql_free_cursor(statement, OGSQL_ROOT_CURSOR(statement));
+    }
+    return OG_SUCCESS;
+}
+
+status_t ogsql_dml_trace_send_back(sql_stmt_t *statement)
+{
+    if (statement->trace_disabled) {
+        return OG_SUCCESS;
+    }
+    OG_RETURN_IFERR(srv_return_success(statement->session));
+    OG_RETURN_IFERR(stmt_init_4_dml_trace(statement));
+    OBJ_STACK_RESET(&statement->cursor_stack);
+    OG_RETURN_IFERR(sql_send_parsed_stmt(statement));
+    OG_RETURN_IFERR(sql_execute_expl_and_send(statement));
     return OG_SUCCESS;
 }
 
