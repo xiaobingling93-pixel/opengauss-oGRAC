@@ -787,3 +787,23 @@ SQLRETURN ograc_execute(statement *stmt)
     }
     return SQL_SUCCESS;
 }
+
+SQLRETURN get_sql_error(char *error_msg, int error_code, SQLINTEGER *NativeError,
+                        SQLCHAR *MessageText, SQLSMALLINT BufferLength)
+{
+    uint32 text_len = 0;
+    uint32 err_info_len = (uint32)strlen(error_msg);
+
+    if (NativeError != NULL) {
+        *NativeError = error_code;
+    }
+
+    text_len = (uint32)BufferLength <= err_info_len ? (uint32)BufferLength - 1 : err_info_len;
+    if (MessageText != NULL) {
+        if (memcpy_s(MessageText, text_len, error_msg, text_len) != 0) {
+            return SQL_ERROR;
+        }
+        MessageText[text_len] = '\0';
+    }
+    return SQL_SUCCESS;
+}

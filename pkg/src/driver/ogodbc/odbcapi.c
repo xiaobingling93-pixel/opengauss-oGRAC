@@ -396,3 +396,47 @@ SQLRETURN SQL_API SQLPutData(SQLHSTMT StatementHandle, SQLPOINTER DataPtr, SQLLE
     clean_conn_handle(conn);
     return ograc_put_data(stmt, DataPtr, StrLen_or_Ind);
 }
+
+SQLRETURN SQL_API SQLError(SQLHENV EnvironmentHandle, SQLHDBC ConnectionHandle,
+                           SQLHSTMT StatementHandle, SQLCHAR *Sqlstate,
+                           SQLINTEGER *NativeError, SQLCHAR *MessageText,
+                           SQLSMALLINT BufferLength, SQLSMALLINT *TextLength)
+{
+    environment_class *env;
+    connection_class *conn;
+
+    if (EnvironmentHandle != NULL) {
+        env = (environment_class *)EnvironmentHandle;
+        if (env->err_sign < 0) {
+            env->err_sign = 0;
+            return SQL_ERROR;
+        } else if (env->err_sign == 1) {
+            env->err_sign = 0;
+            if (env->error_msg != NULL) {
+                return get_sql_error(env->error_msg, env->error_code, NativeError, MessageText, BufferLength);
+            }
+        }
+        env->err_sign = 0;
+        return SQL_NO_DATA;
+    }
+
+    if (ConnectionHandle != NULL || StatementHandle != NULL) {
+        if (ConnectionHandle != NULL) {
+            conn = (connection_class *)ConnectionHandle;
+        } else {
+            conn = ((statement *)StatementHandle)->conn;
+        }
+        if (conn->err_sign < 0) {
+            conn->err_sign = 0;
+            return SQL_ERROR;
+        } else if (conn->err_sign == 1) {
+            conn->err_sign = 0;
+            if (conn->error_msg != NULL) {
+                return get_sql_error(conn->error_msg, conn->error_code, NativeError, MessageText, BufferLength);
+            }
+        }
+        conn->err_sign = 0;
+        return SQL_NO_DATA;
+    }
+    return SQL_INVALID_HANDLE;
+}

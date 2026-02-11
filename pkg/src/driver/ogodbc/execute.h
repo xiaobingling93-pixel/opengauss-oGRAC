@@ -24,10 +24,13 @@
 #define EXECUTE_H
 
 #include "statement.h"
+#include "cm_error.h"
 
 void clean_env_handle(SQLHENV henv);
 void clean_conn_handle(SQLHDBC hdbc);
 status_t set_conn_attr(connection_class *conn, SQLPOINTER Value, SQLINTEGER StringLength, int32 attr);
 SQLRETURN ograc_prepare(statement *stmt, const SQLCHAR *text);
 SQLRETURN ograc_execute(statement *stmt);
+SQLRETURN get_sql_error(char *err_msg, int err_no, SQLINTEGER *NativeError,
+                        SQLCHAR *MessageText, SQLSMALLINT BufferLength);
 #endif

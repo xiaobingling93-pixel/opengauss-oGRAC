@@ -73,6 +73,7 @@ SQLRETURN og_db_connect(connection_class *conn, ConnInfo *info)
     uint32 connHostlen = 0;
     uint32 serverLen = 0;
     uint32 portLen = 0;
+    char connHost[MAX_CONN_HOST_LEN];
 
     if (verify_conn_info(conn, info) != SQL_SUCCESS) {
         return SQL_ERROR;
@@ -81,7 +82,6 @@ SQLRETURN og_db_connect(connection_class *conn, ConnInfo *info)
     serverLen = strlen(info->server);
     portLen = strlen(info->port);
     connHostlen = serverLen + portLen + 1;
-    char connHost[connHostlen];
     err = memcpy_s(connHost, sizeof(connHost), info->server, serverLen);
     if (err != 0) {
         conn->err_sign = 1;
