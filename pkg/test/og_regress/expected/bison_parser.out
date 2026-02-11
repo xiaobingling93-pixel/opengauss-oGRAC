@@ -4304,6 +4304,14 @@ SQL> CREATE INDEX idx ON bison_test(id);
 
 Succeed.
 
+SQL> SELECT INDEX_NAME, PARTITIONED, STATUS, INI_TRANS FROM MY_INDEXES WHERE TABLE_NAME = 'BISON_TEST';
+
+INDEX_NAME                                                       PARTITIONED STATUS  INI_TRANS   
+---------------------------------------------------------------- ----------- ------- ------------
+IDX                                                              N           VALID   2           
+
+1 rows fetched.
+
 SQL> ALTER INDEX idx REBUILD;
 
 Succeed.
@@ -4320,9 +4328,17 @@ SQL> ALTER INDEX idx_id RENAME TO idx;
 
 Succeed.
 
-SQL> ALTER INDEX idx INITRANS 2;
+SQL> ALTER INDEX idx INITRANS 5;
 
 Succeed.
+
+SQL> SELECT INDEX_NAME, PARTITIONED, STATUS, INI_TRANS FROM MY_INDEXES WHERE TABLE_NAME = 'BISON_TEST';
+
+INDEX_NAME                                                       PARTITIONED STATUS  INI_TRANS   
+---------------------------------------------------------------- ----------- ------- ------------
+IDX                                                              N           INVALID 5           
+
+1 rows fetched.
 
 SQL> 
 SQL> drop table bison_test;
@@ -4363,6 +4379,25 @@ Succeed.
 SQL> CREATE INDEX local_idx ON sales(sale_date) LOCAL;
 
 Succeed.
+
+SQL> SELECT INDEX_NAME, PARTITIONED, STATUS, INI_TRANS FROM MY_INDEXES WHERE TABLE_NAME = 'SALES';
+
+INDEX_NAME                                                       PARTITIONED STATUS  INI_TRANS   
+---------------------------------------------------------------- ----------- ------- ------------
+LOCAL_IDX                                                        Y           VALID   2           
+GLOBAL_IDX                                                       N           VALID   2           
+
+2 rows fetched.
+
+SQL> SELECT * FROM MY_IND_PARTITIONS WHERE INDEX_NAME='LOCAL_IDX';
+
+INDEX_NAME                                                       COMPOSITE PARTITION_NAME                                                   PARTITION_POSITION STATUS  PCT_FREE     INI_TRANS    MAX_TRANS    BLEVEL       LEAF_BLOCKS  DISTINCT_KEYS AVG_LEAF_BLOCKS_PER_KEY AVG_DATA_BLOCKS_PER_KEY CLUSTERING_FACTOR NUM_ROWS     SAMPLE_SIZE  LAST_ANALYZED          TABLESPACE_NAME                                                 
+---------------------------------------------------------------- --------- ---------------------------------------------------------------- ------------------ ------- ------------ ------------ ------------ ------------ ------------ ------------- ----------------------- ----------------------- ----------------- ------------ ------------ ---------------------- ----------------------------------------------------------------
+LOCAL_IDX                                                        NO        P3                                                               30                 VALID   8            2            255                                                                                                                                                                     SYSTEM                                                          
+LOCAL_IDX                                                        NO        P2                                                               20                 VALID   8            2            255                                                                                                                                                                     SYSTEM                                                          
+LOCAL_IDX                                                        NO        P1                                                               10                 VALID   8            2            255                                                                                                                                                                     SYSTEM                                                          
+
+3 rows fetched.
 
 SQL> ALTER INDEX global_idx REBUILD;
 
@@ -4407,6 +4442,16 @@ Succeed.
 SQL> ALTER INDEX local_idx MODIFY PARTITION p2 INITRANS 3;
 
 Succeed.
+
+SQL> SELECT * FROM MY_IND_PARTITIONS WHERE INDEX_NAME='LOCAL_IDX';
+
+INDEX_NAME                                                       COMPOSITE PARTITION_NAME                                                   PARTITION_POSITION STATUS  PCT_FREE     INI_TRANS    MAX_TRANS    BLEVEL       LEAF_BLOCKS  DISTINCT_KEYS AVG_LEAF_BLOCKS_PER_KEY AVG_DATA_BLOCKS_PER_KEY CLUSTERING_FACTOR NUM_ROWS     SAMPLE_SIZE  LAST_ANALYZED          TABLESPACE_NAME                                                 
+---------------------------------------------------------------- --------- ---------------------------------------------------------------- ------------------ ------- ------------ ------------ ------------ ------------ ------------ ------------- ----------------------- ----------------------- ----------------- ------------ ------------ ---------------------- ----------------------------------------------------------------
+LOCAL_IDX                                                        NO        P3                                                               30                 VALID   8            2            255                                                                                                                                                                     SYSTEM                                                          
+LOCAL_IDX                                                        NO        P2                                                               20                 INVALID 8            3            255                                                                                                                                                                     SYSTEM                                                          
+LOCAL_IDX                                                        NO        P1                                                               10                 INVALID 8            2            255                                                                                                                                                                     SYSTEM                                                          
+
+3 rows fetched.
 
 SQL> ALTER INDEX global_idx UNUSABLE;
 
