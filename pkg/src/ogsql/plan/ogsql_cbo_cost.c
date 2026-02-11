@@ -1024,8 +1024,15 @@ static double like_frequence_hist_factor_var(sql_stmt_t *stmt, dc_entity_t *enti
         bool32 cmp;
         variant_t hist_var;
         knl_cbo_text2variant(entity, col_id, &column_stats->column_hist[i]->ep_value, &hist_var);
-        OG_RETVALUE_IFTRUE(var_like(&hist_var, like_val, &cmp, has_escape, escape, GET_CHARSET_ID) != OG_SUCCESS,
-            BAD_SAMPLE);
+
+        OGSQL_SAVE_STACK(stmt);
+        if (!OG_IS_STRING_TYPE(hist_var.type)) {
+            RETVALUE_AND_RESTORE_STACK_IFERR(sql_convert_variant(stmt, &hist_var, OG_TYPE_STRING),
+                stmt, BAD_SAMPLE);
+            sql_keep_stack_variant(stmt, &hist_var);
+        }
+        RETVALUE_AND_RESTORE_STACK_IFERR(var_like(&hist_var, like_val, &cmp, has_escape, escape, GET_CHARSET_ID),
+            stmt, BAD_SAMPLE);
 
         int32 var_cnt = column_stats->column_hist[i]->ep_number -
             (i == 0 ? 0 : column_stats->column_hist[i - 1]->ep_number);
@@ -1036,6 +1043,7 @@ static double like_frequence_hist_factor_var(sql_stmt_t *stmt, dc_entity_t *enti
         }
 
         sum_char += hist_var.v_text.len;
+        OGSQL_RESTORE_STACK(stmt);
     }
 
     if (n_samples == 0) {
@@ -1111,8 +1119,14 @@ static double like_balanced_hist_factor_var(sql_stmt_t *stmt, dc_entity_t *entit
         bool32 cmp;
         variant_t hist_var;
         knl_cbo_text2variant(entity, col_id, &column_stats->column_hist[i]->ep_value, &hist_var);
-        OG_RETVALUE_IFTRUE(var_like(&hist_var, like_val, &cmp, has_escape, escape, GET_CHARSET_ID) != OG_SUCCESS,
-            BAD_SAMPLE);
+        OGSQL_SAVE_STACK(stmt);
+        if (!OG_IS_STRING_TYPE(hist_var.type)) {
+            RETVALUE_AND_RESTORE_STACK_IFERR(sql_convert_variant(stmt, &hist_var, OG_TYPE_STRING),
+                stmt, BAD_SAMPLE);
+            sql_keep_stack_variant(stmt, &hist_var);
+        }
+        RETVALUE_AND_RESTORE_STACK_IFERR(var_like(&hist_var, like_val, &cmp, has_escape, escape, GET_CHARSET_ID),
+            stmt, BAD_SAMPLE);
 
         n_samples++;
         if (cmp) {
@@ -1120,6 +1134,7 @@ static double like_balanced_hist_factor_var(sql_stmt_t *stmt, dc_entity_t *entit
         }
 
         sum_char += hist_var.v_text.len;
+        OGSQL_RESTORE_STACK(stmt);
     }
 
     if (n_samples == 0) {
@@ -1169,7 +1184,8 @@ static double like_frequence_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, 
     double prev_sel = 1 - is_null_hist_factor(column_stats);
     double rest_sel = like_selectivity(text, has_escape, escape);
     double like_sel;
-    if (prev_len != 0) {
+    knl_column_t *dc_column = dc_get_column(entity, col_id);
+    if (prev_len != 0 && OG_IS_STRING_TYPE(dc_column->datatype)) {
         OGSQL_SAVE_STACK(stmt);
 
         variant_t prev_str;
@@ -1235,7 +1251,8 @@ static double like_balanced_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, u
     double prev_sel = 1 - is_null_hist_factor(column_stats);
     double rest_sel = like_selectivity(text, has_escape, escape);
     double like_sel;
-    if (prev_len != 0) {
+    knl_column_t *dc_column = dc_get_column(entity, col_id);
+    if (prev_len != 0 && OG_IS_STRING_TYPE(dc_column->datatype)) {
         OGSQL_SAVE_STACK(stmt);
 
         variant_t prev_str;
