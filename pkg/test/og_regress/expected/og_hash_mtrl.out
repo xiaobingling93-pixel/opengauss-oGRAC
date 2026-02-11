@@ -94,16 +94,16 @@ SQL> explain select * from test_mtrl_emp e where salary > (select avg(salary) fr
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
-----------------------------------------------------------------------------------------------------------
-| Id | Operation                   | Owner | Name            | Rows | Cost  | StartCost | Bytes | Remark |
-----------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT            |       |                 | 0    | 10000 | 0         |       |        |
-| 1  |   QUERY SORT ORDER BY       |       |                 | 0    | 10000 | 0         |       |        |
-| 2  |     KERNEL FILTER           |       |                 | 0    | 10000 | 0         |       |        |
-| 3  |       TABLE ACCESS FULL     | SYS   | TEST_MTRL_EMP E | 0    | 10000 | 0         |       |        |
-| 4  |       HASH MATERIALIZE      |       |                 | 0    | 10000 | 0         |       |        |
-| 5  |           TABLE ACCESS FULL | SYS   | TEST_MTRL_EMP   | 0    | 10000 | 0         |       |        |
-----------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name            | Rows | Cost | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |                 | 10   | 4    | 0         |       |        |
+| 1  |   QUERY SORT ORDER BY       |       |                 | 10   | 4    | 0         |       |        |
+| 2  |     KERNEL FILTER           |       |                 | 10   | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL     | SYS   | TEST_MTRL_EMP E | 10   | 1    | 0         |       |        |
+| 4  |       HASH MATERIALIZE      |       |                 | 10   | 1    | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | TEST_MTRL_EMP   | 10   | 1    | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     3 - filter: SALARY > (SELECT AVG(SALARY) FROM TEST_MTRL_EMP GROUP BY DEPT_ID)
@@ -128,18 +128,18 @@ SQL> explain select emp_name,(select sum(p_cost) from (select cost + (select avg
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
--------------------------------------------------------------------------------------------------------------
-| Id | Operation                     | Owner | Name             | Rows | Cost  | StartCost | Bytes | Remark |
--------------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT              |       |                  | 0    | 10000 | 0         |       |        |
-| 1  |   AGGR                        |       |                  | 1    | 10000 | 0         |       |        |
-| 2  |       SUBSELECT               | SYS   | SUB              | 0    | 10000 | 0         |       |        |
-| 3  |         HASH MATERIALIZE      |       |                  | 0    | 10000 | 0         |       |        |
-| 4  |             TABLE ACCESS FULL | SYS   | TEST_MTRL_PROJ   | 0    | 10000 | 0         |       |        |
-| 5  |           TABLE ACCESS FULL   | SYS   | TEST_MTRL_PROJ P | 0    | 10000 | 0         |       |        |
-| 6  |   QUERY SORT ORDER BY         |       |                  | 0    | 10000 | 0         |       |        |
-| 7  |       TABLE ACCESS FULL       | SYS   | TEST_MTRL_EMP E  | 0    | 10000 | 0         |       |        |
--------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name             | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |                  | 10   | 4    | 0         |       |        |
+| 1  |   AGGR                        |       |                  | 1    | 1    | 0         |       |        |
+| 2  |       SUBSELECT               | SYS   | SUB              | 1    | 1    | 0         |       |        |
+| 3  |         HASH MATERIALIZE      |       |                  | 10   | 1    | 0         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | TEST_MTRL_PROJ   | 10   | 1    | 0         |       |        |
+| 5  |           TABLE ACCESS FULL   | SYS   | TEST_MTRL_PROJ P | 1    | 1    | 0         |       |        |
+| 6  |   QUERY SORT ORDER BY         |       |                  | 10   | 4    | 0         |       |        |
+| 7  |       TABLE ACCESS FULL       | SYS   | TEST_MTRL_EMP E  | 10   | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     3 - access: DEPT_ID = P.DEPT_ID AND EMP_ID = P.EMP_ID       
@@ -172,17 +172,17 @@ SQL> explain select dept_id, sum(cost) from test_mtrl_proj p group by dept_id ha
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
------------------------------------------------------------------------------------------------------------
-| Id | Operation                   | Owner | Name             | Rows | Cost  | StartCost | Bytes | Remark |
------------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT            |       |                  | 0    | 10000 | 0         |       |        |
-| 1  |   QUERY SORT ORDER BY       |       |                  | 0    | 10000 | 0         |       |        |
-| 2  |     HAVING                  |       |                  | 0    | 10000 | 0         |       |        |
-| 3  |       HASH GROUP BY         |       |                  | 0    | 10000 | 0         |       |        |
-| 4  |           TABLE ACCESS FULL | SYS   | TEST_MTRL_PROJ P | 0    | 10000 | 0         |       |        |
-| 5  |     HASH MATERIALIZE        |       |                  | 0    | 10000 | 0         |       |        |
-| 6  |         TABLE ACCESS FULL   | SYS   | TEST_MTRL_PROJ   | 0    | 10000 | 0         |       |        |
------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name             | Rows | Cost | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |                  | 7    | 20   | 8         |       |        |
+| 1  |   QUERY SORT ORDER BY       |       |                  | 7    | 20   | 8         |       |        |
+| 2  |     HAVING                  |       |                  | 7    | 18   | 8         |       |        |
+| 3  |       HASH GROUP BY         |       |                  | 7    | 18   | 8         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | TEST_MTRL_PROJ P | 10   | 1    | 0         |       |        |
+| 5  |     HASH MATERIALIZE        |       |                  | 10   | 1    | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | TEST_MTRL_PROJ   | 10   | 1    | 0         |       |        |
+----------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: SUM(COST) > (SELECT MAX(COST) - MIN(COST) FROM TEST_MTRL_PROJ GROUP BY DEPT_ID)
@@ -213,25 +213,25 @@ SQL> explain select (select count(*) from test_mtrl_proj where dept_id = d.dept_
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------------
-| Id | Operation                          | Owner | Name             | Rows | Cost  | StartCost | Bytes | Remark |
-------------------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT                   |       |                  | 0    | 10000 | 0         |       |        |
-| 1  |   AGGR                             |       |                  | 1    | 10000 | 0         |       |        |
-| 2  |     KERNEL FILTER                  |       |                  | 0    | 10000 | 0         |       |        |
-| 3  |       TABLE ACCESS FULL            | SYS   | TEST_MTRL_PROJ   | 0    | 10000 | 0         |       |        |
-| 4  |       QUERY LIMIT                  |       |                  | 0    | 10000 | 0         |       |        |
-| 5  |         QUERY SORT ORDER BY ROWNUM |       |                  | 0    | 10000 | 0         |       |        |
-| 6  |             TABLE ACCESS FULL      | SYS   | TEST_MTRL_EMP    | 0    | 10000 | 0         |       |        |
-| 7  |   QUERY SORT ORDER BY              |       |                  | 0    | 10000 | 0         |       |        |
-| 8  |     KERNEL FILTER                  |       |                  | 0    | 10000 | 0         |       |        |
-| 9  |       TABLE ACCESS FULL            | SYS   | TEST_MTRL_DEPT D | 0    | 10000 | 0         |       |        |
-| 10 |       AGGR                         |       |                  | 1    | 10000 | 0         |       |        |
-| 11 |         KERNEL FILTER              |       |                  | 0    | 10000 | 0         |       |        |
-| 12 |           TABLE ACCESS FULL        | SYS   | TEST_MTRL_PROJ P | 0    | 10000 | 0         |       |        |
-| 13 |           HASH MATERIALIZE         |       |                  | 0    | 10000 | 0         |       |        |
-| 14 |               TABLE ACCESS FULL    | SYS   | TEST_MTRL_EMP    | 0    | 10000 | 0         |       |        |
-------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------
+| Id | Operation                          | Owner | Name             | Rows | Cost | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                   |       |                  | 10   | 4    | 0         |       |        |
+| 1  |   AGGR                             |       |                  | 1    | 1    | 0         |       |        |
+| 2  |     KERNEL FILTER                  |       |                  | 1    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL            | SYS   | TEST_MTRL_PROJ   | 1    | 1    | 0         |       |        |
+| 4  |       QUERY LIMIT                  |       |                  | 1    | 2    | 0         |       |        |
+| 5  |         QUERY SORT ORDER BY ROWNUM |       |                  | 1    | 1    | 0         |       |        |
+| 6  |             TABLE ACCESS FULL      | SYS   | TEST_MTRL_EMP    | 1    | 1    | 0         |       |        |
+| 7  |   QUERY SORT ORDER BY              |       |                  | 10   | 4    | 0         |       |        |
+| 8  |     KERNEL FILTER                  |       |                  | 10   | 1    | 0         |       |        |
+| 9  |       TABLE ACCESS FULL            | SYS   | TEST_MTRL_DEPT D | 10   | 1    | 0         |       |        |
+| 10 |       AGGR                         |       |                  | 1    | 1    | 0         |       |        |
+| 11 |         KERNEL FILTER              |       |                  | 1    | 1    | 0         |       |        |
+| 12 |           TABLE ACCESS FULL        | SYS   | TEST_MTRL_PROJ P | 1    | 1    | 0         |       |        |
+| 13 |           HASH MATERIALIZE         |       |                  | 10   | 1    | 0         |       |        |
+| 14 |               TABLE ACCESS FULL    | SYS   | TEST_MTRL_EMP    | 10   | 1    | 0         |       |        |
+-----------------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     3 - filter: DEPT_ID = D.DEPT_ID AND EMP_ID = (SELECT TEST_MTRL_EMP.EMP_ID FROM TEST_MTRL_EMP WHERE DEPT_ID =
@@ -267,20 +267,20 @@ SQL> explain select dept_id, avg(salary) from test_mtrl_emp e where salary > (se
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
---------------------------------------------------------------------------------------------------------------
-| Id | Operation                       | Owner | Name            | Rows | Cost  | StartCost | Bytes | Remark |
---------------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT                |       |                 | 0    | 10000 | 0         |       |        |
-| 1  |   QUERY SORT ORDER BY           |       |                 | 0    | 10000 | 0         |       |        |
-| 2  |     HAVING                      |       |                 | 0    | 10000 | 0         |       |        |
-| 3  |       HASH GROUP BY             |       |                 | 0    | 10000 | 0         |       |        |
-| 4  |         KERNEL FILTER           |       |                 | 0    | 10000 | 0         |       |        |
-| 5  |           TABLE ACCESS FULL     | SYS   | TEST_MTRL_EMP E | 0    | 10000 | 0         |       |        |
-| 6  |           HASH MATERIALIZE      |       |                 | 0    | 10000 | 0         |       |        |
-| 7  |               TABLE ACCESS FULL | SYS   | TEST_MTRL_EMP   | 0    | 10000 | 0         |       |        |
-| 8  |     HASH MATERIALIZE            |       |                 | 0    | 10000 | 0         |       |        |
-| 9  |         TABLE ACCESS FULL       | SYS   | TEST_MTRL_EMP   | 0    | 10000 | 0         |       |        |
---------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name            | Rows | Cost | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |                 | 7    | 20   | 8         |       |        |
+| 1  |   QUERY SORT ORDER BY           |       |                 | 7    | 20   | 8         |       |        |
+| 2  |     HAVING                      |       |                 | 7    | 18   | 8         |       |        |
+| 3  |       HASH GROUP BY             |       |                 | 7    | 18   | 8         |       |        |
+| 4  |         KERNEL FILTER           |       |                 | 10   | 1    | 0         |       |        |
+| 5  |           TABLE ACCESS FULL     | SYS   | TEST_MTRL_EMP E | 10   | 1    | 0         |       |        |
+| 6  |           HASH MATERIALIZE      |       |                 | 10   | 1    | 0         |       |        |
+| 7  |               TABLE ACCESS FULL | SYS   | TEST_MTRL_EMP   | 10   | 1    | 0         |       |        |
+| 8  |     HASH MATERIALIZE            |       |                 | 10   | 1    | 0         |       |        |
+| 9  |         TABLE ACCESS FULL       | SYS   | TEST_MTRL_EMP   | 10   | 1    | 0         |       |        |
+-------------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: AVG(SALARY) > (SELECT AVG(SALARY) FROM TEST_MTRL_EMP GROUP BY DEPT_ID)
@@ -306,15 +306,15 @@ SQL> explain SELECT e.emp_name FROM test_mtrl_emp e WHERE e.salary > (SELECT AVG
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-| Id | Operation                 | Owner | Name             | Rows | Cost  | StartCost | Bytes | Remark |
----------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT          |       |                  | 0    | 10000 | 0         |       |        |
-| 1  |   KERNEL FILTER           |       |                  | 0    | 10000 | 0         |       |        |
-| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_EMP E  | 0    | 10000 | 0         |       |        |
-| 3  |     HASH MATERIALIZE      |       |                  | 0    | 10000 | 0         |       |        |
-| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_EMP E2 | 0    | 10000 | 0         |       |        |
----------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name             | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |                  | 10   | 1    | 0         |       |        |
+| 1  |   KERNEL FILTER           |       |                  | 10   | 1    | 0         |       |        |
+| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_EMP E  | 10   | 1    | 0         |       |        |
+| 3  |     HASH MATERIALIZE      |       |                  | 10   | 1    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_EMP E2 | 10   | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: E.SALARY > (SELECT AVG(SALARY) FROM TEST_MTRL_EMP E2 GROUP BY E2.DEPT_ID)
@@ -337,15 +337,15 @@ SQL> explain SELECT d.dept_name FROM test_mtrl_dept d WHERE d.budget > (SELECT A
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
-----------------------------------------------------------------------------------------------------------
-| Id | Operation                 | Owner | Name              | Rows | Cost  | StartCost | Bytes | Remark |
-----------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT          |       |                   | 0    | 10000 | 0         |       |        |
-| 1  |   KERNEL FILTER           |       |                   | 0    | 10000 | 0         |       |        |
-| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_DEPT D  | 0    | 10000 | 0         |       |        |
-| 3  |     AGGR                  |       |                   | 1    | 10000 | 0         |       |        |
-| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_DEPT D2 | 0    | 10000 | 0         |       |        |
-----------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name              | Rows | Cost | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |                   | 10   | 1    | 0         |       |        |
+| 1  |   KERNEL FILTER           |       |                   | 10   | 1    | 0         |       |        |
+| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_DEPT D  | 10   | 1    | 0         |       |        |
+| 3  |     AGGR                  |       |                   | 1    | 1    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_DEPT D2 | 10   | 1    | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: D.BUDGET > (SELECT AVG(BUDGET) FROM TEST_MTRL_DEPT D2 WHERE D2.DEPT_ID != D.DEPT_ID)
@@ -368,15 +368,15 @@ SQL> explain SELECT p.proj_id FROM test_mtrl_proj p WHERE p.cost > (SELECT AVG(c
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
-----------------------------------------------------------------------------------------------------------
-| Id | Operation                 | Owner | Name              | Rows | Cost  | StartCost | Bytes | Remark |
-----------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT          |       |                   | 0    | 10000 | 0         |       |        |
-| 1  |   KERNEL FILTER           |       |                   | 0    | 10000 | 0         |       |        |
-| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_PROJ P  | 0    | 10000 | 0         |       |        |
-| 3  |     HASH MATERIALIZE      |       |                   | 0    | 10000 | 0         |       |        |
-| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_PROJ P2 | 0    | 10000 | 0         |       |        |
-----------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name              | Rows | Cost | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |                   | 10   | 1    | 0         |       |        |
+| 1  |   KERNEL FILTER           |       |                   | 10   | 1    | 0         |       |        |
+| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_PROJ P  | 10   | 1    | 0         |       |        |
+| 3  |     HASH MATERIALIZE      |       |                   | 10   | 1    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_PROJ P2 | 10   | 1    | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: P.COST > (SELECT AVG(COST) FROM TEST_MTRL_PROJ P2 GROUP BY P2.DEPT_ID)
@@ -400,19 +400,19 @@ SQL> explain SELECT e.emp_name FROM test_mtrl_emp e WHERE e.salary > (SELECT AVG
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------
-| Id | Operation                   | Owner | Name              | Rows | Cost  | StartCost | Bytes | Remark |
-------------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT            |       |                   | 0    | 10000 | 0         |       |        |
-| 1  |   KERNEL FILTER             |       |                   | 0    | 10000 | 0         |       |        |
-| 2  |     TABLE ACCESS FULL       | SYS   | TEST_MTRL_EMP E   | 0    | 10000 | 0         |       |        |
-| 3  |     HASH MATERIALIZE        |       |                   | 0    | 10000 | 0         |       |        |
-| 4  |         TABLE ACCESS FULL   | SYS   | TEST_MTRL_EMP E2  | 0    | 10000 | 0         |       |        |
-| 5  |     KERNEL FILTER           |       |                   | 0    | 10000 | 0         |       |        |
-| 6  |       TABLE ACCESS FULL     | SYS   | TEST_MTRL_PROJ P  | 0    | 10000 | 0         |       |        |
-| 7  |       HASH MATERIALIZE      |       |                   | 0    | 10000 | 0         |       |        |
-| 8  |           TABLE ACCESS FULL | SYS   | TEST_MTRL_PROJ P2 | 0    | 10000 | 0         |       |        |
-------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name              | Rows | Cost | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |                   | 1    | 1    | 0         |       |        |
+| 1  |   KERNEL FILTER             |       |                   | 1    | 1    | 0         |       |        |
+| 2  |     TABLE ACCESS FULL       | SYS   | TEST_MTRL_EMP E   | 1    | 1    | 0         |       |        |
+| 3  |     HASH MATERIALIZE        |       |                   | 10   | 1    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL   | SYS   | TEST_MTRL_EMP E2  | 10   | 1    | 0         |       |        |
+| 5  |     KERNEL FILTER           |       |                   | 10   | 1    | 0         |       |        |
+| 6  |       TABLE ACCESS FULL     | SYS   | TEST_MTRL_PROJ P  | 10   | 1    | 0         |       |        |
+| 7  |       HASH MATERIALIZE      |       |                   | 10   | 1    | 0         |       |        |
+| 8  |           TABLE ACCESS FULL | SYS   | TEST_MTRL_PROJ P2 | 10   | 1    | 0         |       |        |
+-----------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: E.SALARY > (SELECT AVG(SALARY) FROM TEST_MTRL_EMP E2 GROUP BY E2.DEPT_ID) AND E.EMP_ID IN ((SELECT
@@ -438,15 +438,15 @@ SQL> explain SELECT d.dept_name FROM test_mtrl_dept d WHERE d.budget > (SELECT A
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
-----------------------------------------------------------------------------------------------------------
-| Id | Operation                 | Owner | Name              | Rows | Cost  | StartCost | Bytes | Remark |
-----------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT          |       |                   | 0    | 10000 | 0         |       |        |
-| 1  |   KERNEL FILTER           |       |                   | 0    | 10000 | 0         |       |        |
-| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_DEPT D  | 0    | 10000 | 0         |       |        |
-| 3  |     AGGR                  |       |                   | 1    | 10000 | 0         |       |        |
-| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_DEPT D2 | 0    | 10000 | 0         |       |        |
-----------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name              | Rows | Cost | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |                   | 10   | 1    | 0         |       |        |
+| 1  |   KERNEL FILTER           |       |                   | 10   | 1    | 0         |       |        |
+| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_DEPT D  | 10   | 1    | 0         |       |        |
+| 3  |     AGGR                  |       |                   | 1    | 1    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_DEPT D2 | 10   | 1    | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: D.BUDGET > (SELECT AVG(BUDGET) * 1.5 FROM TEST_MTRL_DEPT D2 WHERE D2.DEPT_ID != D.DEPT_ID)
@@ -469,17 +469,17 @@ SQL> explain SELECT e.emp_name FROM test_mtrl_emp e WHERE EXISTS (SELECT 1 FROM 
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------
-| Id | Operation                   | Owner | Name              | Rows | Cost  | StartCost | Bytes | Remark |
-------------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT            |       |                   | 0    | 10000 | 0         |       |        |
-| 1  |   KERNEL FILTER             |       |                   | 0    | 10000 | 0         |       |        |
-| 2  |     TABLE ACCESS FULL       | SYS   | TEST_MTRL_EMP E   | 0    | 10000 | 0         |       |        |
-| 3  |     KERNEL FILTER           |       |                   | 0    | 10000 | 0         |       |        |
-| 4  |       TABLE ACCESS FULL     | SYS   | TEST_MTRL_PROJ P  | 0    | 10000 | 0         |       |        |
-| 5  |       HASH MATERIALIZE      |       |                   | 0    | 10000 | 0         |       |        |
-| 6  |           TABLE ACCESS FULL | SYS   | TEST_MTRL_PROJ P2 | 0    | 10000 | 0         |       |        |
-------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name              | Rows | Cost | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |                   | 10   | 1    | 0         |       |        |
+| 1  |   KERNEL FILTER             |       |                   | 10   | 1    | 0         |       |        |
+| 2  |     TABLE ACCESS FULL       | SYS   | TEST_MTRL_EMP E   | 10   | 1    | 0         |       |        |
+| 3  |     KERNEL FILTER           |       |                   | 1    | 1    | 0         |       |        |
+| 4  |       TABLE ACCESS FULL     | SYS   | TEST_MTRL_PROJ P  | 1    | 1    | 0         |       |        |
+| 5  |       HASH MATERIALIZE      |       |                   | 10   | 1    | 0         |       |        |
+| 6  |           TABLE ACCESS FULL | SYS   | TEST_MTRL_PROJ P2 | 10   | 1    | 0         |       |        |
+-----------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: EXISTS(SELECT 1 FROM TEST_MTRL_PROJ P WHERE P.EMP_ID = E.EMP_ID AND P.COST > (SELECT AVG(COST) FROM
@@ -505,15 +505,15 @@ SQL> explain SELECT e.emp_name FROM test_mtrl_emp e WHERE e.salary > (SELECT MAX
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-| Id | Operation                 | Owner | Name             | Rows | Cost  | StartCost | Bytes | Remark |
----------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT          |       |                  | 0    | 10000 | 0         |       |        |
-| 1  |   KERNEL FILTER           |       |                  | 0    | 10000 | 0         |       |        |
-| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_EMP E  | 0    | 10000 | 0         |       |        |
-| 3  |     HASH MATERIALIZE      |       |                  | 0    | 10000 | 0         |       |        |
-| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_EMP E2 | 0    | 10000 | 0         |       |        |
----------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name             | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |                  | 10   | 1    | 0         |       |        |
+| 1  |   KERNEL FILTER           |       |                  | 10   | 1    | 0         |       |        |
+| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_EMP E  | 10   | 1    | 0         |       |        |
+| 3  |     HASH MATERIALIZE      |       |                  | 10   | 1    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_EMP E2 | 10   | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: E.SALARY > (SELECT MAX(SALARY) * .8 FROM TEST_MTRL_EMP E2 GROUP BY E2.DEPT_ID)
@@ -543,15 +543,15 @@ SQL> explain SELECT p.proj_id FROM test_mtrl_proj p WHERE p.cost > (SELECT MIN(b
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-| Id | Operation                 | Owner | Name             | Rows | Cost  | StartCost | Bytes | Remark |
----------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT          |       |                  | 0    | 10000 | 0         |       |        |
-| 1  |   KERNEL FILTER           |       |                  | 0    | 10000 | 0         |       |        |
-| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_PROJ P | 0    | 10000 | 0         |       |        |
-| 3  |     HASH MATERIALIZE      |       |                  | 0    | 10000 | 0         |       |        |
-| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_DEPT D | 0    | 10000 | 0         |       |        |
----------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name             | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |                  | 10   | 1    | 0         |       |        |
+| 1  |   KERNEL FILTER           |       |                  | 10   | 1    | 0         |       |        |
+| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_PROJ P | 10   | 1    | 0         |       |        |
+| 3  |     HASH MATERIALIZE      |       |                  | 10   | 1    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_DEPT D | 10   | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: P.COST > (SELECT MIN(BUDGET) * .2 FROM TEST_MTRL_DEPT D GROUP BY D.DEPT_ID)
@@ -572,17 +572,17 @@ SQL> explain SELECT e.emp_name FROM test_mtrl_emp e WHERE e.hire_date > (SELECT 
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-| Id | Operation                 | Owner | Name             | Rows | Cost  | StartCost | Bytes | Remark |
----------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT          |       |                  | 0    | 10000 | 0         |       |        |
-| 1  |   KERNEL FILTER           |       |                  | 0    | 10000 | 0         |       |        |
-| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_EMP E  | 0    | 10000 | 0         |       |        |
-| 3  |     HASH MATERIALIZE      |       |                  | 0    | 10000 | 0         |       |        |
-| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_EMP E2 | 0    | 10000 | 0         |       |        |
-| 5  |     HASH MATERIALIZE      |       |                  | 0    | 10000 | 0         |       |        |
-| 6  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_EMP E3 | 0    | 10000 | 0         |       |        |
----------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name             | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |                  | 10   | 1    | 0         |       |        |
+| 1  |   KERNEL FILTER           |       |                  | 10   | 1    | 0         |       |        |
+| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_EMP E  | 10   | 1    | 0         |       |        |
+| 3  |     HASH MATERIALIZE      |       |                  | 10   | 1    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_EMP E2 | 10   | 1    | 0         |       |        |
+| 5  |     HASH MATERIALIZE      |       |                  | 10   | 1    | 0         |       |        |
+| 6  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_EMP E3 | 10   | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: E.HIRE_DATE > (SELECT MIN(HIRE_DATE) FROM TEST_MTRL_EMP E2 GROUP BY E2.DEPT_ID) AND E.HIRE_DATE <
@@ -605,15 +605,15 @@ SQL> explain SELECT d.dept_name FROM test_mtrl_dept d WHERE d.budget > (SELECT S
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-| Id | Operation                 | Owner | Name             | Rows | Cost  | StartCost | Bytes | Remark |
----------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT          |       |                  | 0    | 10000 | 0         |       |        |
-| 1  |   KERNEL FILTER           |       |                  | 0    | 10000 | 0         |       |        |
-| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_DEPT D | 0    | 10000 | 0         |       |        |
-| 3  |     HASH MATERIALIZE      |       |                  | 0    | 10000 | 0         |       |        |
-| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_PROJ P | 0    | 10000 | 0         |       |        |
----------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name             | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |                  | 10   | 1    | 0         |       |        |
+| 1  |   KERNEL FILTER           |       |                  | 10   | 1    | 0         |       |        |
+| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_DEPT D | 10   | 1    | 0         |       |        |
+| 3  |     HASH MATERIALIZE      |       |                  | 10   | 1    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_PROJ P | 10   | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: D.BUDGET > (SELECT SUM(COST) FROM TEST_MTRL_PROJ P GROUP BY P.DEPT_ID)
@@ -641,15 +641,15 @@ SQL> explain SELECT e.emp_name FROM test_mtrl_emp e WHERE e.salary > (SELECT AVG
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-| Id | Operation                 | Owner | Name             | Rows | Cost  | StartCost | Bytes | Remark |
----------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT          |       |                  | 0    | 10000 | 0         |       |        |
-| 1  |   KERNEL FILTER           |       |                  | 0    | 10000 | 0         |       |        |
-| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_EMP E  | 0    | 10000 | 0         |       |        |
-| 3  |     AGGR                  |       |                  | 1    | 10000 | 0         |       |        |
-| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_EMP E2 | 0    | 10000 | 0         |       |        |
----------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name             | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |                  | 10   | 1    | 0         |       |        |
+| 1  |   KERNEL FILTER           |       |                  | 10   | 1    | 0         |       |        |
+| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_EMP E  | 10   | 1    | 0         |       |        |
+| 3  |     AGGR                  |       |                  | 1    | 1    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_EMP E2 | 1    | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: E.SALARY > (SELECT AVG(SALARY) FROM TEST_MTRL_EMP E2 WHERE E2.DEPT_ID = E.DEPT_ID AND E2.HIRE_DATE <
@@ -672,15 +672,15 @@ SQL> explain SELECT p.proj_id FROM test_mtrl_proj p WHERE p.cost > (SELECT AVG(c
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
-----------------------------------------------------------------------------------------------------------
-| Id | Operation                 | Owner | Name              | Rows | Cost  | StartCost | Bytes | Remark |
-----------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT          |       |                   | 0    | 10000 | 0         |       |        |
-| 1  |   KERNEL FILTER           |       |                   | 0    | 10000 | 0         |       |        |
-| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_PROJ P  | 0    | 10000 | 0         |       |        |
-| 3  |     AGGR                  |       |                   | 1    | 10000 | 0         |       |        |
-| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_PROJ P2 | 0    | 10000 | 0         |       |        |
-----------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name              | Rows | Cost | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |                   | 10   | 1    | 0         |       |        |
+| 1  |   KERNEL FILTER           |       |                   | 10   | 1    | 0         |       |        |
+| 2  |     TABLE ACCESS FULL     | SYS   | TEST_MTRL_PROJ P  | 10   | 1    | 0         |       |        |
+| 3  |     AGGR                  |       |                   | 1    | 1    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | TEST_MTRL_PROJ P2 | 1    | 1    | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: P.COST > (SELECT AVG(COST) * 2 FROM TEST_MTRL_PROJ P2 WHERE P2.DEPT_ID = P.DEPT_ID AND P2.START_DATE
@@ -703,20 +703,20 @@ SQL> explain SELECT e.emp_name FROM test_mtrl_emp e WHERE e.salary < (SELECT MIN
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
-----------------------------------------------------------------------------------------------------------------
-| Id | Operation                       | Owner | Name              | Rows | Cost  | StartCost | Bytes | Remark |
-----------------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT                |       |                   | 0    | 10000 | 0         |       |        |
-| 1  |   KERNEL FILTER                 |       |                   | 0    | 10000 | 0         |       |        |
-| 2  |     TABLE ACCESS FULL           | SYS   | TEST_MTRL_EMP E   | 0    | 10000 | 0         |       |        |
-| 3  |     AGGR                        |       |                   | 1    | 10000 | 0         |       |        |
-| 4  |       KERNEL FILTER             |       |                   | 0    | 10000 | 0         |       |        |
-| 5  |         TABLE ACCESS FULL       | SYS   | TEST_MTRL_EMP E2  | 0    | 10000 | 0         |       |        |
-| 6  |         KERNEL FILTER           |       |                   | 0    | 10000 | 0         |       |        |
-| 7  |           TABLE ACCESS FULL     | SYS   | TEST_MTRL_PROJ P  | 0    | 10000 | 0         |       |        |
-| 8  |           HASH MATERIALIZE      |       |                   | 0    | 10000 | 0         |       |        |
-| 9  |               TABLE ACCESS FULL | SYS   | TEST_MTRL_PROJ P2 | 0    | 10000 | 0         |       |        |
-----------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name              | Rows | Cost | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |                   | 10   | 1    | 0         |       |        |
+| 1  |   KERNEL FILTER                 |       |                   | 10   | 1    | 0         |       |        |
+| 2  |     TABLE ACCESS FULL           | SYS   | TEST_MTRL_EMP E   | 10   | 1    | 0         |       |        |
+| 3  |     AGGR                        |       |                   | 1    | 1    | 0         |       |        |
+| 4  |       KERNEL FILTER             |       |                   | 1    | 1    | 0         |       |        |
+| 5  |         TABLE ACCESS FULL       | SYS   | TEST_MTRL_EMP E2  | 1    | 1    | 0         |       |        |
+| 6  |         KERNEL FILTER           |       |                   | 10   | 1    | 0         |       |        |
+| 7  |           TABLE ACCESS FULL     | SYS   | TEST_MTRL_PROJ P  | 10   | 1    | 0         |       |        |
+| 8  |           HASH MATERIALIZE      |       |                   | 10   | 1    | 0         |       |        |
+| 9  |               TABLE ACCESS FULL | SYS   | TEST_MTRL_PROJ P2 | 10   | 1    | 0         |       |        |
+---------------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: E.SALARY < (SELECT MIN(SALARY) FROM TEST_MTRL_EMP E2 WHERE E2.DEPT_ID = E.DEPT_ID AND E2.EMP_ID IN
@@ -746,19 +746,19 @@ SQL> explain SELECT d.dept_name FROM test_mtrl_dept d WHERE (SELECT COUNT(*) FRO
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
----------------------------------------------------------------------------------------------------------------
-| Id | Operation                       | Owner | Name             | Rows | Cost  | StartCost | Bytes | Remark |
----------------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT                |       |                  | 0    | 10000 | 0         |       |        |
-| 1  |   KERNEL FILTER                 |       |                  | 0    | 10000 | 0         |       |        |
-| 2  |     TABLE ACCESS FULL           | SYS   | TEST_MTRL_DEPT D | 0    | 10000 | 0         |       |        |
-| 3  |     HASH MATERIALIZE            |       |                  | 0    | 10000 | 0         |       |        |
-| 4  |         TABLE ACCESS FULL       | SYS   | TEST_MTRL_EMP E  | 0    | 10000 | 0         |       |        |
-| 5  |     AGGR                        |       |                  | 1    | 10000 | 0         |       |        |
-| 6  |         SUBSELECT               | SYS   | SUB              | 0    | 10000 | 0         |       |        |
-| 7  |           HASH GROUP BY         |       |                  | 0    | 10000 | 0         |       |        |
-| 8  |               TABLE ACCESS FULL | SYS   | TEST_MTRL_EMP E2 | 0    | 10000 | 0         |       |        |
----------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name             | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |                  | 10   | 1    | 0         |       |        |
+| 1  |   KERNEL FILTER                 |       |                  | 10   | 1    | 0         |       |        |
+| 2  |     TABLE ACCESS FULL           | SYS   | TEST_MTRL_DEPT D | 10   | 1    | 0         |       |        |
+| 3  |     HASH MATERIALIZE            |       |                  | 10   | 1    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL       | SYS   | TEST_MTRL_EMP E  | 10   | 1    | 0         |       |        |
+| 5  |     AGGR                        |       |                  | 1    | 26   | 8         |       |        |
+| 6  |         SUBSELECT               | SYS   | SUB              | 7    | 18   | 8         |       |        |
+| 7  |           HASH GROUP BY         |       |                  | 7    | 18   | 8         |       |        |
+| 8  |               TABLE ACCESS FULL | SYS   | TEST_MTRL_EMP E2 | 10   | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: (SELECT COUNT(*) FROM TEST_MTRL_EMP E GROUP BY E.DEPT_ID) > (SELECT AVG(EMP_COUNT) FROM (SELECT COUNT(*)
