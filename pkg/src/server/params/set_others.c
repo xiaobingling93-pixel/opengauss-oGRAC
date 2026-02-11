@@ -668,10 +668,6 @@ status_t sql_notify_als_enable_nestloop_join(void *se, void *item, char *value)
 
 status_t sql_notify_als_enable_hash_join(void *se, void *item, char *value)
 {
-    if ((bool32)value[0] != OG_FALSE) {
-        OG_THROW_ERROR(ERR_INVALID_PARAMETER, "ENABLE_HASH_JOIN");
-        return OG_ERROR;
-    }
     g_instance->sql.enable_hash_join = (bool32)value[0];
     return sql_notify_als_bool(se, item, value);
 }

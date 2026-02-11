@@ -616,7 +616,7 @@ config_item_t g_parameters[] = {
     { "ENABLE_NESTLOOP_JOIN", OG_TRUE, ATTR_NONE, "TRUE", NULL, NULL, "-", "FALSE,TRUE", "OG_TYPE_BOOLEAN", NULL,
       PARAM_ENABLE_NESTLOOP_JOIN, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_bool,
       sql_notify_als_enable_nestloop_join, sql_notify_als_bool, NULL },
-    { "ENABLE_HASH_JOIN", OG_TRUE, ATTR_NONE, "FALSE", NULL, NULL, "-", "FALSE", "OG_TYPE_BOOLEAN", NULL,
+    { "ENABLE_HASH_JOIN", OG_TRUE, ATTR_NONE, "FALSE", NULL, NULL, "-", "FALSE,TRUE", "OG_TYPE_BOOLEAN", NULL,
       PARAM_ENABLE_HASH_JOIN, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_bool,
       sql_notify_als_enable_hash_join, sql_notify_als_bool, NULL },
     { "MAX_ALLOWED_PACKET", OG_TRUE, ATTR_NONE, "64M", NULL, NULL, "-", "[96K, 64M]", "OG_TYPE_INTEGER", NULL,

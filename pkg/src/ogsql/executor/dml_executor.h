@@ -514,7 +514,7 @@ typedef struct st_merge_into_hash_data {
 } merge_into_hash_data_t;
 
 typedef struct st_semi_flag {
-    uint32 flag;
+    bool32 flag;
     bool32 eof;
 } semi_flag_t;
 
