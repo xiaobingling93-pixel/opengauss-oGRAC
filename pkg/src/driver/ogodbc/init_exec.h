@@ -47,6 +47,7 @@
 #define SMALL_PARAM_LEN          10
 #define MAX_NUMBER_LEN           128
 #define MAX_VALUE_BUFF_LEN       4096
+#define MAX_CONN_HOST_LEN        512
 #define AUTO_COMMIT              1
 #define ODBC_INI           ".odbc.ini"
 #define ODBCINST_INI       "odbcinst.ini"

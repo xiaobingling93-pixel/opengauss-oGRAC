@@ -29,8 +29,8 @@
 typedef struct EnvironmentHandle {
     int	error_code;
     char *error_msg;
-    SQLSMALLINT err_sign;
-    SQLINTEGER version;
+    int err_sign;
+    int version;
 } environment_class;
 
 SQLRETURN ograc_AllocEnv(HENV *phenv);
