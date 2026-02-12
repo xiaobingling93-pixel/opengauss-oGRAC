@@ -98,6 +98,16 @@ status_t sql_check_object_type(sql_stmt_t *stmt, object_type_t *expected_objtype
                                text_t *objname);
 status_t sql_parse_auto_primary_key_constr_name(sql_stmt_t *stmt, text_t *constr_name, text_t *sch_name,
     text_t *tab_name);
+status_t og_parse_create_directory(sql_stmt_t *stmt, knl_directory_def_t **def, char *dir_name, char *path,
+    bool32 is_replace);
+status_t og_parse_create_library(sql_stmt_t *stmt, pl_library_def_t **def, name_with_owner *lib_name, char *path,
+    bool32 is_replace);
+status_t og_parse_grant(sql_stmt_t *stmt, knl_grant_def_t **grant_def, priv_type_def priv_type, galist_t *priv_list,
+    object_type_t obj_type, name_with_owner *obj_name, galist_t *grantee_list, bool with_opt);
+status_t og_parse_revoke(sql_stmt_t *stmt, knl_revoke_def_t **revoke_def, priv_type_def priv_type,
+    galist_t *priv_list, object_type_t obj_type, name_with_owner *obj_name, galist_t *revokee_list,
+    bool cascade_opt);
+
 static inline status_t sql_replace_password(sql_stmt_t *stmt, text_t *password)
 {
     if (stmt->pl_exec == NULL && stmt->pl_compiler == NULL) { // can't modify sql in pl

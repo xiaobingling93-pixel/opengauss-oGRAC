@@ -26,6 +26,8 @@
 #define __PL_DDL_PARSER_H__
 
 #include "ogsql_stmt.h"
+#include "scanner.h"
+#include "expr_parser.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,6 +42,9 @@ status_t pl_parse_drop_type(sql_stmt_t *stmt, word_t *word);
 status_t pl_parse_drop_package(sql_stmt_t *stmt, word_t *word);
 status_t plc_parse_trigger_desc_core(sql_stmt_t *stmt, word_t *word, bool32 is_upgrade);
 status_t pl_parse_trigger_desc(sql_stmt_t *stmt, var_udo_t *obj, word_t *word);
+status_t pl_bison_parse_create_function(sql_stmt_t *stmt, bool32 replace, bool32 if_not_exists,
+    name_with_owner *func_name, galist_t *args, type_word_t *ret_type, text_t *body, text_t *source);
+status_t pl_init_compiler(sql_stmt_t *stmt);
 
 #ifdef __cplusplus
 }

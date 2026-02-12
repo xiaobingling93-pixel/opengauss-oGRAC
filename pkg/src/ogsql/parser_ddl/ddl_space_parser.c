@@ -24,6 +24,7 @@
  */
 
 #include "ddl_space_parser.h"
+#include "scanner.h"
 #include "srv_instance.h"
 
 
@@ -1151,6 +1152,206 @@ status_t sql_parse_create_ctrlfiles(sql_stmt_t *stmt)
     /* parse create ctrlfile sql statement */
     status = sql_rebuild_ctrlfile_parse_database(stmt, ctrlfile_def);
     OG_RETURN_IFERR(status);
+
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_space_datafiles(knl_space_def_t *space_def, galist_t *datafiles)
+{
+    knl_device_def_t *dev_def = NULL;
+    status_t status;
+
+    for (uint32 i = 0; i < datafiles->count; i++) {
+        knl_device_def_t *cur = NULL;
+
+        dev_def = (knl_device_def_t*)cm_galist_get(datafiles, i);
+        for (uint32 j = 0; j < i; j++) {
+            cur = (knl_device_def_t*)cm_galist_get(datafiles, j);
+            if (cur != dev_def) {
+                if (cm_text_equal_ins(&dev_def->name, &cur->name)) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "it is not allowed to specify duplicate datafile");
+                    return OG_ERROR;
+                }
+            }
+        }
+    }
+    status = cm_galist_copy(&space_def->datafiles, datafiles);
+    OG_RETURN_IFERR(status);
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_space_attr(knl_space_def_t *def, galist_t *ts_opts)
+{
+    createts_opt *opt = NULL;
+    bool32 parsed_offline = OG_FALSE;
+    bool32 parsed_all = OG_FALSE;
+    bool32 parsed_nologging = OG_FALSE;
+    bool32 parsed_extent = OG_FALSE;
+    def->in_memory = OG_FALSE;
+
+    for (uint32 i = 0; i < ts_opts->count; i++) {
+        opt = (createts_opt*)cm_galist_get(ts_opts, i);
+
+        switch (opt->type) {
+            case CREATETS_ALL_OPT:
+                if ((def->type & SPACE_TYPE_TEMP) || parsed_all) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "key word expected but all found");
+                    return OG_ERROR;
+                }
+                def->in_memory = OG_TRUE;
+                parsed_all = OG_TRUE;
+                break;
+            case CREATETS_NOLOGGING_OPT:
+                if (def->in_memory || parsed_nologging) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "key word expected but nologging found");
+                    return OG_ERROR;
+                }
+                def->type |= SPACE_TYPE_TEMP;
+                parsed_nologging = OG_TRUE;
+                break;
+            case CREATETS_AUTOOFFLINE_OPT:
+                if (parsed_offline) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "key word expected but autooffline found");
+                    return OG_ERROR;
+                }
+                def->autooffline = opt->val;
+                parsed_offline = OG_TRUE;
+                break;
+            case CREATETS_EXTENT_OPT:
+                if (parsed_extent) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "key word expected but extent found");
+                    return OG_ERROR;
+                }
+                if (def->extent_size != 0) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "invalid extent clause");
+                    return OG_ERROR;
+                }
+                def->autoallocate = OG_TRUE;
+                def->extent_size = OG_MIN_EXTENT_SIZE;
+                def->bitmapmanaged = OG_TRUE;
+                parsed_extent = OG_TRUE;
+                break;
+            default:
+                OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "invalid option");
+                return OG_ERROR;
+        }
+    }
+    return OG_SUCCESS;
+}
+
+status_t og_parse_create_space(sql_stmt_t *stmt, knl_space_def_t **ts_def, bool is_undo, char *space_name,
+    uint32 extentsize, galist_t *datafiles, galist_t *ts_opts)
+{
+    status_t status;
+    knl_space_def_t *def = NULL;
+
+    status = sql_alloc_mem(stmt->context, sizeof(knl_space_def_t), (pointer_t *)ts_def);
+    OG_RETURN_IFERR(status);
+    def = *ts_def;
+
+    stmt->context->type = OGSQL_TYPE_CREATE_TABLESPACE;
+    cm_galist_init(&def->datafiles, stmt->context, sql_alloc_mem);
+
+    if (is_undo) {
+        def->type = SPACE_TYPE_UNDO;
+    } else {
+        def->type = SPACE_TYPE_USERS;
+    }
+
+    def->in_shard = OG_FALSE;
+    def->autoallocate = OG_FALSE;
+    def->bitmapmanaged = OG_FALSE;
+    def->name.str = space_name;
+    def->name.len = strlen(space_name);
+
+    if (extentsize != 0) {
+        def->extent_size = extentsize;
+    } else if (stmt->session->knl_session.kernel->attr.default_space_type == SPACE_BITMAP) {
+        def->autoallocate = OG_TRUE;
+        def->bitmapmanaged = OG_TRUE;
+    }
+
+    status = og_parse_space_datafiles(def, datafiles);
+    OG_RETURN_IFERR(status);
+
+    if (ts_opts != NULL) {
+        status = og_parse_space_attr(def, ts_opts);
+        OG_RETURN_IFERR(status);
+    }
+
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_ctrlfile_filelist(galist_t *dst, galist_t *src)
+{
+    if (dst->count != 0) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "datafile is already defined");
+        return OG_ERROR;
+    }
+    return cm_galist_copy(dst, src);
+}
+
+static status_t og_parse_ctrlfile_charset(sql_stmt_t *stmt, knl_rebuild_ctrlfile_def_t *def, char *charset)
+{
+    text_t raw;
+
+    if (def->charset.len != 0) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "CHARACTER SET is already defined");
+        return OG_ERROR;
+    }
+
+    raw.str = charset;
+    raw.len = strlen(charset);
+    return sql_copy_text(stmt->context, &raw, &def->charset);
+}
+
+status_t og_parse_create_ctrlfile(sql_stmt_t *stmt, knl_rebuild_ctrlfile_def_t **def, galist_t *ctrlfile_opts)
+{
+    status_t status;
+    knl_rebuild_ctrlfile_def_t *ctrlfile_def = NULL;
+
+    status = sql_alloc_mem(stmt->context, sizeof(knl_rebuild_ctrlfile_def_t), (pointer_t *)def);
+    OG_RETURN_IFERR(status);
+    ctrlfile_def = *def;
+
+    stmt->context->type = OGSQL_TYPE_CREATE_CTRLFILE;
+
+    cm_galist_init(&ctrlfile_def->logfiles, stmt->context, sql_alloc_mem);
+    cm_galist_init(&ctrlfile_def->datafiles, stmt->context, sql_alloc_mem);
+    if (cm_dbs_is_enable_dbs() != OG_TRUE) {
+        OG_THROW_ERROR(ERR_REBUILD_WITH_STORAGE);
+        return OG_ERROR;
+    }
+
+    if (ctrlfile_opts == NULL) {
+        return OG_SUCCESS;
+    }
+
+    for (uint32 i = 0; i < ctrlfile_opts->count; i++) {
+        ctrlfile_opt *opt = (ctrlfile_opt *)cm_galist_get(ctrlfile_opts, i);
+        switch (opt->type) {
+            case CTRLFILE_LOGFILE_OPT:
+                status = og_parse_ctrlfile_filelist(&ctrlfile_def->logfiles, opt->file_list);
+                break;
+            case CTRLFILE_DATAFILE_OPT:
+                status = og_parse_ctrlfile_filelist(&ctrlfile_def->datafiles, opt->file_list);
+                break;
+            case CTRLFILE_CHARSET_OPT:
+                status = og_parse_ctrlfile_charset(stmt, ctrlfile_def, opt->charset);
+                break;
+            case CTRLFILE_ARCHIVELOG_OPT:
+                ctrlfile_def->arch_mode = ARCHIVE_LOG_ON;
+                break;
+            case CTRLFILE_NOARCHIVELOG_OPT:
+                ctrlfile_def->arch_mode = ARCHIVE_LOG_OFF;
+                break;
+            default:
+                OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "key word expected but unknown ctrlfile option");
+                return OG_ERROR;
+        }
+
+        OG_RETURN_IFERR(status);
+    }
 
     return OG_SUCCESS;
 }

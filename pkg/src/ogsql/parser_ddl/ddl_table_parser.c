@@ -33,6 +33,7 @@
 #include "srv_instance.h"
 #include "ogsql_select_parser.h"
 #include "srv_param_common.h"
+#include "scanner.h"
 
 static inline bool8 sql_table_has_special_char(text_t *name)
 {
@@ -1557,5 +1558,110 @@ status_t sql_verify_alter_table(sql_stmt_t *stmt)
     status_t status;
     status = sql_verify_alter_table_logical_parts(stmt);
     OG_RETURN_IFERR(status);
+    return OG_SUCCESS;
+}
+
+status_t og_parse_create_table(sql_stmt_t *stmt, knl_table_def_t **table_def, bool32 is_temp, bool32 has_global,
+    bool32 if_not_exists, name_with_owner *table_name, galist_t *table_elements, galist_t *table_attrs,
+    sql_select_t *select_ctx, knl_ext_def_t *extern_def)
+{
+    knl_table_def_t *def = NULL;
+    bool32 expect_as = OG_FALSE;
+
+    OG_RETURN_IFERR(sql_alloc_mem(stmt->context, sizeof(knl_table_def_t), (pointer_t *)table_def));
+    def = *table_def;
+
+    def->sysid = OG_INVALID_ID32;
+    stmt->context->type = OGSQL_TYPE_CREATE_TABLE;
+
+    if (if_not_exists) {
+        def->options |= CREATE_IF_NOT_EXISTS;
+    }
+
+    def->type = is_temp ? TABLE_TYPE_TRANS_TEMP : TABLE_TYPE_HEAP;
+    if (table_name->owner.len > 0) {
+        def->schema = table_name->owner;
+    } else {
+        cm_str2text(stmt->session->curr_schema, &def->schema);
+    }
+    def->name = table_name->name;
+
+    // Validate table name
+    if (is_temp && !has_global) {
+        if (!stmt->session->knl_session.kernel->attr.enable_ltt) {
+            OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+                "parameter LOCAL_TEMPORARY_TABLE_ENABLED is false, can't create local temporary table");
+            return OG_ERROR;
+        }
+        if (!knl_is_llt_by_name2(def->name.str[0])) {
+            OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+                "local temporary table name should start with '#'");
+            return OG_ERROR;
+        }
+    } else {
+        if (knl_is_llt_by_name(def->name.str[0])) {
+            OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "table name is invalid");
+            return OG_ERROR;
+        }
+    }
+
+    if (sql_table_has_special_char(&def->name)) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "invalid variant/object name was found");
+        return OG_ERROR;
+    }
+
+    cm_galist_init(&def->columns, stmt->context, sql_alloc_mem);
+    cm_galist_init(&def->constraints, stmt->context, sql_alloc_mem);
+    cm_galist_init(&def->indexs, stmt->context, sql_alloc_mem);
+    cm_galist_init(&def->lob_stores, stmt->context, sql_alloc_mem);
+
+    if (table_elements != NULL) {
+        OG_RETURN_IFERR(og_parse_column_defs(stmt, def, &expect_as, table_elements));
+    }
+
+    if (expect_as && select_ctx == NULL) {
+        OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "As-select clause expected");
+        return OG_ERROR;
+    } else if (select_ctx != NULL) {
+        select_ctx->type = SELECT_AS_VALUES;
+        stmt->context->supplement = (void *)select_ctx;
+
+        OG_RETURN_IFERR(sql_verify_select(stmt, select_ctx));
+
+        // 1.check whether columns in select clause match that in column definition clause
+        // 2.when with no column definition clause, make sure all result column has an alias
+        OG_RETURN_IFERR(sql_verify_columns(stmt, def));
+
+        def->create_as_select = OG_TRUE;
+    }
+
+    // Process table attributes
+    if (table_attrs != NULL) {
+        OG_RETURN_IFERR(og_parse_table_attrs(stmt, def, table_attrs));
+    }
+
+    if (extern_def != NULL) {
+        if (def->type == TABLE_TYPE_TRANS_TEMP || def->type == TABLE_TYPE_SESSION_TEMP) {
+            OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "cannot specify TEMPORARY on external table");
+            return OG_ERROR;
+        }
+
+        def->type = TABLE_TYPE_EXTERNAL;
+        if (sql_check_organization_column(def) != OG_SUCCESS) {
+            return OG_ERROR;
+        }
+        def->external_def = *extern_def;
+    }
+
+    OG_RETURN_IFERR(sql_delay_verify_default(stmt, def));
+    OG_RETURN_IFERR(sql_verify_check_constraint(stmt, def));
+    OG_RETURN_IFERR(sql_create_inline_cons(stmt, def));
+
+    OG_RETURN_IFERR(sql_verify_cons_def(def));
+    OG_RETURN_IFERR(sql_verify_auto_increment(stmt, def));
+    OG_RETURN_IFERR(sql_verify_array_columns(def->type, &def->columns));
+
+    OG_RETURN_IFERR(sql_verify_table_storage(stmt, def));
+
     return OG_SUCCESS;
 }

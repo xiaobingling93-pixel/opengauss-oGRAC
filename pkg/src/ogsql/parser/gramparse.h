@@ -27,6 +27,12 @@
 #include "ogsql_json_utils.h"
 #include "pivot_parser.h"
 #include "persist_defs.h"
+#include "ddl_index_parser.h"
+#include "ddl_partition_parser.h"
+#include "ddl_column_parser.h"
+#include "ddl_table_attr_parser.h"
+#include "pl_memory.h"
+#include "pl_compiler.h"
 
 /*
  * NB: include gram.h only AFTER including scanner.h, because scanner.h

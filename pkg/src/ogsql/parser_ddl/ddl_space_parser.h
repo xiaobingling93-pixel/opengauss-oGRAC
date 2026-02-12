@@ -44,6 +44,9 @@ status_t sql_parse_alter_space(sql_stmt_t *stmt);
 status_t sql_parse_drop_tablespace(sql_stmt_t *stmt);
 status_t sql_parse_purge_tablespace(sql_stmt_t *stmt, knl_purge_def_t *def);
 status_t sql_parse_create_ctrlfiles(sql_stmt_t *stmt);
+status_t og_parse_create_space(sql_stmt_t *stmt, knl_space_def_t **ts_def, bool is_undo, char *space_name,
+    uint32 extentsize, galist_t *datafiles, galist_t *ts_opts);
+status_t og_parse_create_ctrlfile(sql_stmt_t *stmt, knl_rebuild_ctrlfile_def_t **def, galist_t *ctrlfile_opts);
 #ifdef __cplusplus
 }
 #endif

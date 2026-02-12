@@ -67,6 +67,9 @@ status_t pl_compile_func_desc(pl_compiler_t *compiler, word_t *word, text_t *nam
 status_t plc_compile_proc_desc(pl_compiler_t *compiler, word_t *word, text_t *name, void *proc_in);
 status_t plc_compile_package_spec(pl_compiler_t *compiler, word_t *word);
 plv_decl_t *plc_get_last_addr_decl(sql_stmt_t *stmt, var_address_pair_t *addr_pair);
+status_t plc_bison_compile(sql_stmt_t *stmt, plc_desc_t *desc, galist_t *args, type_word_t *ret_type, text_t *body);
+status_t pl_parser(sql_stmt_t *stmt, text_t *src);
+status_t plc_bison_compile_type(pl_compiler_t *compiler, pmode_t pmod, typmode_t *typmod, type_word_t *type);
 
 #define IS_DML_INTO_PL_VAR(type) \
     ((type) == OGSQL_TYPE_SELECT || (type) == OGSQL_TYPE_UPDATE || (type) == OGSQL_TYPE_INSERT || (type) == OGSQL_TYPE_DELETE)
@@ -102,6 +105,17 @@ struct plc_stack_item_struct {
     void *proc;
 };
 status_t pl_compile_by_user(sql_stmt_t *stmt, text_t *schema_name, bool32 compile_all);
+
+typedef struct {
+    char *name;
+    type_word_t *type;
+    expr_tree_t *def_expr;
+} func_parameter;
+
+typedef struct {
+    char* ident; /* palloc'd converted identifier */
+    bool quoted; /* Was it double-quoted? */
+} PLword;
 
 #ifdef __cplusplus
 }

@@ -16,6 +16,14 @@
 #include "ddl_database_parser.h"
 #include "ddl_user_parser.h"
 #include "cm_interval.h"
+#include "ddl_space_parser.h"
+#include "ddl_view_parser.h"
+#include "ddl_sequence_parser.h"
+#include "ddl_column_parser.h"
+#include "ddl_constraint_parser.h"
+#include "ddl_table_attr_parser.h"
+#include "ddl_privilege_parser.h"
+#include "pl_ddl_parser.h"
 
 /* Location tracking support --- simpler than bison's default */
 
@@ -52,7 +60,12 @@ do {                                    \
 #define BISON_MEM_STRDUP(dest, src)                                             \
 do {                                                                            \
     size_t len = strlen(src) + 1;                                               \
-    if (sql_alloc_mem(og_yyget_extra(yyscanner)->core_yy_extra.stmt->context,   \
+    if (SECUREC_UNLIKELY(og_yyget_extra(yyscanner)->core_yy_extra.stmt->pl_context == NULL)) {    \
+        if (sql_alloc_mem(og_yyget_extra(yyscanner)->core_yy_extra.stmt->context,   \
+            len, (void **)&dest) != OG_SUCCESS) {                                   \
+            parser_yyerror("alloc mem failed ");                                    \
+        }                                                                           \
+    } else if (pl_alloc_mem(og_yyget_extra(yyscanner)->core_yy_extra.stmt->pl_context,            \
         len, (void **)&dest) != OG_SUCCESS) {                                   \
         parser_yyerror("alloc mem failed ");                                    \
     }                                                                           \
@@ -149,24 +162,64 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
     rowmark_type_t      rowmark_type;
     merge_when_clause   *merge_when;
     name_with_owner     *name_owner;
-    knl_drop_tablespace_dfs_option_t drop_tbsp_opt;
     createdb_opt        *db_opt;
+    createts_opt        *ts_opt;
     knl_device_def_t    *dev_def;
     createdb_instance_node *inode;
     user_option_t       *user_opt;
     alter_index_action_t   *alter_idx_act;
+    knl_index_col_def_t *index_col;
+    createidx_opt       *idx_opt;
+    index_partition_parse_info *part_parse_info;
+    index_partition_opt *idx_part;
+    knl_storage_def_t   *storage_def;
+    storage_opt_t       *storage_opt;
+    knl_part_def_t      *part_def;
+    createseq_opt       *seq_opt;
+    ctrlfile_opt        *ctrlfile_opt;
+    profile_limit_item_t *profile_limit_item;
+    profile_limit_value_t *profile_limit_value;
+    table_attr_t        *table_attr;
+    column_attr_t       *column_attr;
+    constraint_state    *cons_state;
+    parse_constraint_t  *parse_cons;
+    parse_column_t      *parse_col;
+    parse_table_element_t *table_element;
+    text_t              *text;
 }
 
-%type <res>    stmtblock stmtmulti InsertStmt SelectStmt simple_select DeleteStmt select_with_parens select_no_parens UpdateStmt select_clause MergeStmt DropStmt merge_insert merge_when_insert_clause ReplaceStmt TruncateStmt FlashStmt CommentStmt AnalyzeStmt CreatedbStmt CreateUserStmt CreateRoleStmt CreateTenantStmt AlterIndexStmt
-%type <list>   ctext_expr_list ctext_row indirection opt_indirection values_clause insert_column_list when_expr_clause_list when_cond_clause_list func_name within_group_clause sort_clause opt_sort_clause sortby_list opt_partition_clause expr_list target_list opt_target_list opt_type_modifiers opt_float opt_array_bounds
-%type <list>   all_insert_into_list set_clause_list set_clause multiple_set_clause return_clause delete_target_list expr_list_with_select_rows json_column_list siblings_clause with_clause cte_list pivot_in_list pivot_clause_list select_pivot_clause unpivot_in_list expr_or_implicit_row_list cube_clause rollup_clause
-%type <list>   group_sets_item group_sets_list grouping_sets_clause group_by_cartesian_item group_by_list group_clause locked_rels_list columnref_list opt_siblings_clause replace_set_clause_list
-%type <expr>   ctext_expr a_expr c_expr AexprConst indirection_el columnref case_default case_expr func_application func_expr func_arg_expr func_arg_list expr_elem_list
-                func_expr_common_subexpr substr_list multi_expr_list expr_or_implicit_row json_array_args json_array_arg_item json_object_args json_object_arg_item
+%type <res>    stmtblock stmtmulti InsertStmt SelectStmt simple_select DeleteStmt select_with_parens select_no_parens
+               UpdateStmt select_clause MergeStmt DropStmt merge_insert merge_when_insert_clause ReplaceStmt TruncateStmt
+               FlashStmt CommentStmt AnalyzeStmt CreatedbStmt CreateUserStmt CreateRoleStmt CreateTenantStmt AlterIndexStmt CreateTablespaceStmt
+               CreateIndexStmt CreateSequenceStmt CreateViewStmt CreateSynonymStmt CreateProfileStmt CreateDirectoryStmt
+               CreateLibraryStmt CreateCtrlfileStmt CreateTableStmt opt_as_select CreateFunctionStmt compileFunctionSource
+               GrantStmt RevokeStmt
+%type <list>   ctext_expr_list ctext_row indirection opt_indirection values_clause insert_column_list when_expr_clause_list
+               when_cond_clause_list func_name within_group_clause sort_clause opt_sort_clause sortby_list opt_partition_clause
+               expr_list target_list opt_target_list opt_type_modifiers opt_float opt_array_bounds createseq_opts opt_createseq_opts
+               profile_limit_list ctrlfile_opts opt_ctrlfile_opts ctrlfile_file_list ctrlfile_files OptTableElementList column_attrs
+               opt_column_attrs table_attrs opt_table_attrs column_name_list
+               all_insert_into_list set_clause_list set_clause multiple_set_clause return_clause delete_target_list
+               expr_list_with_select_rows json_column_list siblings_clause with_clause cte_list pivot_in_list pivot_clause_list
+               select_pivot_clause unpivot_in_list expr_or_implicit_row_list cube_clause rollup_clause
+               group_sets_item group_sets_list grouping_sets_clause group_by_cartesian_item group_by_list group_clause
+               locked_rels_list columnref_list opt_siblings_clause replace_set_clause_list
+%type <expr>   ctext_expr a_expr c_expr AexprConst indirection_el columnref case_default case_expr func_application func_expr
+               func_arg_expr func_arg_list expr_elem_list func_expr_common_subexpr substr_list multi_expr_list
+               expr_or_implicit_row json_array_args json_array_arg_item json_object_args json_object_arg_item
 %type <table>  insert_target qualified_name relation_expr table_func json_table
 %type <case_pair> when_expr_clause when_cond_clause
 %type <column> insert_column_item
-%type <boolean> opt_ignore opt_varying opt_charbyte sub_type format_json json_on_error_or_null jsonb_table opt_found_rows opt_distinct unpivot_include_or_exclude_nulls opt_nocycle opt_all opt_all_distinct opt_if_exists opt_drop_behavior opt_cascade opt_purge opt_temporary opt_public opt_force partition_or_subpartition opt_archivelog opt_reuse opt_all_in_memory opt_encrypted ignore_nulls opt_orajoin
+%type <table_attr> table_attr
+%type <column_attr> column_attr_cons column_attr
+%type <parse_col> columnDef
+%type <parse_cons> TableConstraint ConstraintElem
+%type <table_element> TableElement
+%type <boolean> opt_ignore opt_varying opt_charbyte sub_type format_json json_on_error_or_null jsonb_table opt_found_rows
+                opt_distinct unpivot_include_or_exclude_nulls opt_nocycle opt_all opt_all_distinct opt_if_exists opt_drop_behavior
+                opt_cascade opt_purge opt_temporary opt_public opt_force partition_or_subpartition opt_archivelog
+                opt_reuse opt_all_in_memory opt_encrypted ignore_nulls opt_orajoin on_or_off opt_undo opt_or_replace opt_signed
+                opt_revoke_cascade
 %type <winsort_args> over_clause window_specification
 %type <windowing_args> opt_frame_clause frame_extent
 %type <query_column> target_el
@@ -177,11 +230,14 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
 %type <del_obj> delete_target
 %type <cond_node> cond_node
 %type <cond_tree> where_clause cond_tree_expr having_clause opt_merge_where_condition
-%type <type_word> GenericType Typename SimpleTypename Numeric NoSignedInteger Character CharacterWithLength CharacterWithoutLength ConstDatetime ConstInterval JsonType
+%type <type_word> GenericType Typename SimpleTypename Numeric NoSignedInteger Character CharacterWithLength CharacterWithoutLength
+                  ConstDatetime ConstInterval JsonType SignedInteger
+%type <type_word> opt_column_type
 %type <timezone_type> opt_timezone
 %type <trim_list> trim_list
 %type <extract_list> extract_list
 %type <expr> expr_with_select expr_list_with_select expr_list_with_select_row implicit_row opt_escape expr_list_with_paren
+             func_expr_windowless opt_column_on_update
 %type <join_node> using_clause from_list table_ref joined_table from_clause
 %type <join_type> join_type
 %type <rs_column> json_column
@@ -197,66 +253,100 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
 %type <rowmark_type> opt_nowait_or_skip
 %type <merge_when> merge_when_list
 %type <name_owner> any_name on_list
-%type <drop_tbsp_opt> opt_drop_tbsp
-%type <db_opt> createdb_user_opt createdb_controlfile_opt createdb_charset_opt instance_node_opt createdb_instance_opt createdb_nologging_opt createdb_system_opt createdb_sysaux_opt createdb_default_opt createdb_maxinstance_opt createdb_opt createdb_archivelog_opt
-%type <list> controlfiles logfiles instance_node_opts instance_nodes createdb_opts datafiles opt_user_options user_option_list tablespace_name_list
-%type <ival64> num_size opt_blocksize next_size max_size
-%type <dev_def> logfile datafile
+%type <db_opt> createdb_user_opt createdb_controlfile_opt createdb_charset_opt instance_node_opt createdb_instance_opt
+               createdb_nologging_opt createdb_system_opt createdb_sysaux_opt createdb_default_opt createdb_maxinstance_opt
+               createdb_opt createdb_archivelog_opt
+%type <ctrlfile_opt> ctrlfile_opt
+%type <list> controlfiles logfiles instance_node_opts instance_nodes createdb_opts datafiles opt_user_options user_option_list
+             tablespace_name_list createts_opts opt_createts_opts index_column_list createidx_opts opt_partition_index_def
+             partition_index_list opt_part_options part_options subpartition_index_list opt_subpartition_index_def opt_createidx_opts
+             opt_view_column_list view_column_list opt_using_index table_column_list opt_constraint_states constraint_states
+             opt_lob_store_params lob_store_params range_partition_list range_partition_boundary_list range_subpartition_list
+             list_subpartition_list hash_subpartition_list list_partition_list listValueList hash_partition_list
+             opt_partition_store_in_clause tablespaceList opt_interval_tablespaceList func_args_with_defaults_list
+             func_args_with_defaults proc_args grantee_list sys_priv_list obj_priv_list revokee_list
+%type <ival64> num_size opt_blocksize next_size max_size extents_clause BigintOnly SignedIconst
+%type <dev_def> logfile datafile ctrlfile_file
 %type <inode> instance_node
 %type <interval_info> interval_type
-%type <str>  profile_name tablespace_name user_name role_name tenant_name opt_default_tablespace common_json_func_name json_set_func_name
+%type <str> profile_name tablespace_name user_name role_name tenant_name opt_default_tablespace common_json_func_name
+            json_set_func_name opt_subpart_tablespace_option opt_seg_name tablespace field_terminate opt_delimited
 %type <user_opt> user_option
-
+%type <ts_opt> createts_opt
+%type <boolean> opt_unique opt_if_not_exists csf_or_asf opt_global opt_with_grant opt_with_admin
+%type <ival> profile_parameter
+%type <profile_limit_item> profile_limit_item
+%type <profile_limit_value> profile_limit_value
+%type <index_col> index_column table_column
+%type <idx_opt> createidx_opt
+%type <part_parse_info> partition_index_item
+%type <idx_part> part_option
+%type <storage_def> storage_opts
+%type <storage_opt> storage_opt
+%type <part_def> subpartition_index_item
+%type <seq_opt> createseq_opt
+%type <cons_state> constraint_state
+%type <res> lob_store_param table_partitioning_clause range_partitioning_clause list_partitioning_clause hash_partitioning_clause
+            range_partition_item opt_subpartition_clause range_subpartition_item list_subpartition_item hash_subpartition_item
+            list_partition_item hash_partition_item opt_interval_partition_clause subpartitioning_clause opt_subpartitions_num
+            subpartitions_num partitions_num external_table func_arg_with_default
 %type <keyword> unreserved_keyword
 %type <keyword> col_name_keyword reserved_keyword
-%type <str> ColId type_function_name alias_without_as param_name hint_string character character_national charset_collate_name opt_separator substr_func extract_arg alias_clause json_table_column_error ColLabel UserId database_name user_password
-%type <ival>    opt_asc_desc opt_nulls_order opt_charset opt_collate opt_wait opt_truncate_options truncate_option truncate_options year_month_unit day_hour_minute_unit opt_year_month_unit no_arg_func_name_id
+%type <str> ColId type_function_name alias_without_as param_name hint_string character character_national charset_collate_name
+            opt_separator substr_func extract_arg alias_clause json_table_column_error ColLabel UserId database_name user_password
+
+%type <ival> opt_asc_desc opt_nulls_order opt_charset opt_collate opt_wait opt_truncate_options truncate_option truncate_options
+             year_month_unit day_hour_minute_unit opt_year_month_unit row_or_page opt_compress_for opt_drop_tbsp no_arg_func_name_id delete_or_perserve
+             opt_foreign_action partition_type grant_objtype sys_priv_spec obj_priv_spec user_priv_spec
+             directory_priv_spec
 %type <sortby>  sortby
 %type <limit_item> opt_limit limit_clause offset_clause select_limit
 %type <alter_idx_act> alter_index_action
+%type <text> subprogram_body
 
-%token <str>    IDENT FCONST SCONST XCONST Op CmpOp COMMENTSTRING SET_USER_IDENT SET_IDENT UNDERSCORE_CHARSET FCONST_F FCONST_D OPER_CAT OPER_LSHIFT OPER_RSHIFT
+%token <str>    IDENT FCONST SCONST XCONST Op CmpOp COMMENTSTRING SET_USER_IDENT SET_IDENT UNDERSCORE_CHARSET FCONST_F FCONST_D
+                OPER_CAT OPER_LSHIFT OPER_RSHIFT
 %token <ival>   ICONST PARAM
 
 %token            LEX_ERROR_TOKEN
 %token            TYPECAST ORA_JOINOP DOT_DOT COLON_EQUALS PARA_EQUALS SET_IDENT_SESSION SET_IDENT_GLOBAL NULLS_FIRST NULLS_LAST
 %token <str>      SIZE_B SIZE_KB SIZE_MB SIZE_GB SIZE_TB SIZE_PB SIZE_EB
 
-%token <keyword> ABORT_P ABSENT ABSOLUTE_P ACCESS ACCOUNT ACTION ADD_P ADMIN AFTER
-    AGGREGATE ALGORITHM ALL ALSO ALTER ALWAYS ANALYSE ANALYZE AND ANY APP APPEND APPLY ARCHIVE_P ARCHIVELOG ARRAY AS ASC ASOF_P
-        ASSERTION ASSIGNMENT ASYMMETRIC AT ATTRIBUTE AUDIT AUTHID AUTHORIZATION AUTOEXTEND AUTOMAPPED AUTO_INCREMENT
+%token <keyword> ABORT_P ABSENT ABSOLUTE_P ACCESS ACCOUNT ACTION ADD_P ADMIN ADMINISTER AFTER
+    AGGREGATE ALGORITHM ALL ALSO ALTER ALWAYS ANALYSE ANALYZE AND ANY APP APPEND APPENDONLY APPLY ARCHIVE_P ARCHIVELOG ARRAY AS ASC ASF ASOF_P
+        ASSERTION ASSIGNMENT ASYMMETRIC AT ATTRIBUTE AUDIT AUTHID AUTHORIZATION AUTOEXTEND AUTOMAPPED AUTOOFFLINE AUTO_INCREMENT AUTOALLOCATE
 
-    BACKWARD BARRIER BEFORE BEGIN_NON_ANOYBLOCK BEGIN_P BETWEEN BIGINT BINARY BINARY_DOUBLE BINARY_DOUBLE_INF BINARY_DOUBLE_NAN BINARY_FLOAT BINARY_INTEGER BIT BLANKS
+    BACKWARD BARRIER BEFORE BEGIN_NON_ANOYBLOCK BEGIN_P BETWEEN BIGINT BINARY BINARY_BIGINT BINARY_DOUBLE BINARY_DOUBLE_INF BINARY_DOUBLE_NAN BINARY_FLOAT BINARY_INTEGER BIT BLANKS
     BLOB_P BLOCKCHAIN BOLCKSIZE BODY_P BOGUS BOOLEAN_P BOTH BPCHAR BUCKETCNT BUCKETS BUILD BY BYTE_P BYTEAWITHOUTORDER BYTEAWITHOUTORDERWITHEQUAL
 
     CACHE CALL CALLED CANCELABLE CASCADE CASCADED CASE CAST CATALOG_P CATALOG_NAME CHAIN CHANGE CHAR_P
     CHARACTER CHARACTERISTICS CHARACTERSET CHARSET CHECK CHECKPOINT CLASS CLASS_ORIGIN CLEAN CLIENT CLIENT_MASTER_KEY CLIENT_MASTER_KEYS CLOB CLOSE
     CLUSTER_P CLUSTERED COALESCE COLLATE COLLATION COLUMN COLUMN_ENCRYPTION_KEY COLUMN_ENCRYPTION_KEYS COLUMN_NAME COLUMNS COMMENT COMMENTS COMMIT
     COMMITTED COMPACT COMPATIBLE_ILLEGAL_CHARS COMPILE COMPLETE COMPLETION COMPRESS COMPUTE CONCURRENTLY CONDITION CONDITIONAL CONFIGURATION CONNECTION CONSISTENT CONSTANT CONSTRAINT CONSTRAINT_CATALOG CONSTRAINT_NAME CONSTRAINT_SCHEMA CONSTRAINTS
-    CONTENT_P CONTENTS CONTINUE_P CONTROLFILE CONTVIEW CONVERSION_P CONVERT_P CONNECT COORDINATOR COORDINATORS COPY COST CREATE
-    CROSS CSN CSV CUBE CURRENT_P
+    CONTENT_P CONTENTS CONTINUE_P CONTROLFILE CONTVIEW CONVERSION_P CONVERT_P CONNECT COORDINATOR COORDINATORS COPY COST CREATE CRMODE
+    CROSS CSF CSN CSV CTRLFILE CUBE CURRENT_P
     CURRENT_CATALOG CURRENT_DATE CURRENT_ROLE CURRENT_SCHEMA
     CURRENT_TIME CURRENT_TIMESTAMP CURRENT_USER CURSOR CURSOR_NAME CYCLE
     SHRINK USE_P
 
-    DATA_P DATABASE DATAFILE DATAFILES DATANODE DATANODES DATATYPE_CL DATE_P DATE_FORMAT_P DAY_P DAY_HOUR_P DAY_MINUTE_P DAY_SECOND_P DBCOMPATIBILITY_P DEALLOCATE DEC DECIMAL_P DECLARE DECODE DEFAULT DEFAULTS
-    DEFERRABLE DEFERRED DEFINER DELETE_P DELIMITER DELIMITERS DELTA DELTAMERGE DENSE_RANK DESC DETERMINISTIC
+    DATA_P DATABASE DATAFILE DATAFILES DATANODE DATANODES DATATYPE_CL DATE_P DATE_FORMAT_P DAY_P DAY_HOUR_P DAY_MINUTE_P DAY_SECOND_P DBA_RECYCLEBIN DBCOMPATIBILITY_P DEALLOCATE DEC DECIMAL_P DECLARE DECODE DEFAULT DEFAULTS
+    DEFERRABLE DEFERRED DEFINER DELETE_P DELIMITED DELIMITER DELIMITERS DELTA DELTAMERGE DENSE_RANK DESC DETERMINISTIC
 /* PGXC_BEGIN */
-    DIAGNOSTICS DICTIONARY DIRECT DIRECTORY DISABLE_P DISCARD DISTINCT DISTRIBUTE DISTRIBUTION DO DOCUMENT_P DOMAIN_P DOUBLE_P
+    DIAGNOSTICS DICTIONARY DIRECT DIRECT_LOAD DIRECTORY DISABLE_P DISCARD DISTINCT DISTRIBUTE DISTRIBUTION DO DOCUMENT_P DOMAIN_P DOUBLE_P
 /* PGXC_END */
     DROP DUPLICATE DISCONNECT DUMPFILE
 
-    EACH ELASTIC ELSE EMPTY ENABLE_P ENCLOSED ENCODING ENCRYPTED ENCRYPTED_VALUE ENCRYPTION ENCRYPTION_TYPE END_P ENDS ENFORCED ENUM_P ERROR_P ERRORS ESCAPE EOL ESCAPING ESTIMATE EVENT EVENTS EVERY EXCEPT EXCHANGE
+    EACH ELASTIC ELSE EMPTY ENABLE_P ENCLOSED ENCODING ENCRYPTED ENCRYPTED_VALUE ENCRYPTION ENCRYPTION_TYPE END_P ENDS ENFORCED ENUM_P ERROR_P ERRORS ESCAPE EOL ESCAPING ESTIMATE EXEMPT EVENT EVENTS EVERY EXCEPT EXCHANGE
     EXCLUDE EXCLUDED EXCLUDING EXCLUSIVE EXECUTE EXISTS EXPIRE EXPIRED_P EXPLAIN
-    EXTENSION EXTERNAL EXTRACT ESCAPED
+    EXTENSION EXTENT EXTENTS EXTERNAL EXTRACT ESCAPED
 
-    FALSE_P FAMILY FAST FENCED FETCH FIELDS FILEHEADER_P FILL_MISSING_FIELDS FILLER FILTER FIRST_P FIXED_P FLASHBACK FLOAT_P FOLLOWING FOLLOWS_P FOR FORCE FOREIGN FORMAT FORMATTER FORWARD
+    FALSE_P FAILED_LOGIN_ATTEMPTS_P FAMILY FAST FENCED FETCH FIELDS FILEHEADER_P FILL_MISSING_FIELDS FILLER FILTER FIRST_P FIXED_P FLASHBACK FLOAT_P FOLLOWING FOLLOWS_P FOR FORCE FOREIGN FORMAT FORMATTER FORWARD
     FEATURES // DB4AI
     FREEZE FROM FULL FUNCTION FUNCTIONS
 
     GENERATED GET GLOBAL GRANT GRANTED GREATEST GROUP_P GROUP_CONCAT GROUPING_P GROUPPARENT
 
-    HANDLER HAVING HDFSDIRECTORY HEADER_P HOLD HOUR_P HOUR_MINUTE_P HOUR_SECOND_P
+    HANDLER HASH HAVING HDFSDIRECTORY HEADER_P HOLD HOUR_P HOUR_MINUTE_P HOUR_SECOND_P
 
     IDENTIFIED IDENTITY_P IF_P IGNORE IGNORE_EXTRA_DATA ILIKE IMMEDIATE IMMUTABLE IMPLICIT_P IN_P INCLUDE IMCSTORED
     INCLUDING INCREMENT INCREMENTAL INDEX_P INDEXES INFILE INFINITE_P INHERIT INHERITS INITIAL_P INITIALLY INITRANS INLINE_P
@@ -268,19 +358,19 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
 
     KEEP KEY KILL KEY_PATH KEY_STORE
 
-    LABEL LANGUAGE LARGE_P LAST_P LATERAL_P LC_COLLATE_P LC_CTYPE_P LEADING LEAKPROOF LIBRARY LINES
-    LEAST LESS LEFT LEVEL LIKE LIMIT LIST LISTEN LNNVL LOAD LOCAL LOCALTIME LOCALTIMESTAMP
+    LABEL LANGUAGE LARGE_P LAST_P LATERAL_P LC_COLLATE_P LC_CTYPE_P LEADING LEAKPROOF LIBRARY LINES LINK
+    LEAST LESS LEFT LEVEL LIKE LIMIT LIST LISTEN LNNVL LOAD LOADER_P LOB LOCAL LOCALTIME LOCALTIMESTAMP
     LOCATION LOCK_P LOCKED LOG_P LOGFILE LOGGING LOGIN_ANY LOGIN_FAILURE LOGIN_SUCCESS LOGOUT LOOP
-    MAPPING MASKING MASTER MATCH MATERIALIZED MATCHED MAXEXTENTS MAXINSTANCES MAXSIZE MAXTRANS MAXVALUE MERGE MESSAGE_TEXT METHOD MINUS_P MINUTE_P MINUTE_SECOND_P MINVALUE MINEXTENTS MODE
+    MAPPING MANAGE MASKING MASTER MATCH MATERIALIZED MATCHED MAXEXTENTS MAXINSTANCES MAXSIZE MAXTRANS MAXVALUE MERGE MESSAGE_TEXT METHOD MINUS_P MINUTE_P MINUTE_SECOND_P MINVALUE MINEXTENTS MODE
     MODEL MODIFY_P MONTH_P MOVE MOVEMENT MYSQL_ERRNO
     // DB4AI
-    NAME_P NAMES NAN_P NATIONAL NATURAL NCHAR NEXT NO NOARCHIVELOG NOCOMPRESS NOCYCLE NODE NOLOGGING NOMAXVALUE NOMINVALUE NONE
+    NAME_P NAMES NAN_P NATIONAL NATURAL NCHAR NEWLINE NEXT NO NOARCHIVELOG NOCACHE NOCOMPRESS NOCYCLE NODE NOLOGGING NOMAXVALUE NOMINVALUE NONE NOORDER NORELY
     NOT NOTHING NOTIFY NOTNULL NOVALIDATE NOWAIT NTH_VALUE_P NULL_P NULLCOLS NULLIF NULLS_P NUMBER_P NUMERIC NUMSTR NVARCHAR NVARCHAR2 NVL
 
-    OBJECT_P OF OFF OFFSET OIDS ON ONLY OPERATOR OPTIMIZATION OPTION OPTIONALLY OPTIONS OR
-    ORDER OUT_P OUTER_P OVER OVERLAPS OVERLAY OWNED OWNER ORDINALITY OUTFILE
+    OBJECT_P OF_P OFF OFFSET OIDS ON ONLINE ONLY OPERATIONS OPERATOR OPTIMIZATION OPTION OPTIONALLY OPTIONS OR
+    ORDER OUT_P OUTER_P OVER OVERLAPS OVERLAY OWNED OWNER ORDINALITY ORGANIZATION OUTFILE
 
-    PACKAGE PACKAGES PARALLEL_ENABLE PARSER PARTIAL PARTITION PARTITIONS PASSING PASSWORD PATH PCTFREE PER_P PERCENT PERFORMANCE PERM PERMANENT PLACING PLAN PLANS POLICY POSITION
+    PACKAGE PACKAGES PAGE PARALLEL PARALLEL_ENABLE PARAMETERS PARSER PARTIAL PARTITION PARTITIONS PASSING PASSWORD PASSWORD_GRACE_TIME_P PASSWORD_LIFE_TIME_P PASSWORD_LOCK_TIME_P PASSWORD_MIN_LEN_P PASSWORD_REUSE_MAX_P PASSWORD_REUSE_TIME_P PATH PCTFREE PER_P PERCENT PERFORMANCE PERM PERMANENT PLACING PLAN PLANS POLICY POSITION
     PIPELINED PIVOT
 /* PGXC_BEGIN */
     POOL PRECEDING PRECISION
@@ -293,13 +383,13 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
 
     QUERY QUOTE
 
-    RANDOMIZED RANGE RATIO RAW READ REAL REASSIGN REBUILD RECHECK RECURSIVE RECYCLEBIN REDISANYVALUE REF REFERENCES REFRESH REGEXP REGEXP_LIKE REINDEX REJECT_P
-    RELATIVE_P RELEASE RELOPTIONS REMOTE_P REMOVE RENAME REPEAT REPEATABLE REPLACE REPLICA REPORT
-    RESET RESIZE RESOURCE RESPECT_P RESTART RESTRICT RETURN RETURNED_SQLSTATE RETURNING RETURNS REUSE REVOKE RIGHT ROLE ROLES ROLLBACK ROLLUP ROTATE
+    RANDOMIZED RANGE RATIO RAW READ REAL REASSIGN REBUILD RECHECK RECORDS RECURSIVE REDACTION RECYCLEBIN REDISANYVALUE REF REFERENCES REFRESH REGEXP REGEXP_LIKE REINDEX REJECT_P
+    RELATIVE_P RELEASE RELOPTIONS RELY REMOTE_P REMOVE RENAME REPEAT REPEATABLE REPLACE REPLICA REPORT
+    RESET REWRITE RESIZE RESOURCE RESPECT_P RESTART RESTRICT RETURN RETURNED_SQLSTATE RETURNING RETURNS REUSE REVERSE REVOKE RIGHT ROLE ROLES ROLLBACK ROLLUP ROTATE
     ROTATION ROW ROW_COUNT ROWID ROWNUM ROWS ROWSCN ROWTYPE_P RULE
 
     SAMPLE SAVEPOINT SCHEDULE SCHEMA SCHEMA_NAME SCN SCROLL SEARCH SECOND_P SECURITY SELECT SEPARATOR_P SEQUENCE SEQUENCES SHARE_MEMORY
-    SERIALIZABLE SERVER_P SESSION SESSION_USER SET SETS SETOF SHARE SHIPPABLE SHOW SHUTDOWN SIBLINGS SIGNED
+    SERIALIZABLE SERVER_P SESSION SESSION_USER SESSIONS_PER_USER_P SET SETS SETOF SHARE SHIPPABLE SHOW SHUTDOWN SIBLINGS SIGNED
     SIMILAR SIMPLE SIZE SKIP SLAVE SLICE SMALLDATETIME SMALLDATETIME_FORMAT_P SMALLINT SNAPSHOT SOME SOURCE_P SPACE_P SPECIFICATION SPILL SPLIT STABLE STACKED_P STANDALONE_P START STARTS STARTWITH
     STATEMENT STATEMENT_ID STATISTICS STDIN STDOUT STORAGE STORE_P STORED STRATIFY STREAM STRICT_P STRIP_P SUBCLASS_ORIGIN SUBPARTITION SUBPARTITIONS SUBSCRIPTION SUBSTR SUBSTRING
     SYMMETRIC SYNONYM SYSDATE SYSID SYSTEM_P SYS_REFCURSOR SYSAUX STARTING SQL_P
@@ -310,7 +400,7 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
     TO TRAILING TRANSACTION TRANSFORM TREAT TRIGGER TRIM TRUE_P
     TRUNCATE TRUSTED TSFIELD TSTAG TSTIME TYPE_P TYPES_P
 
-    UNCONDITIONAL UNBOUNDED UNCOMMITTED UNENCRYPTED UNION UNIQUE UNKNOWN UNLIMITED UNLISTEN UNLOCK UNLOGGED UNPIVOT UNIMCSTORED
+    UNCONDITIONAL UNBOUNDED UNCOMMITTED UNENCRYPTED UNION UNIQUE UNKNOWN UNLIMITED UNLISTEN UNLOCK UNLOGGED UNPIVOT UNSIGNED UNIMCSTORED
     UNTIL UNUSABLE UPDATE USEEOF USER USING
 
     VACUUM VALID VALIDATE VALIDATION VALIDATOR VALUE_P VALUES VARCHAR VARCHAR2 VARIABLES VARIADIC VARRAY VARYING VCGROUP
@@ -349,7 +439,8 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
  * LALR(1).
  */
 %token  WITH_TIME WITH_LOCAL WITHOUT_TIME WITHOUT_LOCAL PIVOT_TOK UNPIVOT_TOK UNPIVOT_INC UNPIVOT_EXC CONNECT_BY START_WITH
-        PARTITION_FOR SUBPARTITION_FOR ORDER_SIBLINGS ABSENT_ON
+        PARTITION_FOR SUBPARTITION_FOR ORDER_SIBLINGS ABSENT_ON INNER_JOIN JOIN_KEY LEFT_KEY RIGHT_KEY FULL_KEY CROSS_JOIN
+        FOREIGN_KEY EXECUTE_ON_DIRECTORY EXECUTE_KEY READ_ON_DIRECTORY READ_KEY
 
 /* Precedence: lowest to highest */
 %right       PRIOR
@@ -412,7 +503,9 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
 %nonassoc    UNBOUNDED NESTED /* ideally would have same precedence as IDENT */
 %nonassoc    IDENT PARTITION RANGE ROWS GROUPS PRECEDING FOLLOWING CUBE ROLLUP
              SET KEYS OBJECT_P SCALAR VALUE_P WITH WITHOUT PATH FORMAT REGEXP
-             SEPARATOR_P
+             SEPARATOR_P AUTO_INCREMENT COMMENT APPENDONLY CACHE CHARSET COMPRESS
+             ENABLE_P DISABLE_P INITRANS LOB LOGGING MAXTRANS NOCACHE NOCOMPRESS
+             PCTFREE STORAGE SYSTEM_P TABLESPACE CHARACTER
 %left        '|'    /* OPER_TYPE_BITOR */
 %left        '^'    /* OPER_TYPE_BITXOR */
 %left        '&'    /* OPER_TYPE_BITAND */
@@ -434,8 +527,8 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
  * They wouldn't be given a precedence at all, were it not that we need
  * left-associativity among the JOIN rules themselves.
  */
-%left        JOIN CROSS LEFT FULL RIGHT INNER_P NATURAL
-%nonassoc    ON RETURN SQL_CALC_FOUND_ROWS BODY_P IF_P NOLOGGING IGNORE    /* handle table_ref JOIN table_ref JOIN table_ref ON join_qual  */
+%left        NATURAL INNER_JOIN JOIN_KEY LEFT_KEY RIGHT_KEY FULL_KEY CROSS_JOIN
+%nonassoc    ON RETURN SQL_CALC_FOUND_ROWS BODY_P IF_P NOLOGGING IGNORE   /* handle table_ref JOIN table_ref JOIN table_ref ON join_qual  */
 
 %%
 /*
@@ -464,6 +557,20 @@ stmtmulti:
         | CreateRoleStmt
         | CreateTenantStmt
         | AlterIndexStmt
+        | CreateTablespaceStmt
+        | CreateIndexStmt
+        | CreateSequenceStmt
+        | CreateViewStmt
+        | CreateSynonymStmt
+        | CreateProfileStmt
+        | CreateDirectoryStmt
+        | CreateLibraryStmt
+        | CreateCtrlfileStmt
+        | CreateTableStmt
+        | CreateFunctionStmt
+        | compileFunctionSource
+        | GrantStmt
+        | RevokeStmt
         | /*EMPTY*/ { $$ = NULL; }
     ;
 
@@ -1142,6 +1249,7 @@ alias_without_as:
             {
                 char *tmp = NULL;
                 BISON_MEM_STRDUP(tmp, $1);
+                cm_str_upper(tmp);
                 $$ = tmp;
             }
         ;
@@ -1523,7 +1631,7 @@ columnref_list:
         ;
 
 locked_rels_list:
-            OF columnref_list                        { $$ = $2; }
+            OF_P columnref_list                        { $$ = $2; }
             | /* EMPTY */                       { $$ = NULL; }
         ;
 
@@ -4047,9 +4155,9 @@ json_table: jsonb_table '(' expr_with_select format_json ',' SCONST json_on_erro
             }
         ;
 
-join_type:	FULL join_outer                         { $$ = JOIN_TYPE_FULL; }
-            | LEFT join_outer                       { $$ = JOIN_TYPE_LEFT; }
-            | RIGHT join_outer                      { $$ = KEY_WORD_RIGHT; }
+join_type:	FULL_KEY join_outer                         { $$ = JOIN_TYPE_FULL; }
+            | LEFT_KEY join_outer                       { $$ = JOIN_TYPE_LEFT; }
+            | RIGHT_KEY join_outer                      { $$ = KEY_WORD_RIGHT; }
         ;
 
 join_outer: OUTER_P
@@ -4061,16 +4169,16 @@ joined_table:
                 {
                     $$ = $2;
                 }
-            | table_ref CROSS JOIN table_ref
+            | table_ref CROSS_JOIN table_ref
                 {
                     sql_join_node_t *join_node = NULL;
                     sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
-                    if (sql_create_join_node(stmt, JOIN_TYPE_CROSS, NULL, NULL, $1, $4, &join_node) != OG_SUCCESS) {
+                    if (sql_create_join_node(stmt, JOIN_TYPE_CROSS, NULL, NULL, $1, $3, &join_node) != OG_SUCCESS) {
                         parser_yyerror("create join node failed.");
                     }
                     $$ = join_node;
                 }
-            | table_ref join_type JOIN table_ref ON cond_tree_expr
+            | table_ref join_type JOIN_KEY table_ref ON cond_tree_expr
                 {
                     sql_join_node_t *join_node = NULL;
                     sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
@@ -4079,16 +4187,7 @@ joined_table:
                     }
                     $$ = join_node;
                 }
-            | table_ref INNER_P JOIN table_ref
-                {
-                    sql_join_node_t *join_node = NULL;
-                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
-                    if (sql_create_join_node(stmt, JOIN_TYPE_INNER, NULL, NULL, $1, $4, &join_node) != OG_SUCCESS) {
-                        parser_yyerror("create join node failed.");
-                    }
-                    $$ = join_node;
-                }
-            | table_ref JOIN table_ref ON cond_tree_expr
+            | table_ref INNER_JOIN table_ref ON cond_tree_expr
                 {
                     sql_join_node_t *join_node = NULL;
                     sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
@@ -4097,7 +4196,25 @@ joined_table:
                     }
                     $$ = join_node;
                 }
-            | table_ref JOIN table_ref
+            | table_ref INNER_JOIN table_ref
+                {
+                    sql_join_node_t *join_node = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_create_join_node(stmt, JOIN_TYPE_INNER, NULL, NULL, $1, $3, &join_node) != OG_SUCCESS) {
+                        parser_yyerror("create join node failed.");
+                    }
+                    $$ = join_node;
+                }
+            | table_ref JOIN_KEY table_ref ON cond_tree_expr
+                {
+                    sql_join_node_t *join_node = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_create_join_node(stmt, JOIN_TYPE_INNER, NULL, $5, $1, $3, &join_node) != OG_SUCCESS) {
+                        parser_yyerror("create join node failed.");
+                    }
+                    $$ = join_node;
+                }
+            | table_ref JOIN_KEY table_ref
                 {
                     sql_join_node_t *join_node = NULL;
                     sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
@@ -5513,6 +5630,11 @@ opt_type_modifiers: '(' expr_list ')'   { $$ = $2; }
                     | /* EMPTY */       { $$ = NULL; }
         ;
 
+opt_signed:
+            SIGNED                      { $$ = OG_TRUE; }
+            | UNSIGNED                  { $$ = OG_FALSE; }
+        ;
+
 /*
  * SQL numeric data types
  */
@@ -5527,6 +5649,10 @@ Numeric:     NoSignedInteger
                         parser_yyerror("make type failed");
                     }
                     $$ = type;
+                }
+            | SignedInteger
+                {
+                    $$ = $1;
                 }
             | BINARY_DOUBLE
                 {
@@ -5638,6 +5764,72 @@ NoSignedInteger:  INT_P
                 {
                     type_word_t *type = NULL;
                     if (make_type_word(yyscanner, &type, "tinyint", NULL, @1.loc) != OG_SUCCESS) {
+                        parser_yyerror("make type failed");
+                    }
+                    $$ = type;
+                }
+            | BINARY_BIGINT
+                {
+                    type_word_t *type = NULL;
+                    if (make_type_word(yyscanner, &type, "binary_bigint", NULL, @1.loc) != OG_SUCCESS) {
+                        parser_yyerror("make type failed");
+                    }
+                    $$ = type;
+                }
+        ;
+
+SignedInteger:  INT_P opt_signed
+                {
+                    type_word_t *type = NULL;
+                    if (make_type_word(yyscanner, &type, $2 ? "int" : "uint", NULL, @1.loc) != OG_SUCCESS) {
+                        parser_yyerror("make type failed");
+                    }
+                    $$ = type;
+                }
+            | INTEGER opt_signed
+                {
+                    type_word_t *type = NULL;
+                    if (make_type_word(yyscanner, &type, $2 ? "int" : "uint", NULL, @1.loc) != OG_SUCCESS) {
+                        parser_yyerror("make type failed");
+                    }
+                    $$ = type;
+                }
+            | SMALLINT opt_signed
+                {
+                    type_word_t *type = NULL;
+                    if (make_type_word(yyscanner, &type, $2 ? "smallint" : "usmallint", NULL, @1.loc) != OG_SUCCESS) {
+                        parser_yyerror("make type failed");
+                    }
+                    $$ = type;
+                }
+            | BINARY_INTEGER opt_signed
+                {
+                    type_word_t *type = NULL;
+                    if (make_type_word(yyscanner, &type, $2 ? "binary_integer" : "binary_uint32", NULL, @1.loc) != OG_SUCCESS) {
+                        parser_yyerror("make type failed");
+                    }
+                    $$ = type;
+                }
+            | TINYINT opt_signed
+                {
+                    type_word_t *type = NULL;
+                    if (make_type_word(yyscanner, &type, $2 ? "tinyint" : "utinyint", NULL, @1.loc) != OG_SUCCESS) {
+                        parser_yyerror("make type failed");
+                    }
+                    $$ = type;
+                }
+            | BINARY_BIGINT opt_signed
+                {
+                    type_word_t *type = NULL;
+                    if (make_type_word(yyscanner, &type, $2 ? "binary_bigint" : "ubigint", NULL, @1.loc) != OG_SUCCESS) {
+                        parser_yyerror("make type failed");
+                    }
+                    $$ = type;
+                }
+            | BIGINT opt_signed
+                {
+                    type_word_t *type = NULL;
+                    if (make_type_word(yyscanner, &type, $2 ? "bigint" : "ubigint", NULL, @1.loc) != OG_SUCCESS) {
                         parser_yyerror("make type failed");
                     }
                     $$ = type;
@@ -5767,7 +5959,7 @@ opt_collate:    COLLATE charset_collate_name
                     }
                     $$ = collate_id;
                 }
-                | /*EMPTY*/ { $$ = 0;}
+                | /*EMPTY*/   %prec AT   { $$ = 0;}
         ;
 
 /*
@@ -5853,13 +6045,15 @@ JsonType:
 ColId:      IDENT                   { $$ = $1; }
             | unreserved_keyword
                 {
-                    char *tmp = strdup($1);
+                    char *tmp = NULL;
+                    BISON_MEM_STRDUP(tmp, $1);
                     cm_str_upper(tmp);
                     $$ = tmp;
                 }
             | col_name_keyword
                 {
-                    char *tmp = strdup($1);
+                    char *tmp = NULL;
+                    BISON_MEM_STRDUP(tmp, $1);
                     cm_str_upper(tmp);
                     $$ = tmp;
                 }
@@ -5868,7 +6062,13 @@ ColId:      IDENT                   { $$ = $1; }
 /* Type/function identifier --- names that can be type or function names.
  */
 type_function_name:    IDENT                        { $$ = $1; }
-                       | unreserved_keyword         { $$ = strdup($1); }
+                       | unreserved_keyword
+                        {
+                            char *tmp = NULL;
+                            BISON_MEM_STRDUP(tmp, $1);
+                            cm_str_upper(tmp);
+                            $$ = tmp;
+                        }
     ;
 
 func_name:      type_function_name
@@ -6512,6 +6712,10 @@ opt_if_exists: IF_P EXISTS                      { $$ = true; }
         | /*EMPTY*/        %prec UMINUS       { $$ = false; }
         ;
 
+opt_or_replace: OR REPLACE                      { $$ = true; }
+        | /*EMPTY*/                             { $$ = false; }
+        ;
+
 opt_drop_behavior:
             CASCADE                             { $$ = true; }
             | CASCADE CONSTRAINTS               { $$ = true; }
@@ -6647,16 +6851,16 @@ DropStmt:   DROP opt_temporary TABLE_P opt_if_exists any_name opt_drop_behavior 
                 }
             | DROP TABLESPACE any_name opt_drop_tbsp
                 {
-                    knl_drop_def_t *def = NULL;
+                    knl_drop_space_def_t *def = NULL;
                     sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
                     stmt->context->type = OGSQL_TYPE_DROP_TABLESPACE;
                     if ($3->owner.str != NULL) {
                         parser_yyerror("incorrect tablespace name");
                     }
-                    if (sql_alloc_mem(stmt->context, sizeof(knl_drop_def_t), (void **)&def) != OG_SUCCESS) {
+                    if (sql_alloc_mem(stmt->context, sizeof(knl_drop_space_def_t), (void **)&def) != OG_SUCCESS) {
                         parser_yyerror("alloc mem failed");
                     }
-                    def->name = $3->name;
+                    def->obj_name = $3->name;
                     def->options |= $4;
                     $$ = def;
                 }
@@ -7973,6 +8177,7 @@ CreateTenantStmt:
                     $$ = def;
                 }
         ;
+
 alter_index_action:
  	        UNUSABLE
  	            {
@@ -8153,7 +8358,3259 @@ AlterIndexStmt:
  	            }
                        
  	    ;
- 	 
+
+CreateTablespaceStmt:
+            CREATE opt_undo TABLESPACE tablespace_name extents_clause DATAFILE datafiles opt_createts_opts
+                {
+                    knl_space_def_t *def = NULL;
+                    uint32 size = $5;
+                    if (size < OG_MIN_EXTENT_SIZE || size > OG_MAX_EXTENT_SIZE) {
+                        parser_yyerror("invalid extent size.");
+                    }
+                    
+                    if (og_parse_create_space(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &def, $2, $4, size,
+                        $7, $8) != OG_SUCCESS) {
+                        parser_yyerror("parse create tablespace failed.");
+                    }
+                    $$ = def;
+                }
+            | CREATE opt_undo TABLESPACE tablespace_name DATAFILE datafiles opt_createts_opts
+                {
+                    knl_space_def_t *def = NULL;
+
+                    if (og_parse_create_space(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &def, $2, $4, 0,
+                        $6, $7) != OG_SUCCESS) {
+                        parser_yyerror("parse create tablespace failed.");
+                    }
+                    $$ = def;
+                }
+        ;
+
+extents_clause:
+            EXTENTS num_size                                        { $$ = $2; }
+        ;
+
+opt_undo:
+            UNDO                                                    { $$ = true; }
+            | /* EMPTY */                                           { $$ = false; }
+        ;
+
+on_or_off:
+            ON                                                      { $$ = true; }
+            | OFF                                                   { $$ = false; }
+        ;
+
+CreateIndexStmt:
+            CREATE opt_unique INDEX_P opt_if_not_exists any_name ON any_name '(' index_column_list ')' opt_createidx_opts
+                {
+                    knl_index_def_t *def = NULL;
+                    if (og_parse_create_index(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &def, $5,
+                        $7, $9, $11) != OG_SUCCESS) {
+                        parser_yyerror("parse create index failed");
+                    }
+                    def->unique = $2;
+                    if ($4) {
+                        def->options |= CREATE_IF_NOT_EXISTS;
+                    }
+                    $$ = def;
+                }
+        ;
+
+CreateSequenceStmt:
+            CREATE SEQUENCE any_name opt_createseq_opts
+                {
+                    knl_sequence_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    
+                    if (og_parse_create_sequence(stmt, &def, $3, $4) != OG_SUCCESS) {
+                        parser_yyerror("parse create sequence failed");
+                    }
+                    $$ = def;
+                }
+        ;
+
+opt_createseq_opts:
+            createseq_opts                                  { $$ = $1; }
+            | /* EMPTY */                                   { $$ = NULL; }
+        ;
+
+createseq_opts:
+            createseq_opt
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_temp_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create seq opt list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert seq opt failed.");
+                    }
+                    $$ = list;
+                }
+            | createseq_opts createseq_opt
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $2) != OG_SUCCESS) {
+                        parser_yyerror("insert seq opt failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+SignedIconst: ICONST                                { $$ = $1; }
+            | '+' ICONST                            { $$ = + $2; }
+            | '-' ICONST                            { $$ = - $2; }
+        ;
+
+BigintOnly:
+            FCONST
+                {
+                    int64 res = 0;
+                    if (strGetInt64($1, &res) != OG_SUCCESS) {
+                        parser_yyerror("get int64 failed");
+                    }
+                    $$ = res;
+                }
+            | '+' FCONST
+                {
+                    int64 res = 0;
+                    if (strGetInt64($2, &res) != OG_SUCCESS) {
+                        parser_yyerror("get int64 failed");
+                    }
+                    $$ = + res;
+                }
+            | '-' FCONST
+                {
+                    int64 res = 0;
+                    if (strGetInt64($2, &res) != OG_SUCCESS) {
+                        parser_yyerror("get int64 failed");
+                    }
+                    $$ = - res;
+                }
+            | SignedIconst
+                {
+                    $$ = $1;
+                }
+        ;
+
+createseq_opt:
+            INCREMENT BY BigintOnly
+                {
+                    createseq_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createseq_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATESEQ_INCREMENT_OPT;
+                    opt->value = $3;
+                    $$ = opt;
+                }
+            | MINVALUE BigintOnly
+                {
+                    createseq_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createseq_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATESEQ_MINVALUE_OPT;
+                    opt->value = $2;
+                    $$ = opt;
+                }
+            | NOMINVALUE
+                {
+                    createseq_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createseq_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATESEQ_NOMINVALUE_OPT;
+                    opt->value = 0;
+                    $$ = opt;
+                }
+            | MAXVALUE BigintOnly
+                {
+                    createseq_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createseq_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATESEQ_MAXVALUE_OPT;
+                    opt->value = $2;
+                    $$ = opt;
+                }
+            | NOMAXVALUE
+                {
+                    createseq_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createseq_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATESEQ_NOMAXVALUE_OPT;
+                    opt->value = 0;
+                    $$ = opt;
+                }
+            | START_WITH BigintOnly
+                {
+                    createseq_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createseq_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATESEQ_START_OPT;
+                    opt->value = $2;
+                    $$ = opt;
+                }
+            | CACHE BigintOnly
+                {
+                    createseq_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createseq_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATESEQ_CACHE_OPT;
+                    opt->value = $2;
+                    $$ = opt;
+                }
+            | NOCACHE
+                {
+                    createseq_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createseq_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATESEQ_NOCACHE_OPT;
+                    opt->value = 0;
+                    $$ = opt;
+                }
+            | CYCLE
+                {
+                    createseq_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createseq_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATESEQ_CYCLE_OPT;
+                    opt->value = 0;
+                    $$ = opt;
+                }
+            | NOCYCLE
+                {
+                    createseq_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createseq_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATESEQ_NOCYCLE_OPT;
+                    opt->value = 0;
+                    $$ = opt;
+                }
+            | ORDER
+                {
+                    createseq_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createseq_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATESEQ_ORDER_OPT;
+                    opt->value = 0;
+                    $$ = opt;
+                }
+            | NOORDER
+                {
+                    createseq_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createseq_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATESEQ_NOORDER_OPT;
+                    opt->value = 0;
+                    $$ = opt;
+                }
+        ;
+
+view_column_list:
+            ColId
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create view column list failed.");
+                    }
+                    cm_galist_insert(list, $1);
+                    $$ = list;
+                }
+            | view_column_list ',' ColId
+                {
+                    galist_t *list = $1;
+                    cm_galist_insert(list, $3);
+                    $$ = list;
+                }
+        ;
+
+CreateViewStmt:
+            CREATE opt_or_replace opt_force VIEW any_name opt_view_column_list AS SelectStmt
+                {
+                    knl_view_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    text_t src_sql;
+                    src_sql.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf;
+                    src_sql.len = og_yyget_extra(yyscanner)->core_yy_extra.scanbuflen;
+
+                    if (og_parse_create_view(stmt, &def, $5, $6, $2, $3, $8, &src_sql, @8.offset) != OG_SUCCESS) {
+                        parser_yyerror("parse create view failed");
+                    }
+                    $$ = def;
+                }
+        ;
+
+opt_view_column_list:
+            '(' view_column_list ')'                  { $$ = $2; }
+            | /*EMPTY*/                                { $$ = NULL; }
+        ;
+
+CreateSynonymStmt:
+            CREATE opt_or_replace opt_public SYNONYM any_name FOR any_name
+                {
+                    knl_synonym_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    uint32 flags = SYNONYM_IS_NULL;
+                    
+                    if ($2) {
+                        flags |= SYNONYM_IS_REPLACE;
+                    }
+                    if ($3) {
+                        flags |= SYNONYM_IS_PUBLIC;
+                    }
+                    
+                    if (og_parse_create_synonym(stmt, &def, $5, $7, flags) != OG_SUCCESS) {
+                        parser_yyerror("parse create synonym failed");
+                    }
+                    $$ = def;
+                }
+        ;
+
+CreateProfileStmt:
+            CREATE opt_or_replace PROFILE profile_name LIMIT profile_limit_list
+                {
+                    knl_profile_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    
+                    if (og_parse_create_profile(stmt, &def, $4, $2, $6) != OG_SUCCESS) {
+                        parser_yyerror("parse create profile failed");
+                    }
+                    $$ = def;
+                }
+        ;
+
+profile_limit_list:
+            profile_limit_item
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_temp_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create profile limit list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert profile limit item failed.");
+                    }
+                    $$ = list;
+                }
+            | profile_limit_list profile_limit_item
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $2) != OG_SUCCESS) {
+                        parser_yyerror("insert profile limit item failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+profile_limit_item:
+            profile_parameter profile_limit_value
+                {
+                    profile_limit_item_t *item = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(profile_limit_item_t), (void **)&item) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    item->param_type = $1;
+                    item->value = $2;
+                    $$ = item;
+                }
+        ;
+
+profile_limit_value:
+            DEFAULT
+                {
+                    profile_limit_value_t *val = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(profile_limit_value_t), (void **)&val) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    val->type = VALUE_DEFAULT;
+                    $$ = val;
+                }
+            | a_expr
+                {
+                    profile_limit_value_t *val = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(profile_limit_value_t), (void **)&val) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    expr_tree_t *expr = $1;
+                    if (expr->root->type == EXPR_NODE_COLUMN &&
+                        strcmp(expr->root->word.column.name.value.str, "UNLIMITED") == 0) {
+                        val->type = VALUE_UNLIMITED;
+                    } else {
+                        val->type = VALUE_NORMAL;
+                        val->expr = expr;
+                    }
+                    $$ = val;
+                }
+        ;
+
+profile_parameter:
+            FAILED_LOGIN_ATTEMPTS_P                                     { $$ = FAILED_LOGIN_ATTEMPTS; }
+            | PASSWORD_LIFE_TIME_P                                      { $$ = PASSWORD_LIFE_TIME; }
+            | PASSWORD_REUSE_TIME_P                                     { $$ = PASSWORD_REUSE_TIME; }
+            | PASSWORD_REUSE_MAX_P                                      { $$ = PASSWORD_REUSE_MAX; }
+            | PASSWORD_LOCK_TIME_P                                      { $$ = PASSWORD_LOCK_TIME; }
+            | PASSWORD_GRACE_TIME_P                                     { $$ = PASSWORD_GRACE_TIME; }
+            | SESSIONS_PER_USER_P                                       { $$ = SESSIONS_PER_USER; }
+            | PASSWORD_MIN_LEN_P                                        { $$ = PASSWORD_MIN_LEN; }
+        ;
+
+/* -------------------------
+ * GRANT
+ * ------------------------- */
+GrantStmt:
+            GRANT sys_priv_list TO grantee_list opt_with_admin
+                {
+                    knl_grant_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (og_parse_grant(stmt, &def, PRIV_TYPE_SYS_PRIV, $2, OBJ_TYPE_INVALID, NULL, $4, $5) != OG_SUCCESS) {
+                        parser_yyerror("parse grant failed");
+                    }
+                    $$ = def;
+                }
+            | GRANT obj_priv_list ON grant_objtype any_name TO grantee_list opt_with_grant
+                {
+                    knl_grant_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (og_parse_grant(stmt, &def, PRIV_TYPE_OBJ_PRIV, $2, $4, $5, $7, $8) != OG_SUCCESS) {
+                        parser_yyerror("parse grant failed");
+                    }
+                    $$ = def;
+                }
+            | GRANT obj_priv_list ON any_name TO grantee_list opt_with_grant
+                {
+                    knl_grant_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (og_parse_grant(stmt, &def, PRIV_TYPE_OBJ_PRIV, $2, OBJ_TYPE_INVALID, $4, $6, $7) != OG_SUCCESS) {
+                        parser_yyerror("parse grant failed");
+                    }
+                    $$ = def;
+                }
+            | GRANT directory_priv_spec any_name TO grantee_list opt_with_grant
+                {
+                    knl_grant_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    galist_t *list = NULL;
+                    knl_priv_def_t *priv_def = NULL;
+                    text_t priv_name;
+                    priv_name.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @2.offset;
+                    priv_name.len = @3.offset - @2.offset;
+                    cm_trim_text(&priv_name);
+
+                    if (sql_create_list(stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create privilege list failed.");
+                    }
+                    if (cm_galist_new(list, sizeof(knl_priv_def_t), (pointer_t *)&priv_def) != OG_SUCCESS) {
+                        parser_yyerror("new priv_def failed.");
+                    }
+                    if (sql_copy_name(stmt->context, &priv_name, &priv_def->priv_name) != OG_SUCCESS) {
+                        parser_yyerror("copy name failed.");
+                    }
+                    priv_def->priv_id = $2;
+                    priv_def->priv_type = PRIV_TYPE_OBJ_PRIV;
+                    priv_def->start_loc = @2.loc;
+
+                    if (og_parse_grant(stmt, &def, PRIV_TYPE_OBJ_PRIV, list, OBJ_TYPE_DIRECTORY, $3, $5, $6) != OG_SUCCESS) {
+                        parser_yyerror("parse grant failed");
+                    }
+                    $$ = def;
+                }
+            | GRANT user_priv_spec ON USER any_name TO grantee_list
+                {
+                    knl_grant_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    galist_t *list = NULL;
+                    knl_priv_def_t *priv_def = NULL;
+                    text_t priv_name;
+                    priv_name.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @2.offset;
+                    priv_name.len = @3.offset - @2.offset;
+                    cm_trim_text(&priv_name);
+
+                    if (sql_create_list(stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create privilege list failed.");
+                    }
+                    if (cm_galist_new(list, sizeof(knl_priv_def_t), (pointer_t *)&priv_def) != OG_SUCCESS) {
+                        parser_yyerror("new priv_def failed.");
+                    }
+                    if (sql_copy_name(stmt->context, &priv_name, &priv_def->priv_name) != OG_SUCCESS) {
+                        parser_yyerror("copy name failed.");
+                    }
+                    priv_def->priv_id = $2;
+                    priv_def->priv_type = PRIV_TYPE_USER_PRIV;
+                    priv_def->start_loc = @2.loc;
+
+                    if (og_parse_grant(stmt, &def, PRIV_TYPE_USER_PRIV, list, OBJ_TYPE_USER, $5, $7, false) != OG_SUCCESS) {
+                        parser_yyerror("parse grant failed");
+                    }
+                    $$ = def;
+                }
+        ;
+
+sys_priv_list:
+            sys_priv_spec
+                {
+                    galist_t *list = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    knl_priv_def_t *priv_def = NULL;
+                    uint32 rid;
+                    text_t priv_name;
+                    priv_name.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @1.offset;
+                    priv_name.len = yylloc.offset - @1.offset + ct_yyget_leng(yyscanner);
+                    cm_trim_text(&priv_name);
+                    priv_type_def priv_type;
+                    uint32 priv_id;
+
+                    if ($1 == ALL_PRIVILEGES) {
+                        priv_type = PRIV_TYPE_ALL_PRIV;
+                        priv_id = (uint32)$1;
+                    } else if ($1 == OG_SYS_PRIVS_COUNT) {
+                        priv_type = PRIV_TYPE_ROLE;
+                        if (knl_get_role_id(&stmt->session->knl_session, &priv_name, &rid)) {
+                            priv_id = rid;
+                        } else {
+                            parser_yyerror("invalid privilege or role name");
+                        }
+                    } else {
+                        priv_type = PRIV_TYPE_SYS_PRIV;
+                        priv_id = (uint32)$1;
+                    }
+
+                    if (sql_create_list(stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create privilege list failed.");
+                    }
+                    if (cm_galist_new(list, sizeof(knl_priv_def_t), (pointer_t *)&priv_def) != OG_SUCCESS) {
+                        parser_yyerror("new priv_def failed.");
+                    }
+                    if (sql_copy_name(stmt->context, &priv_name, &priv_def->priv_name) != OG_SUCCESS) {
+                        parser_yyerror("copy name failed.");
+                    }
+                    priv_def->priv_id = priv_id;
+                    priv_def->priv_type = priv_type;
+                    priv_def->start_loc = @1.loc;
+                    $$ = list;
+                }
+            | sys_priv_list ',' sys_priv_spec
+                {
+                    galist_t *list = $1;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    knl_priv_def_t *priv_def = NULL;
+                    uint32 rid;
+                    text_t priv_name;
+                    priv_name.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @3.offset;
+                    priv_name.len = yylloc.offset - @3.offset + ct_yyget_leng(yyscanner);
+                    cm_trim_text(&priv_name);
+                    priv_type_def priv_type;
+                    uint32 priv_id;
+
+                    if ($3 == ALL_PRIVILEGES) {
+                        priv_type = PRIV_TYPE_ALL_PRIV;
+                        priv_id = (uint32)$3;
+                    } else if ($3 == OG_SYS_PRIVS_COUNT) {
+                        priv_type = PRIV_TYPE_ROLE;
+                        if (knl_get_role_id(&stmt->session->knl_session, &priv_name, &rid)) {
+                            priv_id = rid;
+                        }
+                        parser_yyerror("invalid privilege or role name");
+                    } else {
+                        priv_type = PRIV_TYPE_SYS_PRIV;
+                        priv_id = (uint32)$3;
+                    }
+
+                    if (sql_check_privs_duplicated(list, &priv_name, priv_type) != OG_SUCCESS) {
+                        parser_yyerror("duplicate privilege listed");
+                    }
+
+                    if (cm_galist_new(list, sizeof(knl_priv_def_t), (pointer_t *)&priv_def) != OG_SUCCESS) {
+                        parser_yyerror("new priv_def failed.");
+                    }
+                    if (sql_copy_name(stmt->context, &priv_name, &priv_def->priv_name) != OG_SUCCESS) {
+                        parser_yyerror("copy name failed.");
+                    }
+                    priv_def->priv_id = priv_id;
+                    priv_def->priv_type = priv_type;
+                    priv_def->start_loc = @3.loc;
+                    $$ = list;
+                }
+        ;
+
+obj_priv_list:
+            obj_priv_spec
+                {
+                    galist_t *list = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    knl_priv_def_t *priv_def = NULL;
+                    text_t priv_name;
+                    priv_name.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @1.offset;
+                    priv_name.len = yylloc.offset - @1.offset + ct_yyget_leng(yyscanner);
+                    cm_trim_text(&priv_name);
+
+                    if (sql_create_list(stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create privilege list failed.");
+                    }
+                    if (cm_galist_new(list, sizeof(knl_priv_def_t), (pointer_t *)&priv_def) != OG_SUCCESS) {
+                        parser_yyerror("new priv_def failed.");
+                    }
+                    if (sql_copy_name(stmt->context, &priv_name, &priv_def->priv_name) != OG_SUCCESS) {
+                        parser_yyerror("copy name failed.");
+                    }
+                    priv_def->priv_id = $1;
+                    priv_def->priv_type = PRIV_TYPE_OBJ_PRIV;
+                    priv_def->start_loc = @1.loc;
+                    $$ = list;
+                }
+            | obj_priv_list ',' obj_priv_spec
+                {
+                    galist_t *list = $1;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    knl_priv_def_t *priv_def = NULL;
+                    text_t priv_name;
+                    priv_name.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @3.offset;
+                    priv_name.len = yylloc.offset - @3.offset + ct_yyget_leng(yyscanner);
+                    cm_trim_text(&priv_name);
+
+                    if (sql_check_privs_duplicated(list, &priv_name, $3) != OG_SUCCESS) {
+                        parser_yyerror("duplicate privilege listed");
+                    }
+
+                    if (cm_galist_new(list, sizeof(knl_priv_def_t), (pointer_t *)&priv_def) != OG_SUCCESS) {
+                        parser_yyerror("new priv_def failed.");
+                    }
+                    if (sql_copy_name(stmt->context, &priv_name, &priv_def->priv_name) != OG_SUCCESS) {
+                        parser_yyerror("copy name failed.");
+                    }
+                    priv_def->priv_id = $3;
+                    priv_def->priv_type = PRIV_TYPE_OBJ_PRIV;
+                    priv_def->start_loc = @3.loc;
+                    $$ = list;
+                }
+        ;
+
+sys_priv_spec:
+            ALL                                 { $$ = ALL_PRIVILEGES; }
+            | ALL PRIVILEGES                    { $$ = ALL_PRIVILEGES; }
+            | ALTER ANY INDEX_P                 { $$ = ALTER_ANY_INDEX; }
+            | ALTER ANY MATERIALIZED VIEW       { $$ = ALTER_ANY_MATERIALIZED_VIEW; }
+            | ALTER ANY PROCEDURE               { $$ = ALTER_ANY_PROCEDURE; }
+            | ALTER ANY ROLE                    { $$ = ALTER_ANY_ROLE; }
+            | ALTER ANY SEQUENCE                { $$ = ALTER_ANY_SEQUENCE; }
+            | ALTER ANY TABLE_P                 { $$ = ALTER_ANY_TABLE; }
+            | ALTER ANY TRIGGER                 { $$ = ALTER_ANY_TRIGGER; }
+            | ALTER DATABASE                    { $$ = ALTER_DATABASE; }
+            | ALTER DATABASE LINK               { $$ = ALTER_DATABASE_LINK; }
+            | ALTER NODE                        { $$ = ALTER_NODE; }
+            | ALTER PROFILE                     { $$ = ALTER_PROFILE; }
+            | ALTER SESSION                     { $$ = ALTER_SESSION; }
+            | ALTER SYSTEM_P                    { $$ = ALTER_SYSTEM; }
+            | ALTER TABLESPACE                  { $$ = ALTER_TABLESPACE; }
+            | ALTER TENANT                      { $$ = ALTER_TENANT; }
+            | ALTER USER                        { $$ = ALTER_USER; }
+            | ANALYZE ANY                       { $$ = ANALYZE_ANY; }
+            | COMMENT ANY TABLE_P               { $$ = COMMENT_ANY_TABLE; }
+            | CREATE ANY DIRECTORY              { $$ = CREATE_ANY_DIRECTORY; }
+            | CREATE ANY DISTRIBUTE RULE        { $$ = CREATE_ANY_DISTRIBUTE_RULE; }
+            | CREATE ANY INDEX_P                { $$ = CREATE_ANY_INDEX; }
+            | CREATE ANY LIBRARY                { $$ = CREATE_ANY_LIBRARY; }
+            | CREATE ANY MATERIALIZED VIEW      { $$ = CREATE_ANY_MATERIALIZED_VIEW; }
+            | CREATE ANY PROCEDURE              { $$ = CREATE_ANY_PROCEDURE; }
+            | CREATE ANY SEQUENCE               { $$ = CREATE_ANY_SEQUENCE; }
+            | CREATE ANY SQL_P MAP              { $$ = CREATE_ANY_SQL_MAP; }
+            | CREATE ANY SYNONYM                { $$ = CREATE_ANY_SYNONYM; }
+            | CREATE ANY TABLE_P                { $$ = CREATE_ANY_TABLE; }
+            | CREATE ANY TRIGGER                { $$ = CREATE_ANY_TRIGGER; }
+            | CREATE ANY TYPE_P                 { $$ = CREATE_ANY_TYPE; }
+            | CREATE ANY VIEW                   { $$ = CREATE_ANY_VIEW; }
+            | CREATE CTRLFILE                   { $$ = CREATE_CTRLFILE; }
+            | CREATE DATABASE                   { $$ = CREATE_DATABASE; }
+            | CREATE DATABASE LINK              { $$ = CREATE_DATABASE_LINK; }
+            | CREATE DISTRIBUTE RULE            { $$ = CREATE_DISTRIBUTE_RULE; }
+            | CREATE LIBRARY                    { $$ = CREATE_LIBRARY; }
+            | CREATE MATERIALIZED VIEW          { $$ = CREATE_MATERIALIZED_VIEW; }
+            | CREATE NODE                       { $$ = CREATE_NODE; }
+            | CREATE PROCEDURE                  { $$ = CREATE_PROCEDURE; }
+            | CREATE PROFILE                    { $$ = CREATE_PROFILE; }
+            | CREATE PUBLIC SYNONYM             { $$ = CREATE_PUBLIC_SYNONYM; }
+            | CREATE ROLE                       { $$ = CREATE_ROLE; }
+            | CREATE SEQUENCE                   { $$ = CREATE_SEQUENCE; }
+            | CREATE SESSION                    { $$ = CREATE_SESSION; }
+            | CREATE SYNONYM                    { $$ = CREATE_SYNONYM; }
+            | CREATE TABLE_P                    { $$ = CREATE_TABLE; }
+            | CREATE TABLESPACE                 { $$ = CREATE_TABLESPACE; }
+            | CREATE TENANT                     { $$ = CREATE_TENANT; }
+            | CREATE TRIGGER                    { $$ = CREATE_TRIGGER; }
+            | CREATE TYPE_P                     { $$ = CREATE_TYPE; }
+            | CREATE USER                       { $$ = CREATE_USER; }
+            | CREATE VIEW                       { $$ = CREATE_VIEW; }
+            | DELETE_P ANY TABLE_P              { $$ = DELETE_ANY_TABLE; }
+            | DROP ANY DIRECTORY                { $$ = DROP_ANY_DIRECTORY; }
+            | DROP ANY DISTRIBUTE RULE          { $$ = DROP_ANY_DISTRIBUTE_RULE; }
+            | DROP ANY INDEX_P                    { $$ = DROP_ANY_INDEX; }
+            | DROP ANY LIBRARY                  { $$ = DROP_ANY_LIBRARY; }
+            | DROP ANY MATERIALIZED VIEW        { $$ = DROP_ANY_MATERIALIZED_VIEW; }
+            | DROP ANY PROCEDURE                { $$ = DROP_ANY_PROCEDURE; }
+            | DROP ANY ROLE                     { $$ = DROP_ANY_ROLE; }
+            | DROP ANY SEQUENCE                 { $$ = DROP_ANY_SEQUENCE; }
+            | DROP ANY SQL_P MAP                { $$ = DROP_ANY_SQL_MAP; }
+            | DROP ANY SYNONYM                  { $$ = DROP_ANY_SYNONYM; }
+            | DROP ANY TABLE_P                  { $$ = DROP_ANY_TABLE; }
+            | DROP ANY TRIGGER                  { $$ = DROP_ANY_TRIGGER; }
+            | DROP ANY TYPE_P                   { $$ = DROP_ANY_TYPE; }
+            | DROP ANY VIEW                     { $$ = DROP_ANY_VIEW; }
+            | DROP DATABASE LINK                { $$ = DROP_DATABASE_LINK; }
+            | DROP NODE                         { $$ = DROP_NODE; }
+            | DROP PROFILE                      { $$ = DROP_PROFILE; }
+            | DROP PUBLIC SYNONYM               { $$ = DROP_PUBLIC_SYNONYM; }
+            | DROP TABLESPACE                   { $$ = DROP_TABLESPACE; }
+            | DROP TENANT                       { $$ = DROP_TENANT; }
+            | DROP USER                         { $$ = DROP_USER; }
+            | EXECUTE ANY LIBRARY               { $$ = EXECUTE_ANY_LIBRARY; }
+            | EXECUTE ANY PROCEDURE             { $$ = EXECUTE_ANY_PROCEDURE; }
+            | EXECUTE ANY TYPE_P                { $$ = EXECUTE_ANY_TYPE; }
+            | EXEMPT ACCESS POLICY              { $$ = EXEMPT_ACCESS_POLICY; }
+            | EXEMPT REDACTION POLICY           { $$ = EXEMPT_REDACTION_POLICY; }
+            | FLASHBACK ANY TABLE_P             { $$ = FLASHBACK_ANY_TABLE; }
+            | FLASHBACK ARCHIVE_P ADMINISTER    { $$ = FLASHBACK_ARCHIVE_ADMINISTER; }
+            | FORCE ANY TRANSACTION             { $$ = FORCE_ANY_TRANSACTION; }
+            | GLOBAL QUERY REWRITE              { $$ = GLOBAL_QUERY_REWRITE; }
+            | GRANT ANY OBJECT_P PRIVILEGE      { $$ = GRANT_ANY_OBJECT_PRIVILEGE; }
+            | GRANT ANY PRIVILEGE               { $$ = GRANT_ANY_PRIVILEGE; }
+            | GRANT ANY ROLE                    { $$ = GRANT_ANY_ROLE; }
+            | INHERIT ANY PRIVILEGES            { $$ = INHERIT_ANY_PRIVILEGES; }
+            | INSERT ANY TABLE_P                { $$ = INSERT_ANY_TABLE; }
+            | LOCK_P ANY TABLE_P                { $$ = LOCK_ANY_TABLE; }
+            | MANAGE TABLESPACE                 { $$ = MANAGE_TABLESPACE; }
+            | ON COMMIT REFRESH                 { $$ = ON_COMMIT_REFRESH; }
+            | PURGE DBA_RECYCLEBIN              { $$ = PURGE_DBA_RECYCLEBIN; }
+            | READ ANY TABLE_P                  { $$ = READ_ANY_TABLE; }
+            | SELECT ANY DICTIONARY             { $$ = SELECT_ANY_DICTIONARY; }
+            | SELECT ANY SEQUENCE               { $$ = SELECT_ANY_SEQUENCE; }
+            | SELECT ANY TABLE_P                { $$ = SELECT_ANY_TABLE; }
+            | UNDER ANY VIEW                    { $$ = UNDER_ANY_VIEW; }
+            | UNLIMITED TABLESPACE              { $$ = UNLIMITED_TABLESPACE; }
+            | UPDATE ANY TABLE_P                { $$ = UPDATE_ANY_TABLE; }
+            | USE_P ANY TABLESPACE              { $$ = USE_ANY_TABLESPACE; }
+            | ColId
+                {
+                    if (strcmp($1, "SYSBACKUP") == 0) {
+                        $$ = SYSBACKUP;
+                    } else if (strcmp($1, "SYSDBA") == 0) {
+                        $$ = SYSDBA;
+                    } else if (strcmp($1, "SYSOPER") == 0) {
+                        $$ = SYSOPER;
+                    } else {
+                        $$ = OG_SYS_PRIVS_COUNT;
+                    }
+                }
+        ;
+
+obj_priv_spec:
+            ALTER                               { $$ = OG_PRIV_ALTER; }
+            | DELETE_P                          { $$ = OG_PRIV_DELETE; }
+            | EXECUTE_KEY                       { $$ = OG_PRIV_EXECUTE; }
+            | INDEX_P                           { $$ = OG_PRIV_INDEX; }
+            | INSERT                            { $$ = OG_PRIV_INSERT; }
+            | READ_KEY                          { $$ = OG_PRIV_READ; }
+            | REFERENCES                        { $$ = OG_PRIV_REFERENCES; }
+            | SELECT                            { $$ = OG_PRIV_SELECT; }
+            | UPDATE                            { $$ = OG_PRIV_UPDATE; }
+        ;
+
+directory_priv_spec:
+            READ_ON_DIRECTORY                   { $$ = OG_PRIV_DIRE_READ; }
+            | WRITE ON DIRECTORY                { $$ = OG_PRIV_DIRE_WRITE; }
+            | EXECUTE_ON_DIRECTORY              { $$ = OG_PRIV_DIRE_EXECUTE; }
+        ;
+
+
+user_priv_spec:
+            INHERIT PRIVILEGES                  { $$ = OG_PRIV_INHERIT_PRIVILEGES; }
+        ;
+
+/* -------------------------
+ * REVOKE
+ * ------------------------- */
+RevokeStmt:
+            REVOKE sys_priv_list FROM revokee_list
+                {
+                    knl_revoke_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (og_parse_revoke(stmt, &def, PRIV_TYPE_SYS_PRIV, $2, OBJ_TYPE_INVALID, NULL, $4, false) != OG_SUCCESS) {
+                        parser_yyerror("parse revoke failed");
+                    }
+                    $$ = def;
+                }
+            | REVOKE obj_priv_list ON grant_objtype any_name FROM revokee_list opt_revoke_cascade
+                {
+                    knl_revoke_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (og_parse_revoke(stmt, &def, PRIV_TYPE_OBJ_PRIV, $2, $4, $5, $7, $8) != OG_SUCCESS) {
+                        parser_yyerror("parse revoke failed");
+                    }
+                    $$ = def;
+                }
+            | REVOKE obj_priv_list ON any_name FROM revokee_list opt_revoke_cascade
+                {
+                    knl_revoke_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (og_parse_revoke(stmt, &def, PRIV_TYPE_OBJ_PRIV, $2, OBJ_TYPE_INVALID, $4, $6, $7) != OG_SUCCESS) {
+                        parser_yyerror("parse revoke failed");
+                    }
+                    $$ = def;
+                }
+            | REVOKE directory_priv_spec any_name FROM revokee_list opt_revoke_cascade
+                {
+                    knl_revoke_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    galist_t *list = NULL;
+                    knl_priv_def_t *priv_def = NULL;
+                    text_t priv_name;
+                    priv_name.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @2.offset;
+                    priv_name.len = @3.offset - @2.offset;
+                    cm_trim_text(&priv_name);
+
+                    if (sql_create_list(stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create privilege list failed.");
+                    }
+                    if (cm_galist_new(list, sizeof(knl_priv_def_t), (pointer_t *)&priv_def) != OG_SUCCESS) {
+                        parser_yyerror("new priv_def failed.");
+                    }
+                    if (sql_copy_name(stmt->context, &priv_name, &priv_def->priv_name) != OG_SUCCESS) {
+                        parser_yyerror("copy name failed.");
+                    }
+                    priv_def->priv_id = $2;
+                    priv_def->priv_type = PRIV_TYPE_OBJ_PRIV;
+                    priv_def->start_loc = @2.loc;
+
+                    if (og_parse_revoke(stmt, &def, PRIV_TYPE_OBJ_PRIV, list, OBJ_TYPE_DIRECTORY, $3, $5, $6) != OG_SUCCESS) {
+                        parser_yyerror("parse revoke failed");
+                    }
+                    $$ = def;
+                }
+            | REVOKE user_priv_spec ON USER any_name FROM revokee_list opt_revoke_cascade
+                {
+                    knl_revoke_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    galist_t *list = NULL;
+                    knl_priv_def_t *priv_def = NULL;
+                    text_t priv_name;
+                    priv_name.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @2.offset;
+                    priv_name.len = @3.offset - @2.offset;
+                    cm_trim_text(&priv_name);
+
+                    if (sql_create_list(stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create privilege list failed.");
+                    }
+                    if (cm_galist_new(list, sizeof(knl_priv_def_t), (pointer_t *)&priv_def) != OG_SUCCESS) {
+                        parser_yyerror("new priv_def failed.");
+                    }
+                    if (sql_copy_name(stmt->context, &priv_name, &priv_def->priv_name) != OG_SUCCESS) {
+                        parser_yyerror("copy name failed.");
+                    }
+                    priv_def->priv_id = $2;
+                    priv_def->priv_type = PRIV_TYPE_USER_PRIV;
+                    priv_def->start_loc = @2.loc;
+
+                    if (og_parse_revoke(stmt, &def, PRIV_TYPE_USER_PRIV, list, OBJ_TYPE_USER, $5, $7, $8) != OG_SUCCESS) {
+                        parser_yyerror("parse revoke failed");
+                    }
+                    $$ = def;
+                }
+        ;
+
+revokee_list:
+            ColId
+                {
+                    galist_t *list = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_create_temp_list(stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create revokee list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert revokee list failed.");
+                    }
+                    $$ = list;
+                }
+            | revokee_list ',' ColId
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert revokee list failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+opt_revoke_cascade:
+            CASCADE CONSTRAINTS                  { $$ = true; }
+            | /* EMPTY */                        { $$ = false; }
+        ;
+
+grantee_list:
+            ColId
+                {
+                    galist_t *list = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_create_temp_list(stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create grantee list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert grantee list failed.");
+                    }
+                    $$ = list;
+                }
+            | grantee_list ',' ColId
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert grantee list failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+opt_with_grant:
+            WITH GRANT OPTION                   { $$ = true; }
+            | /* EMPTY */                       { $$ = false; }
+        ;
+
+opt_with_admin:
+            WITH ADMIN OPTION                   { $$ = true; }
+            | /* EMPTY */                       { $$ = false; }
+        ;
+
+grant_objtype:
+            TABLE_P         { $$ = OBJ_TYPE_TABLE; }
+            | VIEW          { $$ = OBJ_TYPE_VIEW; }
+            | SEQUENCE      { $$ = OBJ_TYPE_SEQUENCE; }
+            | PACKAGE       { $$ = OBJ_TYPE_PACKAGE_SPEC; }
+            | PROCEDURE     { $$ = OBJ_TYPE_PROCEDURE; }
+            | FUNCTION      { $$ = OBJ_TYPE_FUNCTION; }
+            | LIBRARY       { $$ = OBJ_TYPE_LIBRARY; }
+        ;
+
+CreateDirectoryStmt:
+            CREATE opt_or_replace DIRECTORY ColId AS SCONST
+                {
+                    knl_directory_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    
+                    if (og_parse_create_directory(stmt, &def, $4, $6, $2) != OG_SUCCESS) {
+                        parser_yyerror("parse create directory failed");
+                    }
+                    $$ = def;
+                }
+        ;
+
+CreateLibraryStmt:
+            CREATE opt_or_replace LIBRARY any_name as_is SCONST
+                {
+                    pl_library_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+
+                    if (og_parse_create_library(stmt, &def, $4, $6, $2) != OG_SUCCESS) {
+                        parser_yyerror("parse create library failed");
+                    }
+                    $$ = def;
+                }
+        ;
+
+as_is:
+            AS
+            | IS
+        ;
+
+CreateCtrlfileStmt:
+            CREATE CTRLFILE opt_ctrlfile_opts
+                {
+                    knl_rebuild_ctrlfile_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+
+                    if (og_parse_create_ctrlfile(stmt, &def, $3) != OG_SUCCESS) {
+                        parser_yyerror("parse create ctrlfile failed");
+                    }
+                    $$ = def;
+                }
+        ;
+
+opt_ctrlfile_opts:
+            ctrlfile_opts                                 { $$ = $1; }
+            | /* EMPTY */                                 { $$ = NULL; }
+        ;
+
+ctrlfile_opts:
+            ctrlfile_opt
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create ctrlfile opt list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert ctrlfile opt failed.");
+                    }
+                    $$ = list;
+                }
+            | ctrlfile_opts ctrlfile_opt
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $2) != OG_SUCCESS) {
+                        parser_yyerror("insert ctrlfile opt failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+ctrlfile_opt:
+            LOGFILE ctrlfile_file_list
+                {
+                    ctrlfile_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(ctrlfile_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CTRLFILE_LOGFILE_OPT;
+                    opt->file_list = $2;
+                    $$ = opt;
+                }
+            | DATAFILE ctrlfile_file_list
+                {
+                    ctrlfile_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(ctrlfile_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CTRLFILE_DATAFILE_OPT;
+                    opt->file_list = $2;
+                    $$ = opt;
+                }
+            | CHARSET charset_collate_name
+                {
+                    ctrlfile_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(ctrlfile_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CTRLFILE_CHARSET_OPT;
+                    opt->charset = $2;
+                    $$ = opt;
+                }
+            | ARCHIVELOG
+                {
+                    ctrlfile_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(ctrlfile_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CTRLFILE_ARCHIVELOG_OPT;
+                    $$ = opt;
+                }
+            | NOARCHIVELOG
+                {
+                    ctrlfile_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(ctrlfile_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CTRLFILE_NOARCHIVELOG_OPT;
+                    $$ = opt;
+                }
+        ;
+
+ctrlfile_file_list:
+            '(' ctrlfile_files ')'
+                {
+                    $$ = $2;
+                }
+        ;
+
+ctrlfile_files:
+            ctrlfile_file
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create ctrlfile list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert ctrlfile file failed.");
+                    }
+                    $$ = list;
+                }
+            | ctrlfile_files ',' ctrlfile_file
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert ctrlfile file failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+ctrlfile_file:
+            SCONST
+                {
+                    knl_device_def_t *file = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_alloc_mem(stmt->context, sizeof(knl_device_def_t), (void **)&file) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    const text_t name = { $1, strlen($1) };
+                    if (sql_copy_file_name(stmt->context, (text_t *)&name, &file->name) != OG_SUCCESS) {
+                        parser_yyerror("copy file name failed.");
+                    }
+                    $$ = file;
+                }
+        ;
+
+CreateTableStmt:
+            CREATE opt_global opt_temporary TABLE_P opt_if_not_exists any_name '(' OptTableElementList ')'
+            opt_table_attrs opt_as_select
+                {
+                    knl_table_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    
+                    if ($2 && !$3) {
+                        parser_yyerror("TEMPORARY expected");
+                    }
+
+                    if (og_parse_create_table(stmt, &def, $3, $2, $5, $6, $8, $10, $11, NULL) != OG_SUCCESS) {
+                        parser_yyerror("parse create table failed");
+                    }
+                    $$ = def;
+                }
+            | CREATE opt_global opt_temporary TABLE_P opt_if_not_exists any_name
+              opt_table_attrs AS SelectStmt
+                {
+                    knl_table_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    
+                    if ($2 && !$3) {
+                        parser_yyerror("TEMPORARY expected");
+                    }
+
+                    if (og_parse_create_table(stmt, &def, $3, $2, $5, $6, NULL, $7, $9, NULL) != OG_SUCCESS) {
+                        parser_yyerror("parse create table failed");
+                    }
+                    $$ = def;
+                }
+            | CREATE opt_global opt_temporary TABLE_P opt_if_not_exists any_name '(' OptTableElementList ')'
+              external_table
+                {
+                    knl_table_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    
+                    if ($2 && !$3) {
+                        parser_yyerror("TEMPORARY expected");
+                    }
+
+                    if (og_parse_create_table(stmt, &def, $3, $2, $5, $6, $8, NULL, NULL, $10) != OG_SUCCESS) {
+                        parser_yyerror("parse create table failed");
+                    }
+                    $$ = def;
+                }
+        ;
+
+external_table:
+            ORGANIZATION EXTERNAL '(' TYPE_P LOADER_P DIRECTORY ColId LOCATION SCONST ')'
+                {
+                    knl_ext_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (og_parse_organization(stmt, &def, $7, $9, NULL, NULL) != OG_SUCCESS) {
+                        parser_yyerror("parse organizatioon failed");
+                    }
+                    $$ = def;
+                }
+            | ORGANIZATION EXTERNAL '(' TYPE_P LOADER_P DIRECTORY ColId ACCESS PARAMETERS
+            '(' RECORDS DELIMITED BY opt_delimited FIELDS TERMINATED BY field_terminate ')'
+            LOCATION SCONST ')'
+                {
+                    knl_ext_def_t *def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (og_parse_organization(stmt, &def, $7, $21, $14, $18) != OG_SUCCESS) {
+                        parser_yyerror("parse organizatioon failed");
+                    }
+                    $$ = def;
+                }
+        ;
+
+opt_delimited:
+            NEWLINE
+                {
+                    $$ = "\n";
+                }
+            | SCONST
+                {
+                    if (strlen($1) != 1) {
+                        parser_yyerror("only single character is supported for records delimiter");
+                    }
+                    $$ = $1;
+                }
+        ;
+
+field_terminate:
+            SCONST
+                {
+                    if (strlen($1) != 1) {
+                        parser_yyerror("only single character is supported for fields delimiter");
+                    }
+                    $$ = $1;
+                }
+        ;
+
+opt_global:
+            GLOBAL                                   { $$ = true; }
+            | /* EMPTY */                            { $$ = false; }
+        ;
+
+OptTableElementList:
+            TableElement
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create table column list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert table column item failed.");
+                    }
+                    $$ = list;
+                }
+            | OptTableElementList ',' TableElement
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert table column item failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+TableElement:
+            columnDef
+                {
+                    parse_table_element_t *element = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(parse_table_element_t), (void **)&element) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    element->is_constraint = OG_FALSE;
+                    element->col = $1;
+                    $$ = element;
+                }
+            | TableConstraint
+                {
+                    parse_table_element_t *element = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(parse_table_element_t), (void **)&element) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    element->is_constraint = OG_TRUE;
+                    element->cons = $1;
+                    $$ = element;
+                }
+        ;
+
+columnDef:
+            ColId opt_column_type opt_column_attrs
+                {
+                    parse_column_t *col = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_alloc_mem(stmt->context, sizeof(parse_column_t), (void **)&col) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    col->col_name = $1;
+                    col->type = $2;
+                    col->column_attrs = $3;
+                    $$ = col;
+                }
+        ;
+
+opt_column_type:
+            Typename                                 { $$ = $1; }
+            | /* EMPTY */         %prec UMINUS       { $$ = NULL; }
+        ;
+
+opt_column_attrs:
+            column_attrs                             { $$ = $1; }
+            | /* EMPTY */                            { $$ = NULL; }
+        ;
+
+column_attrs:
+            column_attr
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_temp_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create column attr list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert column attr failed.");
+                    }
+                    $$ = list;
+                }
+            | column_attrs column_attr
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $2) != OG_SUCCESS) {
+                        parser_yyerror("insert column attr failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+opt_column_on_update:
+            ON UPDATE a_expr                            { $$ = $3; }
+            | /* EMPTY */                               { $$ = NULL; }
+        ;
+
+opt_equal:
+            '='
+            | /* EMPTY */
+        ;
+
+column_attr:
+            DEFAULT a_expr opt_column_on_update
+                {
+                    column_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(column_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = COL_ATTR_DEFAULT;
+                    attr->default_text.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @2.offset;
+                    attr->default_text.len = yylloc.offset - @2.offset;
+                    attr->insert_expr = $2;
+                    attr->update_expr = $3;
+                    $$ = attr;
+                }
+            | COMMENT SCONST
+                {
+                    column_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(column_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = COL_ATTR_COMMENT;
+                    attr->comment = $2;
+                    $$ = attr;
+                }
+            | AUTO_INCREMENT
+                {
+                    column_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(column_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = COL_ATTR_AUTO_INCREMENT;
+                    $$ = attr;
+                }
+            | COLLATE opt_equal charset_collate_name
+                {
+                    column_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(column_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = COL_ATTR_COLLATE;
+                    attr->collate = $3;
+                    $$ = attr;
+                }
+            | column_attr_cons
+                {
+                    $$ = $1;
+                }
+            | CONSTRAINT ColId column_attr_cons
+                {
+                    column_attr_t *attr = $3;
+                    attr->cons_name = $2;
+                    $$ = attr;
+                }
+        ;
+    
+column_attr_cons:
+            PRIMARY KEY
+                {
+                    column_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(column_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = COL_ATTR_PRIMARY;
+                    $$ = attr;
+                }
+            | UNIQUE
+                {
+                    column_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(column_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = COL_ATTR_UNIQUE;
+                    $$ = attr;
+                }
+            | REFERENCES any_name '(' table_column_list ')' opt_foreign_action
+                {
+                    column_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(column_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = COL_ATTR_REFERENCES;
+                    attr->ref = $2;
+                    attr->ref_cols = $4;
+                    attr->refactor = $6;
+                    $$ = attr;
+                }
+            | CHECK '(' cond_tree_expr ')'
+                {
+                    column_attr_t *attr = NULL;
+                    text_t check_text;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(column_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = COL_ATTR_CHECK;
+                    check_text.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @3.offset;
+                    check_text.len = @4.offset - @3.offset;
+                    cm_trim_text(&check_text);
+                    if (sql_copy_text(stmt->context, &check_text, &attr->check_text)) {
+                        parser_yyerror("copy text failed");
+                    }
+                    attr->cond = $3;
+                    $$ = attr;
+                }
+            | NOT NULL_P
+                {
+                    column_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(column_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = COL_ATTR_NOT_NULL;
+                    $$ = attr;
+                }
+            | NULL_P
+                {
+                    column_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(column_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = COL_ATTR_NULL;
+                    $$ = attr;
+                }
+        ;
+
+TableConstraint:
+            CONSTRAINT ColId ConstraintElem opt_constraint_states
+                {
+                    // Constraint with name
+                    parse_constraint_t *cons = $3;
+                    cons->name = $2;
+                    cons->idx_opts = $4;
+                    $$ = cons;
+            }
+            | ConstraintElem opt_using_index
+                {
+                    parse_constraint_t *cons = $1;
+                    cons->idx_opts = $2;
+                    $$ = cons;
+                }
+        ;
+
+opt_constraint_states:
+            constraint_states                           { $$ = $1; }
+            | /* EMPTY */                               { $$ = NULL; }
+        ;
+
+constraint_states:
+            constraint_state
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_temp_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create constraint states list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert constraint states list failed.");
+                    }
+                    $$ = list;
+                }
+            | constraint_states constraint_state
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $2) != OG_SUCCESS) {
+                        parser_yyerror("insert constraint states list failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+constraint_state:
+            ENABLE_P
+                {
+                    constraint_state *state = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(constraint_state),
+                        (void **)&state) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    state->type = CONS_STATE_ENABLE;
+                    $$ = state;
+                }
+            | DISABLE_P
+                {
+                    constraint_state *state = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(constraint_state),
+                        (void **)&state) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    state->type = CONS_STATE_DISABLE;
+                    $$ = state;
+                }
+            | NOT DEFERRABLE
+                {
+                    constraint_state *state = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(constraint_state),
+                        (void **)&state) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    state->type = CONS_STATE_NOT_DEFEREABLE;
+                    $$ = state;
+                }
+            | DEFERRABLE
+                {
+                    constraint_state *state = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(constraint_state),
+                        (void **)&state) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    state->type = CONS_STATE_DEFEREABLE;
+                    $$ = state;
+                }
+            | INITIALLY IMMEDIATE
+                {
+                    constraint_state *state = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(constraint_state),
+                        (void **)&state) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    state->type = CONS_STATE_INITIALLY_IMMEDIATE;
+                    $$ = state;
+                }
+            | INITIALLY DEFERRED
+                {
+                    constraint_state *state = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(constraint_state),
+                        (void **)&state) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    state->type = CONS_STATE_INITIALLY_DEFERRED;
+                    $$ = state;
+                }
+            | RELY
+                {
+                    constraint_state *state = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(constraint_state),
+                        (void **)&state) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    state->type = CONS_STATE_RELY;
+                    $$ = state;
+                }
+            | NORELY
+                {
+                    constraint_state *state = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(constraint_state),
+                        (void **)&state) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    state->type = CONS_STATE_NO_RELY;
+                    $$ = state;
+                }
+            | VALIDATE
+                {
+                    constraint_state *state = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(constraint_state),
+                        (void **)&state) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    state->type = CONS_STATE_VALIDATE;
+                    $$ = state;
+                }
+            | NOVALIDATE
+                {
+                    constraint_state *state = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(constraint_state),
+                        (void **)&state) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    state->type = CONS_STATE_NO_VALIDATE;
+                    $$ = state;
+                }
+            | PARALLEL ICONST
+                {
+                    constraint_state *state = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(constraint_state),
+                        (void **)&state) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    state->type = CONS_STATE_PARALLEL;
+                    if ($2 <= 0 || $2 > OG_MAX_INDEX_PARALLELISM) {
+                        parser_yyerror("parallelism must between 1 and 48. ");
+                    }
+                    state->parallelism = $2;
+                    $$ = state;
+                }
+            | REVERSE
+                {
+                    constraint_state *state = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(constraint_state),
+                        (void **)&state) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    state->type = CONS_STATE_REVERSE;
+                    $$ = state;
+                }
+        ;
+
+opt_using_index:
+            USING INDEX_P opt_createidx_opts                              { $$ = $3; }
+            | /* EMPTY*/                                                { $$ = NULL; }
+        ;
+
+ConstraintElem:
+            PRIMARY KEY '(' table_column_list ')' 
+                {
+                    parse_constraint_t *cons = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(parse_constraint_t),
+                        (void **)&cons) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    cons->type = CONS_TYPE_PRIMARY;
+                    cons->column_list = $4;
+                    $$ = cons;
+                }
+            | UNIQUE '(' table_column_list ')'
+                {
+                    parse_constraint_t *cons = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(parse_constraint_t),
+                        (void **)&cons) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    cons->type = CONS_TYPE_UNIQUE;
+                    cons->column_list = $3;
+                    $$ = cons;
+                }
+            | FOREIGN_KEY '(' table_column_list ')' REFERENCES any_name '(' table_column_list ')' opt_foreign_action
+                {
+                    parse_constraint_t *cons = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(parse_constraint_t),
+                        (void **)&cons) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    cons->type = CONS_TYPE_REFERENCE;
+                    cons->cols = $3;
+                    cons->ref = $6;
+                    cons->ref_cols = $8;
+                    cons->refactor = $10;
+                    $$ = cons;
+                }
+            | CHECK '(' cond_tree_expr ')'
+                {
+                    parse_constraint_t *cons = NULL;
+                    text_t check_text;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(parse_constraint_t),
+                        (void **)&cons) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    cons->type = CONS_TYPE_CHECK;
+                    check_text.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @3.offset;
+                    check_text.len = @4.offset - @3.offset;
+                    cm_trim_text(&check_text);
+                    if (sql_copy_text(og_yyget_extra(yyscanner)->core_yy_extra.stmt->context, &check_text, &cons->check_text)) {
+                        parser_yyerror("copy text failed");
+                    }
+                    cons->cond = $3;
+                    $$ = cons;
+                }
+        ;
+
+opt_foreign_action:
+            ON DELETE_P CASCADE                         { $$ = REF_DEL_CASCADE; }
+            | ON DELETE_P SET NULL_P                    { $$ = REF_DEL_SET_NULL; }
+            | /* EMPTY */                               { $$ = REF_DEL_NOT_ALLOWED; }
+        ;
+
+table_column_list:
+            table_column
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create column list failed");
+                    }
+                    cm_galist_insert(list, $1);
+                    $$ = list;
+                }
+            | table_column_list ',' table_column
+                {
+                    galist_t *list = $1;
+                    cm_galist_insert(list, $3);
+                    $$ = list;
+                }
+        ;
+
+table_column:
+            ColId
+                {
+                    /* Create index column entry */
+                    knl_index_col_def_t *col_def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_alloc_mem(stmt->context, sizeof(knl_index_col_def_t), (void **)&col_def) != OG_SUCCESS) {
+                        parser_yyerror("alloc memory failed");
+                    }
+                    col_def->is_func = OG_FALSE;
+                    col_def->func_expr = NULL;
+                    col_def->func_text.len = 0;
+                    col_def->name.str = $1;
+                    col_def->name.len = strlen($1);
+                    $$ = col_def;
+                }
+        ;
+
+column_name_list:
+            ColId
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create column name list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert column name failed.");
+                    }
+                    $$ = list;
+                }
+            | column_name_list ',' ColId
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert column name failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+opt_table_attrs:
+            table_attrs                              { $$ = $1; }
+            | /* EMPTY */                            { $$ = NULL; }
+        ;
+
+table_attrs:
+            table_attr
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create table attr list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert table attr failed.");
+                    }
+                    $$ = list;
+                }
+            | table_attrs table_attr
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $2) != OG_SUCCESS) {
+                        parser_yyerror("insert table attr failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+table_attr:
+            TABLESPACE tablespace_name
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_TABLESPACE;
+                    attr->str_value = $2;
+                    $$ = attr;
+                }
+            | INITRANS ICONST
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_INITRANS;
+                    if ($2 <= 0 || $2 > OG_MAX_TRANS) {
+                        parser_yyerror("initrans must between 1 and 255.");
+                    }
+                    attr->int_value = $2;
+                    $$ = attr;
+                }
+            | MAXTRANS ICONST
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_MAXTRANS;
+                    if ($2 <= 0 || $2 > OG_MAX_TRANS) {
+                        parser_yyerror("maxtrans must between 1 and 255.");
+                    }
+                    attr->int_value = $2;
+                    $$ = attr;
+                }
+            | PCTFREE ICONST
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_PCTFREE;
+                    if ($2 < 0 || $2 > 80) {
+                        parser_yyerror("initrans must between 0 and 80.");
+                    }
+                    attr->int_value = $2;
+                    $$ = attr;
+                }
+            | CRMODE row_or_page
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_CRMODE;
+                    attr->int_value = $2;
+                    $$ = attr;
+                }
+            | FORMAT csf_or_asf
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_FORMAT;
+                    attr->bool_value = $2;
+                    $$ = attr;
+                }
+            | SYSTEM_P ICONST
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_SYSTEM;
+                    if ($2 <= 0 || $2 >= OG_EX_SYSID_END || ($2 >= OG_RESERVED_SYSID && $2 < OG_EX_SYSID_START)) {
+                        parser_yyerror("system must between 1 and 64 or 1024 and 1536 ");
+                    }
+                    attr->int_value = $2;
+                    $$ = attr;
+                }
+            | STORAGE '(' storage_opts ')'
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_STORAGE;
+                    attr->storage_def = $3;
+                    $$ = attr;
+                }
+            | LOB '(' column_name_list ')' STORE_P AS opt_seg_name opt_lob_store_params
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_LOB;
+                    attr->lob_columns = $3;
+                    attr->seg_name = $7;
+                    attr->lob_store_params = $8;
+                    $$ = attr;
+                }
+            | ON COMMIT delete_or_perserve ROWS
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_ON_COMMIT;
+                    attr->int_value = $3;
+                    $$ = attr;
+                }
+            | APPENDONLY on_or_off
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_APPENDONLY;
+                    attr->bool_value = $2;
+                    $$ = attr;
+                }
+            | table_partitioning_clause
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_PARTITION;
+                    attr->partition = (parser_table_part*)$1;
+                    $$ = attr;
+                }
+            | AUTO_INCREMENT opt_equal num_size
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_AUTO_INCREMENT;
+                    attr->int64_value = $3;
+                    $$ = attr;
+                }
+            | opt_default charset opt_equal charset_collate_name
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_CHARSET;
+                    attr->str_value = $4;
+                    $$ = attr;
+                }
+            | opt_default COLLATE opt_equal charset_collate_name
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_COLLATE;
+                    attr->str_value = $4;
+                    $$ = attr;
+                }
+            | CACHE
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_CACHE;
+                    $$ = attr;
+                }
+            | NOCACHE
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_NO_CACHE;
+                    $$ = attr;
+                }
+            | LOGGING
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_LOGGING;
+                    $$ = attr;
+                }
+            | NOLOGGING
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_NO_LOGGING;
+                    $$ = attr;
+                }
+            | COMPRESS opt_compress_for
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_COMPRESS;
+                    attr->int_value = $2;
+                    $$ = attr;
+                }
+            | NOCOMPRESS
+                {
+                    table_attr_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = TABLE_ATTR_NO_COMPRESS;
+                    $$ = attr;
+                }
+        ;
+
+table_partitioning_clause:
+            range_partitioning_clause                       { $$ = $1; }
+            | list_partitioning_clause                      { $$ = $1; }
+            | hash_partitioning_clause                      { $$ = $1; }
+        ;
+
+range_partitioning_clause:
+            PARTITION BY RANGE '(' column_name_list ')' opt_interval_partition_clause subpartitioning_clause
+            opt_subpartitions_num '(' range_partition_list ')'
+                {
+                    parser_table_part *part = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(parser_table_part), (void **)&part) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    part->part_type = PART_TYPE_RANGE;
+                    part->column_list = $5;
+                    part->interval = (parser_interval_part*)$7;
+                    part->subpart = $8;
+
+                    if ((part->subpart == NULL || part->subpart->part_type != PART_TYPE_HASH) && $9 != NULL) {
+                        parser_yyerror("only hash partition can specify subpartitions");
+                    }
+
+                    part->subpart_store_in = $9;
+                    part->partitions = $11;
+                    $$ = part;
+                }
+        ;
+
+range_partition_list:
+            range_partition_item
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_temp_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed.");
+                    }
+                    $$ = list;
+                }
+            | range_partition_list ',' range_partition_item
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+range_partition_item:
+            PARTITION ColId VALUES LESS THAN '(' range_partition_boundary_list ')' opt_part_options
+            opt_subpartition_clause
+                {
+                    part_item_t *item = NULL;
+                    text_t expr_text;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(part_item_t), (void **)&item) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    expr_text.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @7.offset;
+                    expr_text.len = @8.offset - @7.offset;
+                    cm_trim_text(&expr_text);
+                    if (sql_copy_text(stmt->context, &expr_text, &item->hiboundval) != OG_SUCCESS) {
+                        parser_yyerror("copy text failed");
+                    }
+                    item->name = $2;
+                    item->boundaries = $7;
+                    item->opts = $9;
+                    item->subpart_clause = (subpart_clause_t*)$10;
+                    $$ = item;
+                }
+        ;
+
+range_partition_boundary_list:
+            a_expr
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_temp_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed.");
+                    }
+                    $$ = list;
+                }
+            | range_partition_boundary_list ',' a_expr
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+opt_subpartition_clause:
+            subpartitions_num
+                {
+                    subpart_clause_t *subpart_clause = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(subpart_clause_t), (void **)&subpart_clause) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    subpart_clause->is_store_in = OG_TRUE;
+                    subpart_clause->subpart_store_in = $1;
+                    $$ = subpart_clause;
+                }
+            | '(' range_subpartition_list ')'
+                {
+                    subpart_clause_t *subpart_clause = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(subpart_clause_t), (void **)&subpart_clause) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    subpart_clause->is_store_in = OG_FALSE;
+                    subpart_clause->subparts = $2;
+                    $$ = subpart_clause;
+                }
+            | '(' list_subpartition_list ')'
+                {
+                    subpart_clause_t *subpart_clause = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(subpart_clause_t), (void **)&subpart_clause) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    subpart_clause->is_store_in = OG_FALSE;
+                    subpart_clause->subparts = $2;
+                    $$ = subpart_clause;
+                }
+            | '(' hash_subpartition_list ')'
+                {
+                    subpart_clause_t *subpart_clause = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(subpart_clause_t), (void **)&subpart_clause) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    subpart_clause->is_store_in = OG_FALSE;
+                    subpart_clause->subparts = $2;
+                    $$ = subpart_clause;
+                }
+            | /* EMPTY */
+                {
+                    $$ = NULL;
+                }
+        ;
+
+range_subpartition_list:
+            range_subpartition_item
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_temp_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed.");
+                    }
+                    $$ = list;
+                }
+            | range_subpartition_list ',' range_subpartition_item
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+range_subpartition_item:
+            SUBPARTITION ColId VALUES LESS THAN '(' range_partition_boundary_list ')' opt_subpart_tablespace_option
+                {
+                    part_item_t *item = NULL;
+                    text_t expr_text;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(part_item_t), (void **)&item) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    expr_text.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @7.offset;
+                    expr_text.len = @8.offset - @7.offset;
+                    cm_trim_text(&expr_text);
+                    if (sql_copy_text(stmt->context, &expr_text, &item->hiboundval) != OG_SUCCESS) {
+                        parser_yyerror("copy text failed");
+                    }
+                    item->name = $2;
+                    item->boundaries = $7;
+                    item->tablespace = $9;
+                    $$ = item;
+                }
+        ;
+
+list_subpartition_list:
+            list_subpartition_item
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_temp_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed.");
+                    }
+                    $$ = list;
+                }
+            | list_subpartition_list ',' list_subpartition_item
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+list_subpartition_item:
+            SUBPARTITION ColId VALUES '(' listValueList ')' opt_subpart_tablespace_option
+                {
+                    part_item_t *item = NULL;
+                    text_t expr_text;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(part_item_t), (void **)&item) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    expr_text.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @5.offset;
+                    expr_text.len = @6.offset - @5.offset;
+                    cm_trim_text(&expr_text);
+                    if (sql_copy_text(stmt->context, &expr_text, &item->hiboundval) != OG_SUCCESS) {
+                        parser_yyerror("copy text failed");
+                    }
+                    item->name = $2;
+                    item->boundaries = $5;
+                    item->tablespace = $7;
+                    $$ = item;
+                }
+        ;
+
+hash_subpartition_list:
+            hash_subpartition_item
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_temp_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed.");
+                    }
+                    $$ = list;
+                }
+            | hash_subpartition_list ',' hash_subpartition_item
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+hash_subpartition_item:
+            SUBPARTITION ColId opt_subpart_tablespace_option
+                {
+                    part_item_t *item = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(part_item_t), (void **)&item) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    item->name = $2;
+                    item->tablespace = $3;
+                    $$ = item;
+                }
+        ;
+
+list_partitioning_clause:
+            PARTITION BY LIST '(' column_name_list ')' subpartitioning_clause
+            opt_subpartitions_num '(' list_partition_list ')'
+                {
+                    parser_table_part *part = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(parser_table_part), (void **)&part) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    part->part_type = PART_TYPE_LIST;
+                    part->column_list = $5;
+                    part->subpart = $7;
+
+                    if ((part->subpart == NULL || part->subpart->part_type != PART_TYPE_HASH) && $8 != NULL) {
+                        parser_yyerror("only hash partition can specify subpartitions");
+                    }
+
+                    part->subpart_store_in = $8;
+                    part->partitions = $10;
+                    $$ = part;
+                }
+        ;
+
+list_partition_list:
+            list_partition_item
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_temp_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed.");
+                    }
+                    $$ = list;
+                }
+            | list_partition_list ',' list_partition_item
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+list_partition_item:
+            PARTITION ColId VALUES '(' listValueList ')' opt_part_options
+            opt_subpartition_clause
+                {
+                    part_item_t *item = NULL;
+                    text_t expr_text;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(part_item_t), (void **)&item) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    expr_text.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @5.offset;
+                    expr_text.len = @6.offset - @5.offset;
+                    cm_trim_text(&expr_text);
+                    if (sql_copy_text(stmt->context, &expr_text, &item->hiboundval) != OG_SUCCESS) {
+                        parser_yyerror("copy text failed");
+                    }
+                    item->name = $2;
+                    item->boundaries = $5;
+                    item->opts = $7;
+                    item->subpart_clause = $8;
+                    $$ = item;
+                }
+        ;
+
+listValueList:
+            DEFAULT                                         { $$ = NULL; }
+            | expr_or_implicit_row_list                     { $$ = $1; }
+        ;
+
+hash_partitioning_clause:
+            PARTITION BY HASH '(' column_name_list ')' subpartitioning_clause
+            partitions_num opt_subpartitions_num
+                {
+                    parser_table_part *part = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(parser_table_part), (void **)&part) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    part->part_type = PART_TYPE_HASH;
+                    part->column_list = $5;
+                    part->subpart = (parser_table_subpart*)$7;
+                    part->part_store_in = $8;
+
+                    if ((part->subpart == NULL || part->subpart->part_type != PART_TYPE_HASH) && $9 != NULL) {
+                        parser_yyerror("only hash partition can specify subpartitions");
+                    }
+
+                    part->subpart_store_in = $9;
+                    $$ = part;
+                }
+            | PARTITION BY HASH '(' column_name_list ')' subpartitioning_clause
+              opt_subpartitions_num '(' hash_partition_list ')'
+                {
+                    parser_table_part *part = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(parser_table_part), (void **)&part) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    part->part_type = PART_TYPE_HASH;
+                    part->column_list = $5;
+                    part->subpart = (parser_table_subpart*)$7;
+
+                    if ((part->subpart == NULL || part->subpart->part_type != PART_TYPE_HASH) && $8 != NULL) {
+                        parser_yyerror("only hash partition can specify subpartitions");
+                    }
+
+                    part->subpart_store_in = $8;
+                    part->partitions = $10;
+                    $$ = part;
+                }
+        ;
+
+hash_partition_list:
+            hash_partition_item
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_temp_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed.");
+                    }
+                    $$ = list;
+                }
+            | hash_partition_list ',' hash_partition_item
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+hash_partition_item:
+            PARTITION ColId opt_part_options opt_subpartition_clause
+                {
+                    part_item_t *item = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(part_item_t), (void **)&item) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    item->name = $2;
+                    item->opts = $3;
+                    item->subpart_clause = $4;
+                    $$ = item;
+                }
+        ;
+
+opt_interval_partition_clause:
+            INTERVAL '(' a_expr ')' opt_interval_tablespaceList
+                {
+                    parser_interval_part *interval = NULL;
+                    text_t expr_text;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(parser_interval_part), (void **)&interval) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    expr_text.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @3.offset;
+                    expr_text.len = @4.offset - @3.offset;
+                    cm_trim_text(&expr_text);
+                    if (sql_copy_text(stmt->context, &expr_text, &interval->interval_text) != OG_SUCCESS) {
+                        parser_yyerror("copy text failed");
+                    }
+                    interval->expr = $3;
+                    interval->tablespaces = $5;
+                    $$ = interval;
+                }
+            | /* EMPTY */                                       { $$ = NULL; }
+        ;
+
+opt_interval_tablespaceList:
+            STORE_P IN_P  '(' tablespaceList ')'                { $$= $4; }
+            | /* EMPTY */                                       { $$ = NULL; }
+        ;
+
+tablespaceList:
+            tablespace
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_temp_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create tablespace list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert tablespace failed.");
+                    }
+                    $$ = list;
+                }
+            | tablespaceList ',' tablespace
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert tablespace failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+tablespace:
+            TABLESPACE tablespace_name                      { $$ = $2; }
+        ;
+
+subpartitioning_clause:
+            SUBPARTITION BY partition_type '(' column_name_list ')'
+                {
+                    parser_table_subpart *subpart = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(parser_table_subpart), (void **)&subpart) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    subpart->part_type = $3;
+                    subpart->column_list = $5;
+                    $$ = subpart;
+                }
+            | /* empty */                       { $$ = NULL; }
+        ;
+
+partition_type:
+            RANGE                                           { $$ = PART_TYPE_RANGE; }
+            | LIST                                          { $$ = PART_TYPE_LIST; }
+            | HASH                                          { $$ = PART_TYPE_HASH; }
+        ;
+
+partitions_num:
+            PARTITIONS ICONST opt_partition_store_in_clause
+                {
+                    part_store_in_clause *store_in = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(part_store_in_clause), (void **)&store_in) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    store_in->num = $2;
+                    store_in->tablespaces = $3;
+                    $$ = store_in;
+                }
+        ;
+
+opt_partition_store_in_clause:
+            STORE_P IN_P '(' tablespace_name_list ')'       { $$ = $4; }
+            | /* EMPTY */                                   { $$ = NULL; }
+        ;
+
+subpartitions_num:
+            SUBPARTITIONS ICONST opt_partition_store_in_clause
+                {
+                    part_store_in_clause *store_in = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(part_store_in_clause), (void **)&store_in) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    store_in->num = $2;
+                    store_in->tablespaces = $3;
+                    $$ = store_in;
+                }
+        ;
+
+opt_subpartitions_num:
+            subpartitions_num                               { $$ = $1; }
+            | /* EMPTY */                                   { $$ = NULL; }
+        ;
+
+opt_seg_name:
+            ColId                               { $$ = $1; }
+            | /* EMPTY */   %prec UNBOUNDED     { $$ = NULL; }
+        ;
+
+opt_lob_store_params:
+            '(' lob_store_params ')'                    { $$ = $2; }
+            | /* EMPTY */                               { $$ = NULL; }
+        ;
+
+lob_store_params:
+            lob_store_param
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_temp_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create column name list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert column name failed.");
+                    }
+                    $$ = list;
+                }
+            | lob_store_params ',' lob_store_param
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert column name failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+lob_store_param:
+            TABLESPACE tablespace_name
+                {
+                    lob_store_param_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = LOB_STORE_PARAM_TABLESPACE;
+                    attr->str_value = $2;
+                    $$ = attr;
+                }
+            | ENABLE_P STORAGE IN_P ROW
+                {
+                    lob_store_param_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = LOB_STORE_PARAM_STORAGE_IN_ROW;
+                    attr->bool_value = OG_TRUE;
+                    $$ = attr;
+                }
+            | DISABLE_P STORAGE IN_P ROW
+                {
+                    lob_store_param_t *attr = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(table_attr_t), (void **)&attr) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    attr->type = LOB_STORE_PARAM_STORAGE_IN_ROW;
+                    attr->bool_value = OG_FALSE;
+                    $$ = attr;
+                }
+        ;
+
+delete_or_perserve:
+            DELETE_P                            { $$ = TABLE_TYPE_TRANS_TEMP; }
+            | PRESERVE                          { $$ = TABLE_TYPE_SESSION_TEMP; }
+        ;
+
+charset:
+            CHARACTER SET
+            | CHARSET
+        ;
+
+opt_default:
+            DEFAULT
+            | /* EMPTY */
+        ;
+
+opt_as_select:
+            AS SelectStmt                            { $$ = $2; }
+            | /* EMPTY */                            { $$ = NULL; }
+        ;
+
+opt_unique:
+            UNIQUE                                  { $$ = true; }
+            | /* EMPTY */                           { $$ = false; }
+        ;
+
+opt_if_not_exists:
+            IF_P NOT EXISTS                         { $$ = true; }
+            | /* EMPTY */      %prec UMINUS         { $$ = false; }
+        ;
+
+index_column_list:
+            index_column
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create column list failed");
+                    }
+                    cm_galist_insert(list, $1);
+                    $$ = list;
+                }
+            | index_column_list ',' index_column
+                {
+                    galist_t *list = $1;
+                    cm_galist_insert(list, $3);
+                    $$ = list;
+                }
+        ;
+
+index_column:
+            ColId opt_asc_desc
+                {
+                    /* Create index column entry */
+                    knl_index_col_def_t *col_def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_alloc_mem(stmt->context, sizeof(knl_index_col_def_t), (void **)&col_def) != OG_SUCCESS) {
+                        parser_yyerror("alloc memory failed");
+                    }
+                    col_def->is_func = OG_FALSE;
+                    col_def->func_expr = NULL;
+                    col_def->func_text.len = 0;
+                    col_def->name.str = $1;
+                    col_def->name.len = strlen($1);
+                    col_def->mode = $2;
+                    $$ = col_def;
+                }
+            | func_expr_windowless opt_asc_desc
+                {
+                    /* Create index column entry */
+                    knl_index_col_def_t *col_def = NULL;
+                    text_t expr_text;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_alloc_mem(stmt->context, sizeof(knl_index_col_def_t), (void **)&col_def) != OG_SUCCESS) {
+                        parser_yyerror("alloc memory failed");
+                    }
+                    col_def->is_func = OG_TRUE;
+                    col_def->func_expr = $1;
+                    col_def->name.len = 0;
+
+                    expr_text.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @1.offset;
+                    expr_text.len = @2.offset == @1.offset ? yylloc.offset - @1.offset : @2.offset - @1.offset;
+                    cm_trim_text(&expr_text);
+                    if (sql_copy_text(stmt->context, &expr_text, &col_def->func_text) != OG_SUCCESS) {
+                        parser_yyerror("copy text failed");
+                    }
+                    col_def->mode = $2;
+                    $$ = col_def;
+                }
+        ;
+
+func_expr_windowless:
+            func_application                        { $$ = $1; }
+            | func_expr_common_subexpr              { $$ = $1; }
+            | case_expr                             { $$ = $1; }
+        ;
+
+createidx_opt:
+            TABLESPACE tablespace_name
+                {
+                    createidx_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createts_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATEIDX_OPT_TABLESPACE;
+                    opt->name = $2;
+                    $$ = opt;
+                }
+            | INITRANS ICONST
+                {
+                    createidx_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createts_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    if ($2 <= 0 || $2 > OG_MAX_TRANS) {
+                        parser_yyerror("initrans must between 1 and 255 ");
+                    }
+                    opt->type = CREATEIDX_OPT_INITRANS;
+                    opt->size = $2;
+                    $$ = opt;
+                }
+            | LOCAL opt_partition_index_def
+                {
+                    createidx_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createts_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATEIDX_OPT_LOCAL;
+                    opt->list = $2;
+                    $$ = opt;
+                }
+            | PCTFREE ICONST
+                {
+                    createidx_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createts_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    if ($2 > OG_PCT_FREE_MAX) {
+                        parser_yyerror("pctfree must between 0 and 80 ");
+                    }
+                    opt->type = CREATEIDX_OPT_PCTFREE;
+                    opt->size = $2;
+                    $$ = opt;
+                }
+            | CRMODE row_or_page
+                {
+                    createidx_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createts_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATEIDX_OPT_CRMODE;
+                    opt->cr_mode = (uint8)$2;
+                    $$ = opt;
+                }
+            | ONLINE
+                {
+                    createidx_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createts_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATEIDX_OPT_ONLINE;
+                    $$ = opt;
+                }
+            | PARALLEL ICONST
+                {
+                    createidx_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createts_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    if ($2 <= 0 || $2 > OG_MAX_INDEX_PARALLELISM) {
+                        parser_yyerror("parallelism must between 1 and 48 ");
+                    }
+                    opt->type = CREATEIDX_OPT_PARALLEL;
+                    opt->size = $2;
+                    $$ = opt;
+                }
+            | REVERSE
+                {
+                    createidx_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createts_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATEIDX_OPT_REVERSE;
+                    $$ = opt;
+                }
+            | NOLOGGING
+                {
+                    createidx_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createts_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATEIDX_OPT_NOLOGGING;
+                    $$ = opt;
+                }
+        ;
+
+row_or_page:
+            ROW                                 { $$ = CR_ROW; }
+            | PAGE                              { $$ = CR_PAGE; }
+        ;
+
+opt_partition_index_def:
+            '(' partition_index_list  ')'       { $$ = $2; }
+            | /* EMPTY */                       {$$ = NULL;}
+        ;
+
+partition_index_list:
+            partition_index_item
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create part_parse_info list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert part_parse_info list failed.");
+                    }
+                    $$ = list;
+                }
+            | partition_index_list ',' partition_index_item
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert part_parse_info list failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+partition_index_item:
+            PARTITION ColId opt_part_options opt_subpartition_index_def
+                {
+                    index_partition_parse_info *part_parse_info = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(index_partition_parse_info), (void **)&part_parse_info) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    part_parse_info->name = $2;
+                    part_parse_info->opts = $3;
+                    part_parse_info->subparts = $4;
+                    $$ = part_parse_info;
+                }
+        ;
+
+opt_part_options:
+            part_options                                    { $$ = $1; }
+            | /* EMPTY */                                   { $$ = NULL; }
+        ;
+
+part_options:
+            part_option
+                {
+                    galist_t* list = NULL;
+                    if (sql_create_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create part option list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert part option list failed.");
+                    }
+                    $$ = list;
+                }
+            | part_options part_option
+                {
+                    galist_t* list = $1;
+                    if (cm_galist_insert(list, $2) != OG_SUCCESS) {
+                        parser_yyerror("insert part option list failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+part_option:
+            TABLESPACE tablespace_name
+                {
+                    index_partition_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(index_partition_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = INDEX_PARTITION_OPT_TABLESPACE;
+                    opt->name = $2;
+                    $$ = opt;
+                }
+            | INITRANS ICONST
+                {
+                    index_partition_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(index_partition_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    if ($2 <= 0 || $2 > OG_MAX_TRANS) {
+                        parser_yyerror("initrans must between 1 and 255 ");
+                    }
+                    opt->type = INDEX_PARTITION_OPT_INITRANS;
+                    opt->size = $2;
+                    $$ = opt;
+                }
+            | PCTFREE ICONST
+                {
+                    index_partition_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(index_partition_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    if ($2 > OG_PCT_FREE_MAX) {
+                        parser_yyerror("pctfree must between 0 and 80 ");
+                    }
+                    opt->type = INDEX_PARTITION_OPT_PCTFREE;
+                    opt->size = $2;
+                    $$ = opt;
+                }
+            | STORAGE '(' storage_opts ')'
+                {
+                    index_partition_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(index_partition_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = INDEX_PARTITION_OPT_STORAGE;
+                    opt->storage_def = $3;
+                    $$ = opt;
+                }
+            | COMPRESS opt_compress_for
+                {
+                    index_partition_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(index_partition_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = INDEX_PARTITION_OPT_COMPRESS;
+                    opt->compress_type = $2;
+                    $$ = opt;
+                }
+            | FORMAT csf_or_asf
+                {
+                    index_partition_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(index_partition_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = INDEX_PARTITION_OPT_FORMAT;
+                    opt->csf = $2;
+                    $$ = opt;
+                }
+        ;
+
+storage_opts:
+            storage_opt
+                {
+                    knl_storage_def_t *storage_def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(knl_storage_def_t), (void **)&storage_def) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    switch ($1->type) {
+                        case STORAGE_OPT_INITIAL:
+                            storage_def->initial = $1->size;
+                            break;
+                        case STORAGE_OPT_NEXT:
+                            storage_def->next = $1->size;
+                            break;
+                        case STORAGE_OPT_MAXSIZE:
+                            storage_def->maxsize = $1->size;
+                            break;
+                        default:
+                            break;
+                    }
+                    $$ = storage_def;
+                }
+            | storage_opts storage_opt
+                {
+                    knl_storage_def_t *storage_def = $1;
+                    switch ($2->type) {
+                        case STORAGE_OPT_INITIAL:
+                            if (storage_def->initial > 0) {
+                                parser_yyerror("duplicate storage option specification");
+                            }
+                            storage_def->initial = $2->size;
+                            break;
+                        case STORAGE_OPT_NEXT:
+                            if (storage_def->next > 0) {
+                                parser_yyerror("duplicate storage option specification");
+                            }
+                            storage_def->next = $2->size;
+                            break;
+                        case STORAGE_OPT_MAXSIZE:
+                            if (storage_def->maxsize > 0) {
+                                parser_yyerror("duplicate storage option specification");
+                            }
+                            storage_def->maxsize = $2->size;
+                            break;
+                        default:
+                            break;
+                    }
+                    $$ = storage_def;
+                }
+        ;
+
+storage_opt: 
+            INITIAL_P num_size
+                {
+                    storage_opt_t *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(storage_opt_t), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = STORAGE_OPT_INITIAL;
+                    opt->size = $2;
+                    if (opt->size < OG_MIN_STORAGE_INITIAL || opt->size > OG_MAX_STORAGE_INITIAL) {
+                        parser_yyerror("invalid initial size.");
+                    }
+                    $$ = opt;
+                }
+            | NEXT num_size
+                {
+                    storage_opt_t *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(storage_opt_t), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = STORAGE_OPT_NEXT;
+                    opt->size = $2;
+                    $$ = opt;
+                }
+            | MAXSIZE UNLIMITED
+                {
+                    storage_opt_t *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(storage_opt_t), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = STORAGE_OPT_MAXSIZE;
+                    opt->size = OG_INVALID_INT64;
+                    $$ = opt;
+                }
+            | MAXSIZE num_size
+                {
+                    storage_opt_t *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(storage_opt_t), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = STORAGE_OPT_MAXSIZE;
+                    opt->size = $2;
+                    if (opt->size < OG_MIN_STORAGE_MAXSIZE || opt->size > OG_MAX_STORAGE_MAXSIZE) {
+                        parser_yyerror("invalid maxsize size.");
+                    }
+                    $$ = opt;
+                }
+        ;
+
+opt_compress_for:
+            FOR ALL OPERATIONS                      { $$ = COMPRESS_TYPE_ALL; }
+            | FOR DIRECT_LOAD OPERATIONS            { $$ = COMPRESS_TYPE_DIRECT_LOAD; }
+            | /* EMPTY */                           { $$ = COMPRESS_TYPE_GENERAL; }
+        ;
+
+csf_or_asf:
+            CSF                                     { $$ = true; }
+            | ASF                                   { $$ = false; }
+        ;
+
+opt_subpartition_index_def:
+            '(' subpartition_index_list ')'                         { $$ = $2; }
+            | /* EMPTY */                                           { $$ = NULL; }
+        ;
+
+subpartition_index_list:
+            subpartition_index_item
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create subpartition list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert subpartition list failed.");
+                    }
+                    $$ = list;
+                }
+            | subpartition_index_list ',' subpartition_index_item
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert subpartition list failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+subpartition_index_item:
+            SUBPARTITION ColId opt_subpart_tablespace_option
+                {
+                    knl_part_def_t *subpart_def = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_alloc_mem(stmt->context, sizeof(knl_part_def_t), (void **)&subpart_def) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    subpart_def->name.str = $2;
+                    subpart_def->name.len = strlen($2);
+                    if ($3) {
+                        subpart_def->space.str = $3;
+                        subpart_def->space.len = strlen($3);
+                    }
+                    $$ = subpart_def;
+                }
+        ;
+
+opt_subpart_tablespace_option:
+            TABLESPACE tablespace_name                  { $$ = $2; }
+            | /* EMPTY */                               { $$ = NULL; }
+        ;
+
+opt_createidx_opts:
+            createidx_opts                   { $$ = $1; }
+            | /* EMPTY */                    { $$ = NULL; }
+        ;
+
+createidx_opts:
+            createidx_opt
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create opt list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert opt failed.");
+                    }
+                    $$ = list;
+                }
+            | createidx_opts createidx_opt
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $2) != OG_SUCCESS) {
+                        parser_yyerror("insert opt failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+createts_opt:
+            ALL IN_P MEMORY
+                {
+                    createts_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createts_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATETS_ALL_OPT;
+                    $$ = opt;
+                }
+            | NOLOGGING
+                {
+                    createts_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createts_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATETS_NOLOGGING_OPT;
+                    $$ = opt;
+                }
+            | ENCRYPTION
+                {
+                    parser_yyerror("unsupport encrypt space");
+                }
+            | AUTOOFFLINE on_or_off
+                {
+                    createts_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createts_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATETS_AUTOOFFLINE_OPT;
+                    opt->val = $2;
+                    $$ = opt;
+                }
+            | EXTENT AUTOALLOCATE
+                {
+                    createts_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_stack_alloc(stmt, sizeof(createts_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATETS_EXTENT_OPT;
+                    $$ = opt;
+                }
+        ;
+
+createts_opts:
+            createts_opt
+                {
+                    galist_t *list = NULL;
+                    if (sql_create_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create opt list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert opt failed.");
+                    }
+                    $$ = list;
+                }
+            | createts_opts createts_opt
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $2) != OG_SUCCESS) {
+                        parser_yyerror("insert opt failed.");
+                    }
+                    $$ = list;
+                }
+        ;
+
+opt_createts_opts:
+            createts_opts                   { $$ = $1; }
+            | /* EMPTY */                   { $$ = NULL; }
+        ;
 
 role_name:
             ColId                           { $$ = $1; }
@@ -8216,41 +11673,20 @@ tablespace_name_list:
                 {
                     galist_t *list = NULL;
                     sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
-                    text_t *space_name = NULL;
-                    text_t raw;
-                    cm_str2text($1, &raw);
 
-                    if (sql_create_list(stmt, &list) != OG_SUCCESS) {
+                    if (sql_create_temp_list(stmt, &list) != OG_SUCCESS) {
                         parser_yyerror("create tablespace name list failed.");
                     }
-                    if (cm_galist_new(list, sizeof(text_t), (void **)&space_name) != OG_SUCCESS) {
-                        parser_yyerror("alloc space name failed");
-                    }
-                    if (sql_copy_name(stmt->context, (text_t *)&raw, space_name) != OG_SUCCESS) {
-                        parser_yyerror("copy space name failed");
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed");
                     }
                     $$ = list;
                 }
             | tablespace_name_list ',' tablespace_name
                 {
                     galist_t *list = $1;
-                    text_t *space_name = NULL;
-                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
-                    text_t raw;
-                    cm_str2text($3, &raw);
-
-                    if (sql_find_space_in_list(list, &raw)) {
-                        parser_yyerror("tablespace is already exists");
-                    }
-
-                    if (cm_galist_new(list, sizeof(text_t), (void **)&space_name) != OG_SUCCESS) {
-                        parser_yyerror("alloc space name failed");
-                    }
-                    if (sql_copy_name(stmt->context, (text_t *)&raw, space_name) != OG_SUCCESS) {
-                        parser_yyerror("copy space name failed");
-                    }
-                    if (list->count >= OG_MAX_SPACES) {
-                        parser_yyerror("exclude spaces number out of max spaces number");
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed");
                     }
 
                     $$ = list;
@@ -8351,6 +11787,114 @@ tablespace_name:
             ColId                           { $$ = $1; }
         ;
 
+func_arg_with_default:
+            ColId Typename
+                {
+                    func_parameter *param = NULL;
+                    if (pl_alloc_mem(og_yyget_extra(yyscanner)->core_yy_extra.stmt->pl_context, sizeof(func_parameter), (void**)&param) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    param->name = $1;
+                    param->type = $2;
+                    $$ = param;
+                }
+        ;
+
+func_args_with_defaults_list:
+            func_arg_with_default
+                {
+                    galist_t *list = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+
+                    if (sql_create_temp_list(stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create list failed.");
+                    }
+                    if (cm_galist_insert(list, $1) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed");
+                    }
+                    $$ = list;
+                }
+            | func_args_with_defaults_list ',' func_arg_with_default
+                {
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, $3) != OG_SUCCESS) {
+                        parser_yyerror("insert list failed");
+                    }
+                    $$ = list;
+                }
+        ;
+
+func_args_with_defaults:
+            '(' func_args_with_defaults_list ')'        { $$ = $2; }
+            | '(' ')'                                   { $$ = NULL; }
+        ;
+
+proc_args:
+            func_args_with_defaults                     { $$ = $1; }
+        ;
+
+compileFunctionSource:
+            proc_args RETURN Typename as_is subprogram_body
+                {
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+
+                    if (stmt->pl_context == NULL) {
+                        parser_yyerror("syntax error");
+                    }
+
+                    if (pl_bison_compile_function_source(stmt, $1, $3, $5) != OG_SUCCESS) {
+                        parser_yyerror("compile function failed");
+                    }
+
+                    $$ = NULL;
+                }
+        ;
+
+CreateFunctionStmt:
+            CREATE opt_or_replace FUNCTION {
+                if (pl_init_compiler(og_yyget_extra(yyscanner)->core_yy_extra.stmt) != OG_SUCCESS) {
+                    parser_yyerror("init pl compiler failed");
+                }
+            } opt_if_not_exists any_name proc_args RETURN Typename
+            as_is subprogram_body
+                {
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    text_t storage_source;
+                    storage_source.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + @7.offset;
+                    storage_source.len = yylloc.offset - @7.offset;
+
+                    if (pl_bison_parse_create_function(stmt, $2, $5, $6, $7, $9, $11, &storage_source) != OG_SUCCESS) {
+                        parser_yyerror("parse create function failed");
+                    }
+
+                    $$ = NULL;
+                }
+        ;
+
+subprogram_body: {
+                text_t *body_src = NULL;
+                int	tok = YYLEX;
+                int proc_b = yylloc.offset;
+                int proc_e = yylloc.offset;
+                sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+
+                if (sql_stack_alloc(stmt, sizeof(text_t), (void**)&body_src) != OG_SUCCESS) {
+                    parser_yyerror("alloc mem failed");
+                }
+
+                while (tok != YYEOF) {
+                    if (tok == '/') {
+                        proc_e = yylloc.offset;
+                    }
+                    tok = YYLEX;
+                }
+
+                body_src->str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf + proc_b;
+                body_src->len = proc_e - proc_b;
+                $$ = body_src;
+            }
+        ;
+
 unreserved_keyword:
               ABORT_P
             | ABSENT
@@ -8364,13 +11908,14 @@ unreserved_keyword:
             | AGGREGATE
             | ALGORITHM
             | ALSO
-            | ALTER
             | ALWAYS
             | APP
             | APPEND
+            | APPENDONLY
             | APPLY
             | ARCHIVE_P
             | ARCHIVELOG
+            | ASF
             | ASOF_P
             | ASSERTION
             | ASSIGNMENT
@@ -8379,7 +11924,9 @@ unreserved_keyword:
             | AUDIT
             | AUTOEXTEND
             | AUTOMAPPED
+            | AUTOOFFLINE
             | AUTO_INCREMENT
+            | AUTOALLOCATE
             | BACKWARD
             | BARRIER
             | BEFORE
@@ -8454,6 +12001,7 @@ unreserved_keyword:
             | COPY
             | COST
             | CSV
+            | CTRLFILE
             | CUBE
             | CURRENT_P
             | CURRENT_DATE
@@ -8473,13 +12021,14 @@ unreserved_keyword:
             | DAY_MINUTE_P
             | DAY_P
             | DAY_SECOND_P
+            | DBA_RECYCLEBIN
             | DBCOMPATIBILITY_P
             | DEALLOCATE
             | DECLARE
             | DEFAULTS
             | DEFERRED
             | DEFINER
-            | DELETE_P
+            | DELIMITED
             | DELIMITER
             | DELIMITERS
             | DELTA
@@ -8488,6 +12037,7 @@ unreserved_keyword:
             | DIAGNOSTICS
             | DICTIONARY
             | DIRECT
+            | DIRECT_LOAD
             | DIRECTORY
             | DISABLE_P
             | DISCARD
@@ -8520,6 +12070,7 @@ unreserved_keyword:
             | ESCAPED
             | ESCAPING
             | ESTIMATE
+            | EXEMPT
             | EVENT
             | EVENTS
             | EVERY
@@ -8532,7 +12083,10 @@ unreserved_keyword:
             | EXPIRED_P
             | EXPLAIN
             | EXTENSION
+            | EXTENT
+            | EXTENTS
             | EXTERNAL
+            | FAILED_LOGIN_ATTEMPTS_P
             | FAMILY
             | FAST
             | FEATURES             // DB4AI
@@ -8559,6 +12113,7 @@ unreserved_keyword:
             | GLOBAL
             | GRANTED
             | HANDLER
+            | HASH
             | HEADER_P
             | HOLD
             | HOUR_MINUTE_P
@@ -8574,7 +12129,6 @@ unreserved_keyword:
             | INCLUDING
             | INCREMENT
             | INCREMENTAL
-            | INDEX_P
             | INDEXES
             | INFILE
             | INFINITE_P
@@ -8585,7 +12139,6 @@ unreserved_keyword:
             | INLINE_P
             | INPUT_P
             | INSENSITIVE
-            | INSERT
             | INSTANCE
             | INSTEAD
             | INTERNAL
@@ -8610,11 +12163,13 @@ unreserved_keyword:
             | LC_COLLATE_P
             | LC_CTYPE_P
             | LEAKPROOF
-            | LIBRARY
             | LINES
+            | LINK
             | LIST
             | LISTEN
             | LOAD
+            | LOADER_P
+            | LOB
             | LOCAL
             | LOCALTIMESTAMP
             | LOCATION
@@ -8658,14 +12213,18 @@ unreserved_keyword:
             | NAME_P
             | NAMES
             | NAN_P
+            | NEWLINE
             | NEXT
             | NO
             | NOARCHIVELOG
+            | NOCACHE
             | NOCOMPRESS
             | NODE
             | NOLOGGING
             | NOMAXVALUE
             | NOMINVALUE
+            | NOORDER
+            | NORELY
             | NOTHING
             | NOTIFY
             | NOVALIDATE
@@ -8674,9 +12233,10 @@ unreserved_keyword:
             | NULLS_P
             | NUMSTR
             | OBJECT_P
-            | OF
+            | OF_P
             | OFF
             | OIDS
+            | OPERATIONS
             | OPERATOR
             | OPTIMIZATION
             | OPTION
@@ -8684,18 +12244,28 @@ unreserved_keyword:
             | OPTIONS
             | OVER
             | ORDINALITY
+            | ORGANIZATION
             | OUTFILE
             | OWNED
             | OWNER
             | PACKAGE
             | PACKAGES
+            | PAGE
+            | PARALLEL
             | PARALLEL_ENABLE
+            | PARAMETERS
             | PARSER
             | PARTIAL
             | PARTITION
             | PARTITIONS
             | PASSING
             | PASSWORD
+            | PASSWORD_GRACE_TIME_P
+            | PASSWORD_LIFE_TIME_P
+            | PASSWORD_LOCK_TIME_P
+            | PASSWORD_MIN_LEN_P
+            | PASSWORD_REUSE_MAX_P
+            | PASSWORD_REUSE_TIME_P
             | PATH
             | PCTFREE
             | PER_P
@@ -8736,6 +12306,7 @@ unreserved_keyword:
             | REASSIGN
             | REBUILD
             | RECHECK
+            | RECORDS
             | RECURSIVE
             | REDISANYVALUE
             | REF
@@ -8746,6 +12317,7 @@ unreserved_keyword:
             | RELATIVE_P
             | RELEASE
             | RELOPTIONS
+            | RELY
             | REMOTE_P
             | REMOVE
             | RENAME
@@ -8765,6 +12337,7 @@ unreserved_keyword:
             | RETURNED_SQLSTATE
             | RETURNS
             | REUSE
+            | REVERSE
             | REVOKE
             | ROLE
             | ROLES
@@ -8793,6 +12366,7 @@ unreserved_keyword:
             | SERIALIZABLE
             | SERVER_P
             | SESSION
+            | SESSIONS_PER_USER_P
             | SET
             | SETS
             | SHARE
@@ -8883,9 +12457,9 @@ unreserved_keyword:
             | UNLOCK
             | UNLOGGED
             | UNPIVOT
+            | UNSIGNED
             | UNTIL
             | UNUSABLE
-            | UPDATE
             | USE_P
             | USEEOF
             | VACUUM
@@ -8899,7 +12473,6 @@ unreserved_keyword:
             | VARYING
             | VCGROUP
             | VERSION_P
-            | VIEW
             | VISIBLE
             | VOLATILE
             | WAIT
@@ -8964,6 +12537,7 @@ unreserved_keyword:
             | COMPACT
             | CONCURRENTLY
             | CROSS
+            | CSF
             | CSN
             | CURRENT_SCHEMA
             | DELTAMERGE
@@ -8990,6 +12564,7 @@ unreserved_keyword:
 
 col_name_keyword:
             BIGINT
+            | BINARY_BIGINT
             | BINARY_DOUBLE
             | BINARY_FLOAT
             | BINARY_INTEGER
@@ -9028,6 +12603,9 @@ col_name_keyword:
             | LNNVL
             | GROUP_CONCAT
             | EXTRACT
+            | PRIMARY       %prec UMINUS
+            | UNIQUE
+            | FOREIGN
         ;
 
 
@@ -9041,6 +12619,7 @@ reserved_keyword:
               ALL
             | ANALYSE
             | ANALYZE
+            | ALTER
             | AND
             | ANY
             | ARRAY
@@ -9056,12 +12635,14 @@ reserved_keyword:
             | COLUMN
             | CONSTRAINT
             | CREATE
+            | CRMODE
             | CURRENT_CATALOG
             | CURRENT_ROLE
             | CURRENT_TIME
             | CURRENT_USER
             | DEFAULT
             | DEFERRABLE
+            | DELETE_P
             | DESC
             | DISTINCT
             | DO
@@ -9072,7 +12653,6 @@ reserved_keyword:
             | FALSE_P
             | FETCH
             | FOR
-            | FOREIGN
             | FROM
             | GRANT
             | GROUP_P
@@ -9080,7 +12660,9 @@ reserved_keyword:
             | HAVING
             | IMCSTORED
             | IN_P
+            | INDEX_P
             | INITIALLY
+            | INSERT
             | INTERSECT_P
             | INTO
             | IS
@@ -9096,12 +12678,12 @@ reserved_keyword:
             | NULL_P
             | OFFSET
             | ON
+            | ONLINE
             | ONLY
             | OR
             | ORDER
             | PERFORMANCE
             | PLACING
-            | PRIMARY
             | PROCEDURE
             | REFERENCES
             | REJECT_P
@@ -9123,7 +12705,6 @@ reserved_keyword:
             | TRUE_P
             | UNIMCSTORED
             | UNION
-            | UNIQUE
             | USER
             | USING
             | VARIADIC
@@ -9141,6 +12722,9 @@ reserved_keyword:
             | NUMBER_P
             | CHAR_P
             | PRIOR
+            | UPDATE
+            | VIEW
+            | LIBRARY
         ;
 
 %%

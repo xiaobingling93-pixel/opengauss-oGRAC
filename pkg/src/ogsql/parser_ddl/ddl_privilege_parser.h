@@ -67,6 +67,7 @@ typedef struct st_priv_info {
     source_location_t start_loc;
 } priv_info;
 
+status_t sql_check_privs_duplicated(galist_t *priv_list, const text_t *priv_str, priv_type_def priv_type);
 status_t sql_parse_grant_objprivs_def(sql_stmt_t *stmt, lex_t *lex, knl_grant_def_t *def);
 status_t sql_parse_revoke_objprivs_def(sql_stmt_t *stmt, lex_t *lex, knl_revoke_def_t *def);
 status_t sql_check_dir_priv(galist_t *privs, bool32 *dire_priv);
@@ -79,6 +80,15 @@ status_t sql_check_obj_schema(lex_t *lex, text_t *schema, galist_t *holders);
 status_t sql_check_privs_type(sql_stmt_t *stmt, galist_t *privs, priv_type_def priv_type, object_type_t obj_type,
                               text_t *type_name);
 status_t sql_parse_revoke_privs(sql_stmt_t *stmt, knl_revoke_def_t *revoke_def);
+status_t og_check_obj_owner(const text_t *curr_user, galist_t *holders);
+status_t og_check_obj_schema(text_t *schema, galist_t *holders);
+status_t og_parse_object_info(sql_stmt_t *stmt, text_t *schema, text_t *objname, object_type_t *obj_type,
+    text_t *typename, object_type_t expected_objtype, name_with_owner *obj_name);
+status_t og_parse_user_priv_info(sql_stmt_t *stmt, text_t *objname, text_t *typename, name_with_owner *name);
+status_t og_parse_grantee_def(sql_stmt_t *stmt, knl_grant_def_t *grant_def, galist_t *grantee_list,
+    bool with_opt);
+status_t og_parse_revokee_def(sql_stmt_t *stmt, knl_revoke_def_t *revoke_def, galist_t *revokee_list,
+    bool cascade_opt);
 #ifdef __cplusplus
 }
 #endif

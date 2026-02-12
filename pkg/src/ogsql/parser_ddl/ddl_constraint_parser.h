@@ -54,6 +54,11 @@ status_t sql_parse_inline_constraint(sql_stmt_t *stmt, lex_t *lex, knl_column_de
 status_t sql_parse_inline_constraint_elemt(sql_stmt_t *stmt, lex_t *lex, knl_column_def_t *column, word_t *word,
     uint32 *ex_flags, text_t *cons_name);
 status_t sql_parse_altable_constraint_rename(sql_stmt_t *stmt, lex_t *lex, knl_altable_def_t *def);
+status_t sql_append_primary_key_cols(sql_stmt_t *stmt, text_t *ref_user, text_t *ref_table,
+    galist_t *ref_columns);
+status_t og_parse_constraint_state(sql_stmt_t *stmt, knl_constraint_def_t *cons_def, galist_t *opts);
+status_t og_try_parse_cons(sql_stmt_t *stmt, knl_table_def_t *def, parse_constraint_t *cons);
+
 #ifdef __cplusplus
 }
 #endif

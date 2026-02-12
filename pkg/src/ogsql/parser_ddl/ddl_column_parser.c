@@ -25,11 +25,13 @@
 #include "ddl_column_parser.h"
 #include "ddl_constraint_parser.h"
 #include "ddl_partition_parser.h"
+#include "ddl_index_parser.h"
 #include "func_parser.h"
 #include "ogsql_serial.h"
 #include "ogsql_func.h"
 #include "ogsql_cond.h"
 #include "srv_instance.h"
+#include "cm_charset.h"
 // invoker should input the first word
 static status_t sql_try_parse_column_datatype(lex_t *lex, knl_column_def_t *column, word_t *word, bool32 *found)
 {
@@ -510,13 +512,20 @@ static status_t sql_try_parse_column_ex(sql_stmt_t *stmt, lex_t *lex, knl_column
  * but ROWID is an exception (note: "ROWID" is not allowed, but "rowid" is allowed).
  *
  */
+
+static inline status_t sql_check_col_name(text_t *name)
+{
+    text_t rowid_text = {  "ROWID", 5 };
+    if (cm_compare_text(name, &rowid_text) == 0) {
+        return OG_ERROR;
+    }
+    return OG_SUCCESS;
+}
+
 static inline status_t sql_check_quoted_col_name(word_t *word)
 {
     if (word->type == WORD_TYPE_DQ_STRING) {
-        text_t rowid_text = {  "ROWID", 5 };
-        if (cm_compare_text((text_t *)&word->text, &rowid_text) == 0) {
-            return OG_ERROR;
-        }
+        return sql_check_col_name((text_t *)&word->text);
     }
     return OG_SUCCESS;
 }
@@ -1274,4 +1283,367 @@ status_t sql_parse_altable_column_rename(sql_stmt_t *stmt, lex_t *lex, knl_altab
         return OG_ERROR;
     }
     return lex_expected_end(lex);
+}
+
+static status_t og_try_parse_column_datatype(sql_stmt_t *stmt, knl_column_def_t *column, type_word_t *type,
+    bool32 *found)
+{
+    word_t typword;
+    typword.text.str = type->str;
+    typword.text.len = strlen(type->str);
+
+    if (lex_try_match_datatype_bison(&typword) != OG_SUCCESS) {
+        *found = OG_FALSE;
+        return OG_SUCCESS;
+    }
+
+    *found = OG_TRUE;
+
+    MEMS_RETURN_IFERR(memset_s(&column->typmod, sizeof(typmode_t), 0, sizeof(typmode_t)));
+
+    if (typword.id == DTYP_SERIAL) {
+        column->typmod.datatype = OG_TYPE_BIGINT;
+        column->typmod.size = sizeof(int64);
+        column->is_serial = OG_TRUE;
+        return OG_SUCCESS;
+    }
+
+    if (sql_parse_typmode_bison(stmt->session->db_user, type, PM_NORMAL, &column->typmod, &typword) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+
+    column->typmod.is_array = type->is_array;
+    if (type->is_array && !cm_datatype_arrayable(column->typmod.datatype)) {
+        OG_THROW_ERROR(ERR_DATATYPE_NOT_SUPPORT_ARRAY, get_datatype_name_str(column->typmod.datatype));
+        return OG_ERROR;
+    }
+
+    column->is_jsonb = (typword.id == DTYP_JSONB);
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_column_default(sql_stmt_t *stmt, knl_column_def_t *column, column_attr_t *attr,
+    uint32 *ex_flags)
+{
+    text_t default_content;
+
+    if (*ex_flags & COLUMN_EX_DEFAULT) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate or conflicting default specifications");
+        return OG_ERROR;
+    }
+
+    column->insert_expr = attr->insert_expr;
+    column->is_default = OG_TRUE;
+    *ex_flags |= COLUMN_EX_DEFAULT;
+
+    if (attr->update_expr != NULL) {
+        if (*ex_flags & COLUMN_EX_UPDATE_DEFAULT) {
+            OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate or conflicting update default specifications");
+            return OG_ERROR;
+        }
+
+        column->update_expr = attr->update_expr;
+        column->is_update_default = OG_TRUE;
+        *ex_flags |= COLUMN_EX_UPDATE_DEFAULT;
+    }
+
+    column->default_text = attr->default_text;
+
+    if (column->default_text.len > 0) {
+        OG_RETURN_IFERR(sql_alloc_mem(stmt->context, column->default_text.len, (void **)&default_content.str));
+        cm_extract_content(&column->default_text, &default_content);
+        column->default_text = default_content;
+    }
+    cm_trim_text(&column->default_text);
+
+    if (column->typmod.datatype == OG_TYPE_UNKNOWN) {
+        // datatype may be know after 'as select' clause parsed,delay verify at 'sql_verify_default_column'
+        column->delay_verify = OG_TRUE;
+        return OG_SUCCESS;
+    }
+
+    return sql_verify_column_default(stmt, column);
+}
+
+static status_t og_parse_column_comment(sql_stmt_t *stmt, knl_column_def_t *column, column_attr_t *attr,
+    uint32 *ex_flags)
+{
+    if (*ex_flags & COLUMN_EX_COMMENT) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate or conflicting comment specifications");
+        return OG_ERROR;
+    }
+
+    text_t comment = { .str = attr->comment, .len = strlen(attr->comment)};
+    if (sql_copy_text(stmt->context, (text_t *)&comment, &column->comment) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+    column->is_comment = OG_TRUE;
+    *ex_flags |= COLUMN_EX_COMMENT;
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_auto_increment(sql_stmt_t *stmt, knl_column_def_t *column, column_attr_t *attr,
+    uint32 *ex_flags)
+{
+    if ((*ex_flags & COLUMN_EX_AUTO_INCREMENT) || column->is_serial) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate or conflicting auto increment specifications");
+        return OG_ERROR;
+    }
+
+    if ((*ex_flags & COLUMN_EX_DEFAULT) || (*ex_flags & COLUMN_EX_UPDATE_DEFAULT)) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "default column %s can not set to auto increment",
+            T2S(&column->name));
+        return OG_ERROR;
+    }
+    if (column->datatype == OG_TYPE_UNKNOWN) {
+        // datatype may be know after 'as select' clause parsed,delay verify at 'sql_verify_auto_increment'
+        column->delay_verify_auto_increment = OG_TRUE;
+    } else {
+        if (column->datatype != OG_TYPE_BIGINT && column->datatype != OG_TYPE_INTEGER &&
+            column->datatype != OG_TYPE_UINT32) {
+            OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+                "auto increment column %s only support int type", T2S(&column->name));
+            return OG_ERROR;
+        }
+    }
+
+    column->is_serial = OG_TRUE;
+    *ex_flags |= COLUMN_EX_AUTO_INCREMENT;
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_column_collate(sql_stmt_t *stmt, knl_column_def_t *column, column_attr_t *attr,
+    uint32 *ex_flags)
+{
+    uint16 collate_id;
+    text_t name = { .str = attr->collate, .len = strlen(attr->collate) };
+
+    if (*ex_flags & COLUMN_EX_COLLATE) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate or conflicting collate specifications");
+        return OG_ERROR;
+    }
+
+    collate_id = cm_get_collation_id(&name);
+    if (collate_id == OG_INVALID_ID16) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "unknown collation option %s", name.str);
+        return OG_ERROR;
+    }
+
+    column->typmod.collate = collate_id;
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_column_primary(sql_stmt_t *stmt, knl_column_def_t *column, column_attr_t *attr,
+    uint32 *ex_flags)
+{
+    if (*ex_flags & COLUMN_EX_KEY) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate or conflicting primary key specifications");
+        return OG_ERROR;
+    }
+
+    CHECK_CONS_TZ_TYPE_RETURN(column->datatype);
+
+    *ex_flags |= COLUMN_EX_KEY;
+    column->primary = OG_TRUE;
+    column->nullable = OG_FALSE;
+    column->has_null = OG_TRUE;
+
+    if (attr->cons_name != NULL) {
+        column->inl_pri_cons_name.str = attr->cons_name;
+        column->inl_pri_cons_name.len = strlen(attr->cons_name);
+    }
+
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_column_ref(sql_stmt_t *stmt, knl_column_def_t *column, column_attr_t *attr,
+    uint32 *ex_flags)
+{
+    if (*ex_flags & COLUMN_EX_REF) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate or conflicting references specifications");
+        return OG_ERROR;
+    }
+
+    *ex_flags |= COLUMN_EX_REF;
+    column->is_ref = OG_TRUE;
+
+    if (attr->ref->owner.len > 0) {
+        column->ref_user = attr->ref->owner;
+    } else {
+        cm_str2text(stmt->session->curr_schema, &column->ref_user);
+    }
+    column->ref_table = attr->ref->name;
+
+    cm_galist_init(&column->ref_columns, stmt->context, sql_alloc_mem);
+    if (attr->ref_cols != NULL) {
+        OG_RETURN_IFERR(og_parse_column_list(stmt, &column->ref_columns, NULL, attr->ref_cols));
+    }
+    column->refactor = attr->refactor;
+
+    if (attr->cons_name != NULL) {
+        column->inl_ref_cons_name.str = attr->cons_name;
+        column->inl_ref_cons_name.len = strlen(attr->cons_name);
+    }
+
+    return sql_append_primary_key_cols(stmt, &column->ref_user, &column->ref_table, &column->ref_columns);
+}
+
+static status_t og_parse_column_check(sql_stmt_t *stmt, knl_column_def_t *column, column_attr_t *attr,
+    uint32 *ex_flags)
+{
+    if (*ex_flags & COLUMN_EX_CHECK) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate or conflicting check specifications");
+        return OG_ERROR;
+    }
+
+    column->check_text = attr->check_text;
+    column->is_check = OG_TRUE;
+    column->check_cond = attr->cond;
+    *ex_flags |= COLUMN_EX_CHECK;
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_column_attrs(sql_stmt_t *stmt, knl_column_def_t *column, galist_t *attrs)
+{
+    column_attr_t *attr = NULL;
+    column->nullable = OG_TRUE;
+    column->primary = OG_FALSE;
+    uint32 ex_flags = 0;
+
+    if (attrs == NULL) {
+        return OG_SUCCESS;
+    }
+
+    for (uint32 i = 0; i < attrs->count; i++) {
+        attr = (column_attr_t *)cm_galist_get(attrs, i);
+
+        switch (attr->type) {
+            case COL_ATTR_DEFAULT:
+                OG_RETURN_IFERR(og_parse_column_default(stmt, column, attr, &ex_flags));
+                break;
+            case COL_ATTR_COMMENT:
+                OG_RETURN_IFERR(og_parse_column_comment(stmt, column, attr, &ex_flags));
+                break;
+            case COL_ATTR_AUTO_INCREMENT:
+                OG_RETURN_IFERR(og_parse_auto_increment(stmt, column, attr, &ex_flags));
+                break;
+            case COL_ATTR_COLLATE:
+                OG_RETURN_IFERR(og_parse_column_collate(stmt, column, attr, &ex_flags));
+                break;
+            case COL_ATTR_PRIMARY:
+                OG_RETURN_IFERR(og_parse_column_primary(stmt, column, attr, &ex_flags));
+                break;
+            case COL_ATTR_UNIQUE:
+                if (ex_flags & COLUMN_EX_KEY) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+                        "duplicate or conflicting primary key/unique specifications");
+                    return OG_ERROR;
+                }
+                CHECK_CONS_TZ_TYPE_RETURN(column->datatype);
+                ex_flags |= COLUMN_EX_KEY;
+                column->unique = OG_TRUE;
+                if (attr->cons_name != NULL) {
+                    column->inl_uq_cons_name.str = attr->cons_name;
+                    column->inl_uq_cons_name.len = strlen(attr->cons_name);
+                }
+                break;
+            case COL_ATTR_REFERENCES:
+                OG_RETURN_IFERR(og_parse_column_ref(stmt, column, attr, &ex_flags));
+                break;
+            case COL_ATTR_CHECK:
+                OG_RETURN_IFERR(og_parse_column_check(stmt, column, attr, &ex_flags));
+                break;
+            case COL_ATTR_NOT_NULL:
+                if (ex_flags & COLUMN_EX_NULLABLE) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate or conflicting not null/null specifications");
+                    return OG_ERROR;
+                }
+                column->nullable = OG_FALSE;
+                column->has_null = OG_TRUE;
+                ex_flags |= COLUMN_EX_NULLABLE;
+                break;
+            case COL_ATTR_NULL:
+                if (ex_flags & COLUMN_EX_NULLABLE) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate or conflicting not null/null specifications");
+                    return OG_ERROR;
+                }
+                column->has_null = OG_TRUE;
+                ex_flags |= COLUMN_EX_NULLABLE;
+                break;
+            default:
+                break;
+        }
+    }
+
+    if (CM_IS_EMPTY(&column->default_text)) {
+        if (g_instance->sql.enable_empty_string_null) {
+            column->is_default_null = OG_TRUE;
+        }
+    }
+
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_column(sql_stmt_t *stmt, knl_table_def_t *def, parse_column_t *parse_column,
+    bool32 *expect_as)
+{
+    text_t name;
+    knl_column_def_t *column = NULL;
+    bool32 found = OG_FALSE;
+
+    name.str = parse_column->col_name;
+    name.len = strlen(parse_column->col_name);
+
+    if (sql_check_col_name(&name) != OG_SUCCESS) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "invalid column name '%s'", T2S(&name));
+        return OG_ERROR;
+    }
+
+    OG_RETURN_IFERR(sql_check_duplicate_column(&def->columns, &name));
+
+    OG_RETURN_IFERR(cm_galist_new(&def->columns, sizeof(knl_column_def_t), (pointer_t *)&column));
+
+    column->nullable = OG_TRUE;
+    column->name = name;
+    column->table = (void *)def;
+    cm_galist_init(&column->ref_columns, stmt->context, sql_alloc_mem);
+
+    if (parse_column->type != NULL) {
+        OG_RETURN_IFERR(og_try_parse_column_datatype(stmt, column, parse_column->type, &found));
+    }
+
+    if (!found) {
+        *expect_as = OG_TRUE;
+        column->datatype = OG_TYPE_UNKNOWN;
+    }
+
+    OG_RETURN_IFERR(og_parse_column_attrs(stmt, column, parse_column->column_attrs));
+
+    if (column->primary) {
+        if (def->pk_inline) {
+            OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "table can have only one primary key.");
+            return OG_ERROR;
+        }
+        def->pk_inline = OG_TRUE;
+    }
+
+    def->rf_inline = def->rf_inline || (column->is_ref);
+    def->uq_inline = def->uq_inline || (column->unique);
+    def->chk_inline = def->chk_inline || (column->is_check);
+
+    return OG_SUCCESS;
+}
+
+status_t og_parse_column_defs(sql_stmt_t *stmt, knl_table_def_t *def, bool32 *expect_as, galist_t *table_elements)
+{
+    parse_table_element_t *element = NULL;
+    for (uint32 i = 0; i < table_elements->count; i++) {
+        element = (parse_table_element_t*)cm_galist_get(table_elements, i);
+        if (element->is_constraint) {
+            OG_RETURN_IFERR(og_try_parse_cons(stmt, def, element->cons));
+        } else {
+            OG_RETURN_IFERR(og_parse_column(stmt, def, element->col, expect_as));
+        }
+    }
+    return OG_SUCCESS;
 }

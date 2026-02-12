@@ -50,6 +50,7 @@ typedef enum en_sql_special_word {
 } sql_special_word_t;
 
 status_t sql_create_list(sql_stmt_t *stmt, galist_t **list);
+status_t sql_create_temp_list(sql_stmt_t *stmt, galist_t **list);
 status_t sql_parse_dml(sql_stmt_t *stmt, word_t *leader_word);
 status_t ogsql_parse_explain_sql(sql_stmt_t *stmt, word_t *leader);
 status_t sql_parse_view_subselect(sql_stmt_t *stmt, text_t *sql, sql_select_t **select_ctx, source_location_t *loc);

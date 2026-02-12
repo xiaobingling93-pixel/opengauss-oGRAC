@@ -38,6 +38,10 @@ extern "C" {
 status_t sql_parse_create_view(sql_stmt_t *stmt, bool32 is_replace, bool32 is_force);
 
 status_t sql_parse_drop_view(sql_stmt_t *stmt);
+
+status_t og_parse_create_view(sql_stmt_t *stmt, knl_view_def_t **def, name_with_owner *view_name,
+    galist_t *column_list, bool32 is_replace, bool32 is_force, sql_select_t *select_ctx, text_t *src_sql,
+    uint32 offset);
 #ifdef __cplusplus
 }
 #endif

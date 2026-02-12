@@ -51,6 +51,9 @@ status_t sql_parse_comment_table(sql_stmt_t *stmt, key_wid_t wid);
 status_t sql_create_temporary_lead(sql_stmt_t *stmt);
 status_t sql_parse_drop_temporary_lead(sql_stmt_t *stmt);
 status_t sql_create_global_lead(sql_stmt_t *stmt);
+status_t og_parse_create_table(sql_stmt_t *stmt, knl_table_def_t **table_def, bool32 is_temp, bool32 has_global,
+    bool32 if_not_exists, name_with_owner *table_name, galist_t *table_elements, galist_t *table_attrs,
+    sql_select_t *select_ctx, knl_ext_def_t *extern_def);
 
 #ifdef __cplusplus
 }

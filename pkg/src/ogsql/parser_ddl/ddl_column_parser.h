@@ -74,6 +74,97 @@ typedef enum en_add_column_type {
     ALTER_TABLE_ADD_COLUMN = 1,
 } def_column_action_t;
 
+typedef enum {
+    CONS_STATE_ENABLE = 0,
+    CONS_STATE_DISABLE,
+    CONS_STATE_NOT_DEFEREABLE,
+    CONS_STATE_DEFEREABLE,
+    CONS_STATE_INITIALLY_IMMEDIATE,
+    CONS_STATE_INITIALLY_DEFERRED,
+    CONS_STATE_RELY,
+    CONS_STATE_NO_RELY,
+    CONS_STATE_VALIDATE,
+    CONS_STATE_NO_VALIDATE,
+    CONS_STATE_PARALLEL,
+    CONS_STATE_REVERSE
+} constraint_state_type;
+
+typedef struct {
+    constraint_state_type type;
+    uint32 parallelism;
+} constraint_state;
+
+typedef struct {
+    constraint_type_t type;
+    char *name;
+    union {
+        struct {
+            galist_t *column_list;
+            galist_t *idx_opts;
+        };
+        struct {
+            galist_t *cols;
+            name_with_owner *ref;
+            galist_t *ref_cols;
+            knl_refactor_t refactor;
+        };
+        struct {
+            text_t check_text;
+            cond_tree_t *cond;
+        };
+    };
+} parse_constraint_t;
+
+typedef enum {
+    COL_ATTR_DEFAULT,
+    COL_ATTR_COMMENT,
+    COL_ATTR_AUTO_INCREMENT,
+    COL_ATTR_COLLATE,
+    COL_ATTR_PRIMARY,
+    COL_ATTR_UNIQUE,
+    COL_ATTR_REFERENCES,
+    COL_ATTR_CHECK,
+    COL_ATTR_NOT_NULL,
+    COL_ATTR_NULL
+} column_attr_type;
+
+typedef struct {
+    column_attr_type type;
+    char *cons_name;
+    union {
+        struct {
+            text_t default_text;
+            expr_tree_t *insert_expr;
+            expr_tree_t *update_expr;
+        };
+        char *comment;
+        char *collate;
+        struct {
+            name_with_owner *ref;
+            galist_t *ref_cols;
+            knl_refactor_t refactor;
+        };
+        struct {
+            text_t check_text;
+            cond_tree_t *cond;
+        };
+    };
+} column_attr_t;
+
+typedef struct {
+    char *col_name;
+    type_word_t *type;
+    galist_t *column_attrs;
+} parse_column_t;
+
+typedef struct {
+    bool32 is_constraint;
+    union {
+        parse_constraint_t *cons;
+        parse_column_t *col;
+    };
+} parse_table_element_t;
+
 status_t sql_parse_lob_store(sql_stmt_t *stmt, lex_t *lex, word_t *word, galist_t *defs);
 status_t sql_parse_modify_lob(sql_stmt_t *stmt, lex_t *lex, knl_altable_def_t *tab_def);
 status_t sql_parse_charset(sql_stmt_t *stmt, lex_t *lex, uint8 *charset);
@@ -94,6 +185,7 @@ status_t sql_parse_altable_modify_brackets_recurse(sql_stmt_t *stmt, lex_t *lex,
 status_t sql_parse_altable_column_rename(sql_stmt_t *stmt, lex_t *lex, knl_altable_def_t *def);
 status_t sql_parse_column_defs(sql_stmt_t *stmt, lex_t *lex, knl_table_def_t *def, bool32 *expect_as);
 status_t sql_check_duplicate_column_name(galist_t *columns, const text_t *name);
+status_t og_parse_column_defs(sql_stmt_t *stmt, knl_table_def_t *def, bool32 *expect_as, galist_t *table_elements);
 
 #ifdef __cplusplus
 }

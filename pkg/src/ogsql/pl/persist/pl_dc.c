@@ -427,7 +427,12 @@ status_t pl_load_entity(sql_stmt_t *stmt, pl_entry_t *entry, pl_entity_t **entit
         return OG_ERROR;
     }
     stmt->session->current_stmt = load_ass.sub_stmt;
-    status = pl_compile_object(&load_ass, entry, entity);
+    if (!g_instance->sql.use_bison_parser) {
+        status = pl_compile_object(&load_ass, entry, entity);
+    } else {
+        status = raw_parser(load_ass.sub_stmt, &load_ass.sub_stmt->session->lex->text,
+            &load_ass.sub_stmt->context->entry);
+    }
     CONVERT_OBJ_STATUS(obj_status, status);
     status = pl_proc_compile_result(KNL_SESSION(stmt), entity, obj_status);
     if (obj_status != OBJ_STATUS_VALID || status != OG_SUCCESS) {
@@ -1967,4 +1972,21 @@ void pl_revert_last_error(status_t status)
     if (status != OG_SUCCESS) {
         cm_revert_pl_last_error();
     }
+}
+
+status_t pl_bison_compile_function_source(sql_stmt_t *stmt, galist_t *args, type_word_t *ret_type, text_t *body)
+{
+    pl_entity_t *entity = (pl_entity_t *)stmt->pl_context;
+    plc_desc_t desc = { 0 };
+    desc.type = PL_FUNCTION;
+    desc.obj = &entity->def;
+    desc.entity = entity;
+
+    if (plc_bison_compile(stmt, &desc, args, ret_type, body) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+    if (g_tls_plc_error.plc_cnt == 0) {
+        reset_tls_plc_error();
+    }
+    return OG_SUCCESS;
 }

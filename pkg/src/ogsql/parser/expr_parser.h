@@ -306,6 +306,7 @@ status_t sql_generate_expr(expr_tree_t *expr);
 status_t sql_parse_typmode(lex_t *lex, pmode_t pmod, typmode_t *typmod, word_t *typword);
 status_t sql_parse_datatype(lex_t *lex, pmode_t pmod, typmode_t *typmod, word_t *typword);
 status_t sql_parse_datatype_typemode(lex_t *lex, pmode_t pmod, typmode_t *typmod, word_t *typword, word_t *tword);
+status_t sql_parse_typmode_bison(char *user, type_word_t *type, pmode_t pmod, typmode_t *typmod, word_t *typword);
 status_t sql_parse_case_expr(sql_stmt_t *stmt, word_t *word, expr_node_t *node);
 status_t sql_parse_datetime_precision_bison(galist_t *typemode, source_location_t loc, int32 *val_int32,
     int32 def_prec, int32 min_prec, int32 max_prec, const char *field_name);

@@ -28,6 +28,8 @@
 #include "ogsql_dependency.h"
 #include "ogsql_context.h"
 #include "ogsql_table_func.h"
+#include "ogsql_select_verifier.h"
+#include "scanner.h"
 
 static status_t sql_parse_view_column_defs(sql_stmt_t *stmt, lex_t *lex, knl_view_def_t *def)
 {
@@ -580,6 +582,113 @@ status_t sql_parse_drop_view(sql_stmt_t *stmt)
         knl_close_dc(&dc);
     }
     stmt->context->entry = def;
+
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_view_column_defs(sql_stmt_t *stmt, knl_view_def_t *def, galist_t *column_list)
+{
+    knl_column_def_t *column = NULL;
+    text_t name;
+
+    if (column_list == NULL) {
+        return OG_SUCCESS;
+    }
+
+    for (uint32 i = 0; i < column_list->count; i++) {
+        name.str = (char*)cm_galist_get(column_list, i);
+        name.len = strlen(name.str);
+
+        if (sql_check_duplicate_column(&def->columns, &name) != OG_SUCCESS) {
+            return OG_ERROR;
+        }
+
+        if (cm_galist_new(&def->columns, sizeof(knl_column_def_t), (pointer_t *)&column) != OG_SUCCESS) {
+            return OG_ERROR;
+        }
+        column->name = name;
+    }
+    return OG_SUCCESS;
+}
+
+status_t og_parse_create_view(sql_stmt_t *stmt, knl_view_def_t **def, name_with_owner *view_name,
+    galist_t *column_list, bool32 is_replace, bool32 is_force, sql_select_t *select_ctx, text_t *src_sql,
+    uint32 offset)
+{
+    status_t status;
+    knl_view_def_t *view_def = NULL;
+    sql_verifier_t verf = { 0 };
+
+    stmt->context->type = OGSQL_TYPE_CREATE_VIEW;
+
+    if (sql_alloc_mem(stmt->context, sizeof(knl_view_def_t), (void **)def) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+    view_def = *def;
+
+    view_def->is_replace = is_replace;
+    cm_galist_init(&view_def->columns, stmt->context, sql_alloc_mem);
+
+    // Parse view name
+    if (view_name->owner.len > 0) {
+        view_def->user = view_name->owner;
+    } else {
+        cm_str2text(stmt->session->curr_schema, &view_def->user);
+    }
+    view_def->name = view_name->name;
+
+    if (og_parse_view_column_defs(stmt, view_def, column_list) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+
+    select_ctx->type = SELECT_AS_TABLE;
+    view_def->select = select_ctx;
+
+    if (sql_check_context_ref_llt(stmt->context)) {
+        OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "Prevent creating view of local temporary tables");
+        return OG_ERROR;
+    }
+
+    verf.stmt = stmt;
+    verf.context = stmt->context;
+
+    do {
+        status = sql_verify_select_context(&verf, select_ctx);
+        OG_BREAK_IF_ERROR(status);
+        status = sql_verify_view_column_def(stmt, view_def, select_ctx);
+        OG_BREAK_IF_ERROR(status);
+
+        status = sql_verify_circular_view(stmt, view_def, select_ctx);
+    } while (0);
+
+    if (status != OG_SUCCESS) {
+        // if is_force is true, ignore verify error
+        OG_RETVALUE_IFTRUE(!is_force, OG_ERROR);
+        cm_reset_error();
+        if (view_def->columns.count == 0) {
+            OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "create or replace force view need assign columns");
+            return status;
+        }
+    }
+
+    view_def->status = (status == OG_SUCCESS ? OBJ_STATUS_VALID : OBJ_STATUS_INVALID);
+
+    if (sql_generate_def_sql(stmt, src_sql, &offset, select_ctx, view_def) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+
+    view_def->sql_tpye = SQL_STYLE_CT;
+
+    status = sql_alloc_mem(stmt->context, sizeof(galist_t), (void **)&view_def->ref_objects);
+    OG_RETURN_IFERR(status);
+    cm_galist_init(view_def->ref_objects, stmt->context, sql_alloc_mem);
+    status = sql_append_references(view_def->ref_objects, stmt->context);
+    OG_RETURN_IFERR(status);
+
+    if (sql_check_context_ref_sys_tab(stmt, view_def) == OG_TRUE) {
+        OG_THROW_ERROR(ERR_INSUFFICIENT_PRIV);
+        return OG_ERROR;
+    }
 
     return OG_SUCCESS;
 }

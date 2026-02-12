@@ -27,6 +27,8 @@
 #include "ddl_parser_common.h"
 #include "ddl_parser.h"
 #include "dtc_dls.h"
+#include "dml_parser.h"
+#include "scanner.h"
 
 static void sql_init_create_sequence(sql_stmt_t *stmt, knl_sequence_def_t *seq_def)
 {
@@ -856,4 +858,224 @@ status_t sql_parse_drop_synonym(sql_stmt_t *stmt, uint32 flags)
 
     stmt->context->entry = def;
     return lex_expected_end(lex);
+}
+
+status_t og_parse_create_sequence(sql_stmt_t *stmt, knl_sequence_def_t **def, name_with_owner *seq_name,
+    galist_t *seq_opts)
+{
+    status_t status;
+    knl_sequence_def_t *sequence_def = NULL;
+    createseq_opt *opt = NULL;
+
+    stmt->context->type = OGSQL_TYPE_CREATE_SEQUENCE;
+
+    status = sql_alloc_mem(stmt->context, sizeof(knl_sequence_def_t), (void **)def);
+    OG_RETURN_IFERR(status);
+    sequence_def = *def;
+
+    sql_init_create_sequence(stmt, sequence_def);
+
+    if (seq_name->owner.len == 0) {
+        cm_str2text(stmt->session->curr_schema, &sequence_def->user);
+    } else {
+        sequence_def->user = seq_name->owner;
+    }
+    sequence_def->name = seq_name->name;
+
+    // Process sequence options
+    if (seq_opts != NULL) {
+        for (uint32 i = 0; i < seq_opts->count; i++) {
+            opt = (createseq_opt *)cm_galist_get(seq_opts, i);
+
+            switch (opt->type) {
+                case CREATESEQ_INCREMENT_OPT:
+                    if (sequence_def->is_step_set == OG_TRUE) {
+                        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate INCREMENT specifications");
+                        return OG_ERROR;
+                    }
+                    if (opt->value == 0) {
+                        OG_THROW_ERROR(ERR_SEQ_INVALID, "sequence INCREMENT must be a non-zero integer");
+                        return OG_ERROR;
+                    }
+                    sequence_def->step = opt->value;
+                    sequence_def->is_step_set = 1;
+                    break;
+
+                case CREATESEQ_MINVALUE_OPT:
+                    if (sequence_def->is_minval_set == OG_TRUE) {
+                        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate MINVALUE specifications");
+                        return OG_ERROR;
+                    }
+                    sequence_def->min_value = opt->value;
+                    sequence_def->nominval = OG_FALSE;
+                    sequence_def->is_minval_set = 1;
+                    break;
+
+                case CREATESEQ_NOMINVALUE_OPT:
+                    if (sequence_def->is_nominval_set == OG_TRUE) {
+                        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate NO_MINVALUE specifications");
+                        return OG_ERROR;
+                    }
+                    sequence_def->nominval = OG_TRUE;
+                    sequence_def->is_nominval_set = 1;
+                    break;
+
+                case CREATESEQ_MAXVALUE_OPT:
+                    if (sequence_def->is_maxval_set == OG_TRUE) {
+                        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate MAXVALUE specifications");
+                        return OG_ERROR;
+                    }
+                    sequence_def->max_value = opt->value;
+                    sequence_def->nomaxval = OG_FALSE;
+                    sequence_def->is_maxval_set = 1;
+                    break;
+
+                case CREATESEQ_NOMAXVALUE_OPT:
+                    if (sequence_def->is_nomaxval_set == OG_TRUE) {
+                        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate NO_MAXVALUE specifications");
+                        return OG_ERROR;
+                    }
+                    sequence_def->nomaxval = OG_TRUE;
+                    sequence_def->is_nomaxval_set = 1;
+                    break;
+
+                case CREATESEQ_START_OPT:
+                    if (sequence_def->is_start_set == OG_TRUE) {
+                        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate START specifications");
+                        return OG_ERROR;
+                    }
+                    sequence_def->start = opt->value;
+                    sequence_def->is_start_set = OG_TRUE;
+                    break;
+
+                case CREATESEQ_CACHE_OPT:
+                    if (sequence_def->is_cache_set == OG_TRUE) {
+                        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate CACHE specifications");
+                        return OG_ERROR;
+                    }
+                    sequence_def->cache = opt->value;
+                    sequence_def->is_cache_set = 1;
+                    break;
+
+                case CREATESEQ_NOCACHE_OPT:
+                    if (sequence_def->is_nocache_set == OG_TRUE) {
+                        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate NO_CACHE specifications");
+                        return OG_ERROR;
+                    }
+                    sequence_def->nocache = OG_TRUE;
+                    sequence_def->is_nocache_set = 1;
+                    break;
+
+                case CREATESEQ_CYCLE_OPT:
+                    if (sequence_def->is_cycle_set == OG_TRUE) {
+                        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+                            "duplicate or conflicting CYCLE/NOCYCLE specifications");
+                        return OG_ERROR;
+                    }
+                    sequence_def->is_cycle = OG_TRUE;
+                    sequence_def->is_cycle_set = 1;
+                    break;
+
+                case CREATESEQ_NOCYCLE_OPT:
+                    if (sequence_def->is_cycle_set == OG_TRUE) {
+                        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+                            "duplicate or conflicting CYCLE/NOCYCLE specifications");
+                        return OG_ERROR;
+                    }
+                    sequence_def->is_cycle = OG_FALSE;
+                    sequence_def->is_cycle_set = 1;
+                    break;
+
+                case CREATESEQ_ORDER_OPT:
+                    if (sequence_def->is_order_set == OG_TRUE) {
+                        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+                            "duplicate or conflicting ORDER/NOORDER specifications");
+                        return OG_ERROR;
+                    }
+                    sequence_def->is_order = OG_TRUE;
+                    sequence_def->is_order_set = 1;
+                    break;
+
+                case CREATESEQ_NOORDER_OPT:
+                    if (sequence_def->is_order_set == OG_TRUE) {
+                        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+                            "duplicate or conflicting ORDER/NOORDER specifications");
+                        return OG_ERROR;
+                    }
+                    sequence_def->is_order = OG_FALSE;
+                    sequence_def->is_order_set = 1;
+                    break;
+
+                default:
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "syntax error in sequence statement");
+                    return OG_ERROR;
+            }
+        }
+    }
+
+    // Check parameter relations
+    status = sql_check_sequence_parameters_relation(stmt, sequence_def);
+    OG_RETURN_IFERR(status);
+
+    // Format sequence
+    status = sql_format_sequence(stmt, sequence_def);
+    OG_RETURN_IFERR(status);
+
+    return OG_SUCCESS;
+}
+
+status_t og_parse_create_synonym(sql_stmt_t *stmt, knl_synonym_def_t **def, name_with_owner *synonym_name,
+    name_with_owner *object_name, uint32 flags)
+{
+    status_t status;
+    knl_synonym_def_t *synonym_def = NULL;
+    text_t public_user = { PUBLIC_USER, (uint32)strlen(PUBLIC_USER) };
+    bool32 is_public = (flags & SYNONYM_IS_PUBLIC) ? OG_TRUE : OG_FALSE;
+
+    stmt->context->type = OGSQL_TYPE_CREATE_SYNONYM;
+
+    status = sql_alloc_mem(stmt->context, sizeof(knl_synonym_def_t), (void **)def);
+    OG_RETURN_IFERR(status);
+    synonym_def = *def;
+
+    synonym_def->flags = flags;
+
+    // Parse synonym name
+    if (synonym_name->owner.len != 0) {
+        if (is_public) {
+            if (cm_compare_text_str_ins(&synonym_name->owner, PUBLIC_USER) != 0) {
+                OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "owner of object should be public");
+                return OG_ERROR;
+            }
+            if (sql_copy_name(stmt->context, &public_user, &synonym_def->owner) != OG_SUCCESS) {
+                return OG_ERROR;
+            }
+        } else if (sql_copy_prefix_tenant(stmt, &synonym_name->owner, &synonym_def->owner,
+                                          sql_copy_name) != OG_SUCCESS) {
+            return OG_ERROR;
+        }
+        synonym_def->name = synonym_name->name;
+    } else {
+        if (is_public && sql_copy_text(stmt->context, &public_user, &synonym_def->owner) != OG_SUCCESS) {
+            return OG_ERROR;
+        } else if (!is_public) {
+            cm_str2text(stmt->session->curr_schema, &synonym_def->owner);
+        }
+        synonym_def->name = synonym_name->name;
+    }
+
+    if (object_name->owner.len > 0) {
+        synonym_def->table_owner = object_name->owner;
+    } else {
+        cm_str2text(stmt->session->curr_schema, &synonym_def->table_owner);
+    }
+    synonym_def->table_name = object_name->name;
+
+    // Verify synonym definition
+    if (sql_verify_synonym_def(stmt, synonym_def) != OG_SUCCESS) {
+        sql_check_user_priv(stmt, &synonym_def->table_owner);
+        return OG_ERROR;
+    }
+
+    return OG_SUCCESS;
 }
