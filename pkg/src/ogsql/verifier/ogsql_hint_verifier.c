@@ -39,6 +39,7 @@ static status_t og_verify_hint_tables(sql_hint_verifier_t *verif, hint_item_t *h
 
 sql_opt_param_t g_opt_param_hint[] = {
     { { (char *)"_OPT_CBO_STAT_SAMPLING_LEVEL", 20 },        OPT_DYNAMIC_SAMPLING},
+    { { (char *)"_OPTIM_HASH_MATERIALIZE", 23 },            OPT_HASH_MATERIALIZE},
 };
 
 static sql_hint_t g_hint_infos[] = {

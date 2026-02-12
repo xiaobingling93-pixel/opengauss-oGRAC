@@ -213,6 +213,7 @@ void sql_init_plan_assist_impl(sql_stmt_t *stmt, plan_assist_t *plan_ass, sql_qu
                                plan_assist_t *parent);
 sql_table_t *sql_get_driver_table(plan_assist_t *plan_ass);
 status_t remove_pushed_down_join_cond(sql_stmt_t *stmt, plan_assist_t *pa, sql_array_t *tables);
+status_t og_check_index_4_rewrite(sql_stmt_t *statement, sql_query_t *qry, ck_type_t type, bool32 *result);
 
 #define IS_REVERSE_INDEX_AVAILABLE(match_mode, idx_col_id) \
     ((match_mode) == COLUMN_MATCH_POINT || ((match_mode) == COLUMN_MATCH_LIST && (idx_col_id) == 0))

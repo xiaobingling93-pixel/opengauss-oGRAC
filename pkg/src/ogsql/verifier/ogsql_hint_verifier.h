@@ -44,6 +44,7 @@ typedef status_t (*sql_hint_verifier_func)(sql_hint_verifier_t *verif, hint_item
 
 typedef enum en_opt_param_id {
     OPT_DYNAMIC_SAMPLING,
+    OPT_HASH_MATERIALIZE,
     OPT_PARAM_COUNT,
 } opt_param_id_t;
 
@@ -79,6 +80,28 @@ static inline void sql_init_hint_verf(sql_hint_verifier_t *verif, sql_stmt_t *st
     verif->statement = statement;
     verif->tables = tables;
     verif->table = table;
+}
+
+static inline bool32 hint_has_opt_param(const hint_info_t *hint, uint32 param_id)
+{
+    if (param_id == OG_INVALID_ID32) {
+        return OG_FALSE;
+    }
+
+    if (!hint || !hint->opt_params) {
+        return OG_FALSE;
+    }
+    
+    uint64 param_mask = OG_GET_MASK(param_id);
+    return OG_BIT_TEST(hint->opt_params->status, param_mask) != 0;
+}
+
+static inline bool32 hint_get_opt_param_value(const hint_info_t *hint, uint32 param_id)
+{
+    CM_ASSERT(hint && hint->opt_params);
+    
+    uint64 param_mask = OG_GET_MASK(param_id);
+    return OG_BIT_TEST(hint->opt_params->value, param_mask) > 0;
 }
 
 #ifdef __cplusplus

@@ -26,6 +26,7 @@
 #include "ogsql_expr_def.h"
 #include "ogsql_cond.h"
 #include "ogsql_expr.h"
+#include "ogsql_hint_verifier.h"
 
 #ifndef __OGSQL_OPTIM_COMMON_H__
 #define __OGSQL_OPTIM_COMMON_H__
@@ -47,6 +48,15 @@ static inline bool32 has_only_diff_level_columns(uint32 flags_l, uint32 flags_r)
 {
     return (HAS_ONLY_SELF_COLS(flags_l) && HAS_ONLY_PARENT_COLS(flags_r)) ||
            (HAS_ONLY_SELF_COLS(flags_r) && HAS_ONLY_PARENT_COLS(flags_l));
+}
+
+static inline bool32 ogsql_opt_param_is_enable(sql_stmt_t *statement, bool32 default_value, uint32 param_id)
+{
+    hint_info_t *sql_hint = statement->context->hint_info;
+    if (hint_has_opt_param(sql_hint, param_id)) {
+        return hint_get_opt_param_value(sql_hint, param_id);
+    }
+    return default_value;
 }
 
 bool32 validate_outer_join_conditions(sql_join_node_t *jnode);

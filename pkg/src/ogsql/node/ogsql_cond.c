@@ -925,6 +925,55 @@ status_t sql_match_pivot_list(sql_stmt_t *stmt, expr_tree_t *for_expr, expr_tree
     return status;
 }
 
+status_t cond_collector_init(cond_collect_helper_t *cond_context, sql_stmt_t *statement,
+                             ga_alloc_func_t alloc_func)
+{
+    cond_context->statement = statement;
+    cond_context->p_arg0 = NULL;
+    cond_context->p_arg1 = NULL;
+    cond_context->p_arg2 = NULL;
+    cond_context->pp_arg0 = NULL;
+    cond_context->is_stoped = OG_FALSE;
+    cond_context->cptr_false = OG_FALSE;
+    cond_context->type = COLL_TYPE_TRAVERSAL;
+    cond_context->arg0 = OG_INVALID_ID32;
+    cond_context->arg1 = OG_INVALID_ID32;
+    OG_RETURN_IFERR(alloc_func(statement, sizeof(galist_t), (void **)&cond_context->cond));
+    cm_galist_init(cond_context->cond, statement, alloc_func);
+    return OG_SUCCESS;
+}
+
+status_t traverse_and_collect_conds(cond_collect_helper_t *cond_collector, cond_node_t *node)
+{
+    OG_RETURN_IFERR(sql_stack_safe(cond_collector->statement));
+    if (!node) {
+        return OG_SUCCESS;
+    }
+    switch (node->type) {
+        case COND_NODE_COMPARE:
+            return cm_galist_insert(cond_collector->cond, node);
+        case COND_NODE_AND:
+            OG_RETURN_IFERR(traverse_and_collect_conds(cond_collector, node->left));
+            return traverse_and_collect_conds(cond_collector, node->right);
+        case COND_NODE_OR:
+            if (cond_collector->type == COLL_TYPE_OVERALL) {
+                return cm_galist_insert(cond_collector->cond, node);
+            } else if (cond_collector->type == COLL_TYPE_TRAVERSAL) {
+                OG_RETURN_IFERR(traverse_and_collect_conds(cond_collector, node->left));
+                return traverse_and_collect_conds(cond_collector, node->right);
+            }
+            break;
+        case COND_NODE_FALSE:
+            if (cond_collector->cptr_false) {
+                return cm_galist_insert(cond_collector->cond, node);
+            }
+            break;
+        default:
+            break;
+    }
+    return OG_SUCCESS;
+}
+
 static inline bool32 variant_list_has_null(variant_t *vars, uint32 key_count, bool32 *is_null)
 {
     bool32 has_null = OG_FALSE;
