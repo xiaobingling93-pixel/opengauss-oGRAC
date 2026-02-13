@@ -30,6 +30,7 @@
 #include "ogsql_sort.h"
 #include "knl_mtrl.h"
 #include "ogsql_scan.h"
+#include "ogsql_expr_datatype.h"
 #include "ogsql_sort_group.h"
 #include "ogsql_expr_datatype.h"
 
@@ -2221,6 +2222,270 @@ void sql_free_group_ctx(sql_stmt_t *stmt, group_ctx_t *group_ctx)
     vm_free(&stmt->session->knl_session, stmt->session->knl_session.temp_pool, group_ctx->vm_id);
 }
 
+typedef struct {
+    sql_stmt_t *stmt;
+    sql_query_t *query;
+} infer_type_data_t;
+
+typedef status_t (*group_expr_callback_t)(infer_type_data_t *data,
+                                          expr_node_t *expr_node, uint32 index, og_type_t *type);
+typedef bool32 (*group_bool_callback_t)(expr_node_t *expr_node, uint32 index);
+
+static status_t sql_traverse_group_exprs(group_plan_t *group_p, infer_type_data_t *data,
+                                         group_expr_callback_t callback, og_type_t *types)
+{
+    status_t ret = OG_SUCCESS;
+    uint32 aggr_cid = 0;
+
+    for (uint32 i = 0; i < group_p->exprs->count; i++) {
+        expr_tree_t *expr = (expr_tree_t *)cm_galist_get(group_p->exprs, i);
+        ret = callback(data, expr->root, i, types ? &types[aggr_cid + i] : NULL);
+        if (ret != OG_SUCCESS) {
+            return ret;
+        }
+    }
+
+    aggr_cid += group_p->exprs->count;
+    for (uint32 i = 0; i < group_p->aggrs->count; i++) {
+        expr_node_t *expr_node = (expr_node_t *)cm_galist_get(group_p->aggrs, i);
+        ret = callback(data, expr_node, i, types ? &types[aggr_cid + i] : NULL);
+        if (ret != OG_SUCCESS) {
+            return ret;
+        }
+    }
+
+    aggr_cid += group_p->aggrs_args;
+    for (uint32 i = 0; i < group_p->aggrs_sorts; i++) {
+        expr_node_t *expr_node = (expr_node_t *)cm_galist_get(group_p->sort_items, i);
+        ret = callback(data, expr_node, i, types ? &types[aggr_cid + i] : NULL);
+        if (ret != OG_SUCCESS) {
+            return ret;
+        }
+    }
+
+    return ret;
+}
+
+static expr_node_t* extract_group_expr_root_node(group_plan_t *group_plan, uint32 index)
+{
+    if (group_plan == NULL || group_plan->exprs == NULL || index >= group_plan->exprs->count) {
+        return NULL;
+    }
+    void *list_item = cm_galist_get(group_plan->exprs, index);
+    expr_tree_t *expr_container = (expr_tree_t *)list_item;
+    return (expr_container != NULL) ? expr_container->root : NULL;
+}
+
+static bool32 traverse_group_expr_nodes(group_plan_t *group_plan, group_bool_callback_t node_callback)
+{
+    if (group_plan == NULL || node_callback == NULL || group_plan->exprs == NULL) {
+        OG_LOG_RUN_WAR("Invalid input params for group expr traverse");
+        return OG_FALSE;
+    }
+
+    uint32 total_expr_nodes = group_plan->exprs->count;
+    uint32 current_idx = 0;
+    bool32 traverse_terminate = OG_FALSE;
+
+    while (current_idx < total_expr_nodes && !traverse_terminate) {
+        expr_node_t *target_node = extract_group_expr_root_node(group_plan, current_idx);
+
+        if (target_node != NULL) {
+            traverse_terminate = node_callback(target_node, current_idx);
+        }
+
+        current_idx++;
+    }
+
+    return (traverse_terminate) ? OG_TRUE : OG_FALSE;
+}
+
+static expr_node_t* get_group_aggr_node_item(group_plan_t *group_ctx, uint32 node_idx)
+{
+    if (group_ctx == NULL || group_ctx->aggrs == NULL || node_idx >= group_ctx->aggrs->count) {
+        OG_LOG_RUN_WAR("Invalid group aggr node access: idx=%u, count=%u",
+                     node_idx, (group_ctx && group_ctx->aggrs) ? group_ctx->aggrs->count : 0);
+        return NULL;
+    }
+
+    void *raw_item = cm_galist_get(group_ctx->aggrs, node_idx);
+    expr_node_t *aggr_node = (expr_node_t *)raw_item;
+    return aggr_node;
+}
+
+static bool32 traverse_group_aggr_nodes(group_plan_t *group_ctx,
+                                        group_bool_callback_t aggr_callback)
+{
+    if (group_ctx == NULL || aggr_callback == NULL || group_ctx->aggrs == NULL) {
+        OG_LOG_RUN_WAR("Invalid params for group aggr node traverse");
+        return OG_FALSE;
+    }
+
+    const uint32 total_aggr_nodes = group_ctx->aggrs->count;
+    bool32 is_traverse_stop = OG_FALSE;
+    uint32 current_node_pos = 0;
+
+    if (total_aggr_nodes > 0) {
+        do {
+            expr_node_t *target_aggr_node = get_group_aggr_node_item(group_ctx, current_node_pos);
+
+            if (target_aggr_node != NULL) {
+                is_traverse_stop = aggr_callback(target_aggr_node, current_node_pos);
+            }
+
+            current_node_pos++;
+        } while (current_node_pos < total_aggr_nodes && !is_traverse_stop);
+    }
+
+    bool32 ret_result = (is_traverse_stop == OG_TRUE) ? OG_TRUE : OG_FALSE;
+    return ret_result;
+}
+
+static expr_node_t* fetch_group_sort_node_item(group_plan_t *group_context, uint32 position)
+{
+    if (group_context == NULL) {
+        OG_LOG_RUN_WAR("Group plan context is NULL when fetching sort node");
+        return NULL;
+    }
+    if (group_context->sort_items == NULL) {
+        OG_LOG_RUN_WAR("Sort items list is NULL in group plan");
+        return NULL;
+    }
+    if (position >= group_context->aggrs_sorts) {
+        OG_LOG_RUN_WAR("Sort node index out of range: pos=%u, max=%u",
+                     position, group_context->aggrs_sorts);
+        return NULL;
+    }
+
+    void *list_element = cm_galist_get(group_context->sort_items, position);
+    expr_node_t *sort_expr_node = (expr_node_t *)list_element;
+    return sort_expr_node;
+}
+
+static bool32 traverse_group_sort_nodes(group_plan_t *group_context,
+                                        group_bool_callback_t sort_callback)
+{
+    if (sort_callback == NULL) {
+        OG_LOG_RUN_WAR("Sort node callback function is NULL");
+        return OG_FALSE;
+    }
+    if (group_context == NULL || group_context->aggrs_sorts == 0) {
+        return OG_FALSE;
+    }
+
+    const uint32 total_sort_nodes = group_context->aggrs_sorts;
+    uint32 traversal_index = 0;
+    bool32 stop_traversal_flag = OG_FALSE;
+
+    for (; traversal_index < total_sort_nodes && !stop_traversal_flag; traversal_index++) {
+        expr_node_t *current_sort_node = fetch_group_sort_node_item(group_context, traversal_index);
+
+        if (current_sort_node != NULL) {
+            bool32 callback_result = sort_callback(current_sort_node, traversal_index);
+            if (callback_result == OG_TRUE) {
+                stop_traversal_flag = OG_TRUE;
+            }
+        }
+    }
+
+    bool32 final_result;
+    if (stop_traversal_flag) {
+        final_result = OG_TRUE;
+    } else {
+        final_result = OG_FALSE;
+    }
+    return final_result;
+}
+
+static bool32 sql_traverse_group_exprs_bool(group_plan_t *group_p, group_bool_callback_t callback)
+{
+    if (traverse_group_expr_nodes(group_p, callback)) {
+        return OG_TRUE;
+    }
+
+    if (traverse_group_aggr_nodes(group_p, callback)) {
+        return OG_TRUE;
+    }
+
+    if (traverse_group_sort_nodes(group_p, callback)) {
+        return OG_TRUE;
+    }
+
+    return OG_FALSE;
+}
+
+static bool32 sql_check_pending_callback(expr_node_t *expr_node, uint32 index)
+{
+    return (expr_node->datatype == OG_TYPE_UNKNOWN) ? OG_TRUE : OG_FALSE;
+}
+
+static bool32 sql_has_pending_group_exprs(group_plan_t *group_p)
+{
+    return sql_traverse_group_exprs_bool(group_p, sql_check_pending_callback);
+}
+
+static status_t sql_infer_type_callback(infer_type_data_t *data, expr_node_t *expr_node, uint32 index, og_type_t *type)
+{
+    return sql_infer_expr_node_datatype(data->stmt, data->query, expr_node, type);
+}
+
+static group_plan_t* get_group_plan_node(plan_node_t *plan)
+{
+    return (plan->type == PLAN_NODE_HASH_MTRL) ? &plan->hash_mtrl.group : &plan->group;
+}
+
+static bool32 check_group_expr_pending_status(plan_node_t *plan, group_plan_t *group_p)
+{
+    return (plan->type != PLAN_NODE_HASH_MTRL && !sql_has_pending_group_exprs(group_p));
+}
+
+static uint32 calculate_group_type_count(group_plan_t *group_p)
+{
+    return group_p->exprs->count + group_p->aggrs_args + group_p->aggrs_sorts;
+}
+
+static status_t allocate_group_type_buffer(sql_cursor_t *cursor, uint32 type_count)
+{
+    if (cursor->mtrl.group.buf != NULL) {
+        return OG_SUCCESS;
+    }
+
+    uint32 mem_cost_size = (uint32)(PENDING_HEAD_SIZE + type_count * sizeof(og_type_t));
+    OG_RETURN_IFERR(vmc_alloc(&cursor->vmc, mem_cost_size, (void **)&cursor->mtrl.group.buf));
+    *(uint32 *)cursor->mtrl.group.buf = mem_cost_size;
+
+    return OG_SUCCESS;
+}
+
+static void init_infer_type_data(infer_type_data_t *infer_data, sql_stmt_t *stmt, sql_cursor_t *cursor)
+{
+    infer_data->stmt = stmt;
+    infer_data->query = cursor->query;
+}
+
+static status_t sql_infer_group_expr_types(sql_stmt_t *stmt, sql_cursor_t *cursor, plan_node_t *plan)
+{
+    group_plan_t *group_p = get_group_plan_node(plan);
+
+    if (check_group_expr_pending_status(plan, group_p)) {
+        return OG_SUCCESS;
+    }
+
+    uint32 type_count = calculate_group_type_count(group_p);
+
+    status_t ret = allocate_group_type_buffer(cursor, type_count);
+    if (ret != OG_SUCCESS) {
+        return ret;
+    }
+
+    og_type_t *types = (og_type_t *)(cursor->mtrl.group.buf + PENDING_HEAD_SIZE);
+
+    infer_type_data_t infer_data;
+    init_infer_type_data(&infer_data, stmt, cursor);
+
+    return sql_traverse_group_exprs(group_p, &infer_data, sql_infer_type_callback, types);
+}
+
 status_t sql_execute_hash_group_new(sql_stmt_t *stmt, sql_cursor_t *cursor, plan_node_t *plan_node)
 {
     OG_RETURN_IFERR(sql_execute_query_plan(stmt, cursor, plan_node->group.next));
@@ -2232,9 +2497,8 @@ status_t sql_execute_hash_group_new(sql_stmt_t *stmt, sql_cursor_t *cursor, plan
     group_type_t type = (plan_node->type == PLAN_NODE_HASH_GROUP_PIVOT) ? HASH_GROUP_PIVOT_TYPE : HASH_GROUP_TYPE;
     OG_RETURN_IFERR(sql_alloc_hash_group_ctx(stmt, cursor, plan_node, type, key_card));
     cursor->mtrl.cursor.type = MTRL_CURSOR_HASH_GROUP;
-    if (cursor->select_ctx != NULL && cursor->select_ctx->pending_col_count > 0) {
-        OG_RETURN_IFERR(sql_group_mtrl_record_types(cursor, plan_node, &cursor->mtrl.group.buf));
-    }
+
+    OG_RETURN_IFERR(sql_infer_group_expr_types(stmt, cursor, plan_node));
 
     if (sql_mtrl_hash_group_new(stmt, cursor, plan_node) != OG_SUCCESS) {
         mtrl_close_segment2(&stmt->mtrl, &cursor->group_ctx->extra_data);
@@ -2244,7 +2508,8 @@ status_t sql_execute_hash_group_new(sql_stmt_t *stmt, sql_cursor_t *cursor, plan
     return sql_hash_group_open_cursor(stmt, cursor, cursor->group_ctx, 0);
 }
 
-status_t sql_fetch_hash_group_new(sql_stmt_t *stmt, sql_cursor_t *cursor, plan_node_t *plan, bool32 *eof)
+status_t sql_fetch_hash_group_new(sql_stmt_t *stmt,
+                                         sql_cursor_t *cursor, plan_node_t *plan, bool32 *eof)
 {
     status_t ret = OG_SUCCESS;
     group_data_t *group_data = cursor->exec_data.group;
