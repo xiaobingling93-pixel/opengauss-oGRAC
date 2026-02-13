@@ -74,6 +74,35 @@ add_custom_command(
     COMMENT "Generating hint_gram.c, hint_gram.h from hint_gram.y"
 )
 
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_reserved_kwlist_d.h
+    COMMAND perl -I ${CMAKE_CURRENT_SOURCE_DIR}/parser ${CMAKE_CURRENT_SOURCE_DIR}/parser/gen_keywordlist.pl --varname ReservedPLKeywords --extern ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_reserved_kwlist.h
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_reserved_kwlist.h
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_reserved_kwlist.h
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser
+    COMMENT "Generating pl_reserved_kwlist_d.h from pl_reserved_kwlist.h"
+)
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_unreserved_kwlist_d.h
+    COMMAND perl -I ${CMAKE_CURRENT_SOURCE_DIR}/parser ${CMAKE_CURRENT_SOURCE_DIR}/parser/gen_keywordlist.pl --varname UnreservedPLKeywords --extern ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_unreserved_kwlist.h
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_unreserved_kwlist.h
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_unreserved_kwlist.h
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser
+    COMMENT "Generating pl_unreserved_kwlist_d.h from pl_unreserved_kwlist.h"
+)
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_gram.c ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_gram.h
+    COMMAND bison -d -o pl_gram.c pl_gram.y
+    COMMAND sed -i "s/YY_NULL nullptr/YY_NULL 0/g" pl_gram.c
+    COMMAND sed -i "s/\# define YYINITDEPTH .*/\# define YYINITDEPTH 1000/g" pl_gram.c
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_gram.y
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_gram.y
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser
+    COMMENT "Generating pl_gram.c, pl_gram.h from pl_gram.y"
+)
+
 set(LIBRARY_OUTPUT_PATH ${OGRACDB_LIB})
 
 aux_source_directory(. SQL_SRC)
@@ -124,6 +153,10 @@ set(SQL_ALL_SRC
         ${CMAKE_CURRENT_SOURCE_DIR}/parser/hint_gram.c
         ${CMAKE_CURRENT_SOURCE_DIR}/parser/hint_gram.h
         ${CMAKE_CURRENT_SOURCE_DIR}/parser/hint_scan.inc
+        ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_gram.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_gram.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_reserved_kwlist_d.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_unreserved_kwlist_d.h
         )
 
 link_directories(${OGRACDB_LIB} ${PCRE_LIB_PATH} ${VPP_LIB_PATH} ${Z_LIB_PATH})

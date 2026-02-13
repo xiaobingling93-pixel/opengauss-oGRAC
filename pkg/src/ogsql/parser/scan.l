@@ -94,7 +94,12 @@ do {                                \
 #define FLEX_MEM_STRDUP(dest, src)                                              \
 do {                                                                            \
     size_t len = strlen(src) + 1;                                               \
-    if (sql_alloc_mem(og_yyget_extra(yyscanner)->core_yy_extra.stmt->context,   \
+    if (SECUREC_UNLIKELY(og_yyget_extra(yyscanner)->core_yy_extra.stmt->pl_context == NULL)) {    \
+        if (sql_alloc_mem(og_yyget_extra(yyscanner)->core_yy_extra.stmt->context,   \
+            len, (void **)&dest) != OG_SUCCESS) {                                   \
+            yyerror("alloc mem failed ");                                           \
+        }                                                                           \
+    } else if (pl_alloc_mem(og_yyget_extra(yyscanner)->core_yy_extra.stmt->pl_context,            \
         len, (void **)&dest) != OG_SUCCESS) {                                   \
         yyerror("alloc mem failed ");                                           \
     }                                                                           \
@@ -1427,8 +1432,12 @@ litbufdup(core_yyscan_t yyscanner)
     int            llen = yyextra->literallen;
     char       *newm;
 
-    newm = (char *)malloc(llen + 1);
-    memcpy(newm, yyextra->literalbuf, llen);
+    if (sql_alloc_mem(og_yyget_extra(yyscanner)->core_yy_extra.stmt->context,
+        llen + 1, (void **)&newm) != OG_SUCCESS) {
+        return NULL;
+    }
+    errno_t ret = memcpy_s(newm, llen + 1, yyextra->literalbuf, llen);
+    knl_securec_check(ret);
     newm[llen] = '\0';
     return newm;
 }
@@ -1580,7 +1589,10 @@ static status_t litbuf_udeescape(unsigned char escape, core_yyscan_t yyscanner, 
      * This relies on the subtle assumption that a UTF-8 expansion
      * cannot be longer than its escaped representation.
      */
-    *res = (char *)malloc(yyextra->literallen + 1);
+    if (sql_alloc_mem(og_yyget_extra(yyscanner)->core_yy_extra.stmt->context,
+        yyextra->literallen + 1, (void **)res) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
     char *newm = *res;
 
     in = litbuf;

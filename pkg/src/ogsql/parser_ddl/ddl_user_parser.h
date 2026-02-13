@@ -47,7 +47,7 @@ extern "C" {
 #define DDL_USER_TMP_SPACE 512
 #define DDL_USER_PERMANENT 1024
 
-typedef status_t (*func_check_profile)(knl_profile_def_t *def, variant_t *value, lex_t *lex, uint32 id,
+typedef status_t (*func_check_profile)(knl_profile_def_t *def, variant_t *value, source_location_t loc, uint32 id,
     dec8_t *unlimit);
 
 typedef struct st_check_profile {
@@ -72,6 +72,8 @@ status_t og_parse_create_role(sql_stmt_t *stmt, knl_role_def_t **role_def, char 
 bool32 sql_find_space_in_list(galist_t *space_lst, const text_t *space_name);
     status_t og_parse_create_tenant(sql_stmt_t *stmt, knl_tenant_def_t **tenant_def, char *tenant_name,
     galist_t *space_list, char *default_tablespace);
+status_t og_parse_create_profile(sql_stmt_t *stmt, knl_profile_def_t **def, char *profile_name, bool32 is_replace,
+    galist_t *limit_list);
 #ifdef __cplusplus
 }
 #endif

@@ -1,0 +1,1222 @@
+
+
+SQL> alter system set use_bison_parser = true;
+
+Succeed.
+
+SQL> 
+SQL> create tablespace tmp_tablespace extents 4K datafile 'tmp_tablespace.dbf' size 10M;
+
+Succeed.
+
+SQL> drop tablespace tmp_tablespace;
+
+Succeed.
+
+SQL> create tablespace tmp_tablespace datafile 'tmp_tablespace.dbf' size 10M;
+
+Succeed.
+
+SQL> drop tablespace tmp_tablespace;
+
+Succeed.
+
+SQL> create tablespace tmp_tablespace datafile 'tmp_tablespace.dbf' size 10M all in memory; --error
+
+OG-00101, Capability: create space all in memory not supported
+SQL> create tablespace tmp_tablespace datafile 'tmp_tablespace.dbf' size 10M nologging all in memory; --error
+
+OG-00601, [1:96]Sql syntax error: key word expected but all found
+SQL> create tablespace tmp_tablespace datafile 'tmp_tablespace.dbf' size 10M encryption; --error
+
+OG-00601, [1:73]Sql syntax error: unsupport encrypt space
+SQL> create tablespace tmp_tablespace datafile 'tmp_tablespace.dbf' size 10M nologging;
+
+Succeed.
+
+SQL> drop tablespace tmp_tablespace;
+
+Succeed.
+
+SQL> create tablespace tmp_tablespace datafile 'tmp_tablespace.dbf' size 10M autooffline on;
+
+Succeed.
+
+SQL> drop tablespace tmp_tablespace;
+
+Succeed.
+
+SQL> create tablespace tmp_tablespace datafile 'tmp_tablespace.dbf' size 10M autooffline on extent autoallocate;
+
+Succeed.
+
+SQL> drop tablespace tmp_tablespace;
+
+Succeed.
+
+SQL> create tablespace tmp_tablespace extents 4K datafile 'tmp_tablespace.dbf' size 10M autooffline on extent autoallocate; --error
+
+OG-00601, [1:118]Sql syntax error: invalid extent clause
+SQL> 
+SQL> drop table bison_t1;
+
+Succeed.
+
+SQL> create table bison_t1 (a int, b int, c int);
+
+Succeed.
+
+SQL> create index bison_t1_idx1 on bison_t1(a);
+
+Succeed.
+
+SQL> create index sys.bison_t1_idx2 on sys.bison_t1(b);
+
+Succeed.
+
+SQL> create index bison_t1_idx3 on bison_t1(abs(a));
+
+Succeed.
+
+SQL> create index bison_t1_idx4 on bison_t1(case when a = 1 then 1 else 0 end);
+
+Succeed.
+
+SQL> create index bison_t1_idx5 on bison_t1(a, b) initrans 50 pctfree 50 crmode page parallel 5 reverse nologging;
+
+Succeed.
+
+SQL> create index bison_t1_idx6 on bison_t1(c) initrans 50 pctfree 50 crmode page reverse nologging;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists bison_part_t1;
+
+Succeed.
+
+SQL> create table bison_part_t1(f1 number2, f2 number2)
+  2 PARTITION BY hash(f1) SUBPARTITION BY RANGE(f2)
+  3 (
+  4 PARTITION p1
+  5 (
+  6 SUBPARTITION PART_11 VALUES LESS THAN(20),
+  7 SUBPARTITION PART_13 VALUES LESS THAN(MAXVALUE)
+  8 ),
+  9 PARTITION p2
+ 10 (
+ 11 SUBPARTITION PART_21 VALUES LESS THAN(1E-5),
+ 12 SUBPARTITION PART_23 VALUES LESS THAN(MAXVALUE)
+ 13 )
+ 14 );
+
+Succeed.
+
+SQL> create index bison_part_t1_idx1 on bison_part_t1(f1) local
+  2 (partition p1, partition p2 (subpartition p21, subpartition p22)); --error
+
+OG-01101, The number of index (sub)partitions was different from that of table partitions.
+SQL> create index bison_part_t1_idx1 on bison_part_t1(f1) local (
+  2 partition p1 initrans 50 pctfree 50 storage (initial 64K next 5K maxsize 1024K)
+  3     compress for all operations format csf
+  4     (subpartition p11, subpartition p12),
+  5 partition p2 (subpartition p21, subpartition p22)); --error
+
+OG-00601, [6:1]Sql syntax error: unexpected text format clause.
+SQL> 
+SQL> create index bison_part_t1_idx1 on bison_part_t1(f1) local (
+  2 partition p1 initrans 50 pctfree 50 storage (initial 64K next 5K maxsize 1024K)
+  3     compress for all operations (subpartition p11, subpartition p12),
+  4 partition p2 (subpartition p21, subpartition p22));
+
+Succeed.
+
+SQL> 
+SQL> -- ============================================
+SQL> -- CREATE SEQUENCE test cases
+SQL> -- ============================================
+SQL> 
+SQL> -- Basic and schema qualified
+SQL> drop sequence if exists seq_basic;
+
+Succeed.
+
+SQL> create sequence seq_basic;
+
+Succeed.
+
+SQL> drop sequence if exists seq_basic;
+
+Succeed.
+
+SQL> 
+SQL> drop sequence if exists sys.seq_schema;
+
+Succeed.
+
+SQL> create sequence sys.seq_schema;
+
+Succeed.
+
+SQL> drop sequence if exists sys.seq_schema;
+
+Succeed.
+
+SQL> 
+SQL> -- Single options
+SQL> drop sequence if exists seq1;
+
+Succeed.
+
+SQL> create sequence seq1 increment by 2;
+
+Succeed.
+
+SQL> drop sequence if exists seq1;
+
+Succeed.
+
+SQL> 
+SQL> drop sequence if exists seq2;
+
+Succeed.
+
+SQL> create sequence seq2 increment by -1;
+
+Succeed.
+
+SQL> drop sequence if exists seq2;
+
+Succeed.
+
+SQL> 
+SQL> drop sequence if exists seq3;
+
+Succeed.
+
+SQL> create sequence seq3 minvalue 1 maxvalue 100;
+
+Succeed.
+
+SQL> drop sequence if exists seq3;
+
+Succeed.
+
+SQL> 
+SQL> drop sequence if exists seq4;
+
+Succeed.
+
+SQL> create sequence seq4 nominvalue nomaxvalue;
+
+Succeed.
+
+SQL> drop sequence if exists seq4;
+
+Succeed.
+
+SQL> 
+SQL> drop sequence if exists seq5;
+
+Succeed.
+
+SQL> create sequence seq5 start with 10;
+
+Succeed.
+
+SQL> drop sequence if exists seq5;
+
+Succeed.
+
+SQL> 
+SQL> drop sequence if exists seq6;
+
+Succeed.
+
+SQL> create sequence seq6 cache 20;
+
+Succeed.
+
+SQL> drop sequence if exists seq6;
+
+Succeed.
+
+SQL> 
+SQL> drop sequence if exists seq7;
+
+Succeed.
+
+SQL> create sequence seq7 nocache;
+
+Succeed.
+
+SQL> drop sequence if exists seq7;
+
+Succeed.
+
+SQL> 
+SQL> drop sequence if exists seq8;
+
+Succeed.
+
+SQL> create sequence seq8 cycle; -- error
+
+OG-00601, [1:27]Sql syntax error: ascending sequences that CYCLE must specify MAXVALUE
+SQL> drop sequence if exists seq8;
+
+Succeed.
+
+SQL> 
+SQL> drop sequence if exists seq9;
+
+Succeed.
+
+SQL> create sequence seq9 nocycle;
+
+Succeed.
+
+SQL> drop sequence if exists seq9;
+
+Succeed.
+
+SQL> 
+SQL> drop sequence if exists seq10;
+
+Succeed.
+
+SQL> create sequence seq10 order;
+
+Succeed.
+
+SQL> drop sequence if exists seq10;
+
+Succeed.
+
+SQL> 
+SQL> drop sequence if exists seq11;
+
+Succeed.
+
+SQL> create sequence seq11 noorder;
+
+Succeed.
+
+SQL> drop sequence if exists seq11;
+
+Succeed.
+
+SQL> 
+SQL> -- Combined options
+SQL> drop sequence if exists seq12;
+
+Succeed.
+
+SQL> create sequence seq12 increment by 2 minvalue 1 maxvalue 100 start with 10;
+
+Succeed.
+
+SQL> drop sequence if exists seq12;
+
+Succeed.
+
+SQL> 
+SQL> drop sequence if exists seq13;
+
+Succeed.
+
+SQL> create sequence seq13 increment by 1 minvalue 1 maxvalue 100 cache 20 cycle;
+
+Succeed.
+
+SQL> drop sequence if exists seq13;
+
+Succeed.
+
+SQL> 
+SQL> drop sequence if exists seq14;
+
+Succeed.
+
+SQL> create sequence seq14 increment by -1 minvalue -1000 maxvalue -1 start with -100;
+
+Succeed.
+
+SQL> drop sequence if exists seq14;
+
+Succeed.
+
+SQL> 
+SQL> drop sequence if exists seq15;
+
+Succeed.
+
+SQL> create sequence seq15 increment by 1 nominvalue nomaxvalue nocache nocycle noorder;
+
+Succeed.
+
+SQL> drop sequence if exists seq15;
+
+Succeed.
+
+SQL> 
+SQL> -- All options combined
+SQL> drop sequence if exists seq16;
+
+Succeed.
+
+SQL> create sequence seq16 increment by 2 minvalue 1 maxvalue 100 start with 10 cache 20 cycle order;
+
+Succeed.
+
+SQL> drop sequence if exists seq16;
+
+Succeed.
+
+SQL> 
+SQL> -- Option order variations
+SQL> drop sequence if exists seq17;
+
+Succeed.
+
+SQL> create sequence seq17 start with 10 increment by 2 minvalue 1 maxvalue 100 cache 20;
+
+Succeed.
+
+SQL> drop sequence if exists seq17;
+
+Succeed.
+
+SQL> 
+SQL> drop sequence if exists seq18;
+
+Succeed.
+
+SQL> create sequence seq18 cycle minvalue 1 maxvalue 100 increment by 1 cache 15 order;
+
+Succeed.
+
+SQL> drop sequence if exists seq18;
+
+Succeed.
+
+SQL> 
+SQL> -- ============================================
+SQL> -- CREATE VIEW test cases
+SQL> -- ============================================
+SQL> 
+SQL> -- Basic view
+SQL> drop view if exists view_basic;
+
+Succeed.
+
+SQL> create view view_basic as select 1 as col1;
+
+Succeed.
+
+SQL> drop view if exists view_basic;
+
+Succeed.
+
+SQL> 
+SQL> -- View with schema
+SQL> drop view if exists sys.view_schema;
+
+Succeed.
+
+SQL> create view sys.view_schema as select 1 as col1;
+
+Succeed.
+
+SQL> drop view if exists sys.view_schema;
+
+Succeed.
+
+SQL> 
+SQL> -- View with column list
+SQL> drop view if exists view_cols;
+
+Succeed.
+
+SQL> create view view_cols(col1, col2) as select 1, 2;
+
+Succeed.
+
+SQL> drop view if exists view_cols;
+
+Succeed.
+
+SQL> 
+SQL> -- View from table
+SQL> drop table if exists t_view1;
+
+Succeed.
+
+SQL> create table t_view1(id int, name varchar(100));
+
+Succeed.
+
+SQL> drop view if exists view_t1;
+
+Succeed.
+
+SQL> create view view_t1 as select id, name from t_view1;
+
+Succeed.
+
+SQL> drop view if exists view_t1;
+
+Succeed.
+
+SQL> drop table if exists t_view1;
+
+Succeed.
+
+SQL> 
+SQL> -- OR REPLACE
+SQL> drop view if exists view_replace;
+
+Succeed.
+
+SQL> create view view_replace as select 1 as col1;
+
+Succeed.
+
+SQL> create or replace view view_replace as select 2 as col1;
+
+Succeed.
+
+SQL> drop view if exists view_replace;
+
+Succeed.
+
+SQL> 
+SQL> -- FORCE
+SQL> drop view if exists view_force;
+
+Succeed.
+
+SQL> create or replace view view_force(a, b) as select a, b from t_view1;
+
+OG-00843, [1:68]The table or view SYS.T_VIEW1 does not exist.
+SQL> create or replace force view view_force(a, b) as select a, b from t_view1;
+
+Succeed.
+
+SQL> drop view if exists view_force;
+
+Succeed.
+
+SQL> 
+SQL> -- View with complex select
+SQL> drop table if exists t_view2;
+
+Succeed.
+
+SQL> create table t_view2(id int, name varchar(100), age int);
+
+Succeed.
+
+SQL> drop view if exists view_complex;
+
+Succeed.
+
+SQL> create view view_complex as select id, name from t_view2 where age > 18;
+
+Succeed.
+
+SQL> drop view if exists view_complex;
+
+Succeed.
+
+SQL> drop table if exists t_view2;
+
+Succeed.
+
+SQL> 
+SQL> -- View with join
+SQL> drop table if exists t_view3;
+
+Succeed.
+
+SQL> drop table if exists t_view4;
+
+Succeed.
+
+SQL> create table t_view3(id int, name varchar(100));
+
+Succeed.
+
+SQL> create table t_view4(id int, addr varchar(100));
+
+Succeed.
+
+SQL> drop view if exists view_join;
+
+Succeed.
+
+SQL> create view view_join as select t3.id, t3.name, t4.addr from t_view3 t3 join t_view4 t4 on t3.id = t4.id;
+
+Succeed.
+
+SQL> drop view if exists view_join;
+
+Succeed.
+
+SQL> drop table if exists t_view3;
+
+Succeed.
+
+SQL> drop table if exists t_view4;
+
+Succeed.
+
+SQL> 
+SQL> -- ============================================
+SQL> -- CREATE SYNONYM test cases
+SQL> -- ============================================
+SQL> 
+SQL> -- Basic synonym
+SQL> drop table if exists t_syn1;
+
+Succeed.
+
+SQL> create table t_syn1(id int, name varchar(100));
+
+Succeed.
+
+SQL> drop synonym if exists syn1;
+
+Succeed.
+
+SQL> create synonym syn1 for t_syn1;
+
+Succeed.
+
+SQL> drop synonym if exists syn1;
+
+Succeed.
+
+SQL> drop table if exists t_syn1;
+
+Succeed.
+
+SQL> 
+SQL> -- Synonym with schema
+SQL> drop table if exists sys.t_syn2;
+
+Succeed.
+
+SQL> create table sys.t_syn2(id int);
+
+Succeed.
+
+SQL> drop synonym if exists sys.syn2;
+
+Succeed.
+
+SQL> create synonym sys.syn2 for sys.t_syn2;
+
+Succeed.
+
+SQL> drop synonym if exists sys.syn2;
+
+Succeed.
+
+SQL> drop table if exists sys.t_syn2;
+
+Succeed.
+
+SQL> 
+SQL> -- OR REPLACE
+SQL> drop table if exists t_syn3;
+
+Succeed.
+
+SQL> create table t_syn3(id int);
+
+Succeed.
+
+SQL> drop synonym if exists syn3;
+
+Succeed.
+
+SQL> create synonym syn3 for t_syn3;
+
+Succeed.
+
+SQL> create or replace synonym syn3 for t_syn3;
+
+Succeed.
+
+SQL> drop synonym if exists syn3;
+
+Succeed.
+
+SQL> drop table if exists t_syn3;
+
+Succeed.
+
+SQL> 
+SQL> -- PUBLIC synonym
+SQL> drop table if exists t_syn4;
+
+Succeed.
+
+SQL> create table t_syn4(id int);
+
+Succeed.
+
+SQL> drop public synonym if exists syn4;
+
+Succeed.
+
+SQL> create public synonym syn4 for t_syn4;
+
+Succeed.
+
+SQL> drop public synonym if exists syn4;
+
+Succeed.
+
+SQL> drop table if exists t_syn4;
+
+Succeed.
+
+SQL> 
+SQL> -- OR REPLACE PUBLIC
+SQL> drop table if exists t_syn5;
+
+Succeed.
+
+SQL> create table t_syn5(id int);
+
+Succeed.
+
+SQL> drop public synonym if exists syn5;
+
+Succeed.
+
+SQL> create or replace public synonym syn5 for t_syn5;
+
+Succeed.
+
+SQL> drop public synonym if exists syn5;
+
+Succeed.
+
+SQL> drop table if exists t_syn5;
+
+Succeed.
+
+SQL> 
+SQL> -- ============================================
+SQL> -- CREATE PROFILE test cases
+SQL> -- ============================================
+SQL> 
+SQL> -- Basic profile
+SQL> create profile profile_basic limit sessions_per_user 10;
+
+Succeed.
+
+SQL> drop profile profile_basic;
+
+Succeed.
+
+SQL> 
+SQL> -- OR REPLACE
+SQL> create profile profile_replace limit sessions_per_user 5;
+
+Succeed.
+
+SQL> create or replace profile profile_replace limit sessions_per_user 10;
+
+Succeed.
+
+SQL> drop profile profile_replace;
+
+Succeed.
+
+SQL> 
+SQL> create profile profile_replace limit sessions_per_user unlimited;
+
+Succeed.
+
+SQL> drop profile profile_replace;
+
+Succeed.
+
+SQL> 
+SQL> create profile profile_replace limit failed_login_attempts default;
+
+Succeed.
+
+SQL> drop profile profile_replace;
+
+Succeed.
+
+SQL> 
+SQL> create profile profile_replace limit failed_login_attempts default failed_login_attempts unlimited; --error
+
+OG-00601, [1:99]Sql syntax error: keyword cannot appear more than once
+SQL> 
+SQL> -- ============================================
+SQL> -- CREATE DIRECTORY test cases
+SQL> -- ============================================
+SQL> 
+SQL> -- Basic directory
+SQL> create directory dir_basic as 'data';
+
+OG-00230, data is not an existing folder
+SQL> drop directory dir_basic;
+
+OG-00708, The object directory DIR_BASIC does not exist
+SQL> 
+SQL> -- OR REPLACE
+SQL> create directory dir_replace as 'data';
+
+OG-00230, data is not an existing folder
+SQL> create or replace directory dir_replace as 'install';
+
+OG-00230, install is not an existing folder
+SQL> drop directory dir_replace;
+
+OG-00708, The object directory DIR_REPLACE does not exist
+SQL> 
+SQL> -- ============================================
+SQL> -- CREATE LIBRARY test cases
+SQL> -- ============================================
+SQL> 
+SQL> -- Basic library
+SQL> create library lib_basic as '/usr/lib/lib1.so';
+
+OG-00771, [1:29]library file /usr/lib/lib1.so does not exist
+SQL> 
+SQL> -- OR REPLACE
+SQL> create or replace library lib_replace as '/usr/lib/lib2.so';
+
+OG-00771, [1:42]library file /usr/lib/lib2.so does not exist
+SQL> 
+SQL> -- Library with schema
+SQL> create library sys.lib_schema as '/usr/lib/lib1.so';
+
+OG-00771, [1:34]library file /usr/lib/lib1.so does not exist
+SQL> 
+SQL> -- Library with IS
+SQL> create library lib_is is '/usr/lib/lib1.so';
+
+OG-00771, [1:26]library file /usr/lib/lib1.so does not exist
+SQL> 
+SQL> drop table if exists bison_t2;
+
+Succeed.
+
+SQL> drop table if exists bison_t1;
+
+Succeed.
+
+SQL> create table bison_t1 (a int unique, b int default 2 on update 5, c char(5) not null collate 'UTF8_BIN', d int check (d > 0) comment 'gt 0',
+  2     constraint p_key3 primary key (b) enable initially immediate rely parallel 2 validate);
+
+Succeed.
+
+SQL> create table bison_t2 (a int auto_increment, b int references bison_t1(b) on delete cascade, c char(5) constraint null_c null,
+  2     primary key (a) using index reverse) initrans 50 maxtrans 80 pctfree 10 crmode page format csf
+  3     storage (initial 64K next 5K maxsize 1024K) auto_increment 5
+  4     default charset 'UTF8' collate = 'UTF8_BIN' cache logging nocompress;
+
+Succeed.
+
+SQL> 
+SQL> alter system set LOCAL_TEMPORARY_TABLE_ENABLED = true;
+
+Succeed.
+
+SQL> drop table if exists bison_t2;
+
+Succeed.
+
+SQL> create temporary table bison_t2 (a int, b int, primary key (b)) on commit preserve rows; --error
+
+OG-00601, [1:88]Sql syntax error: local temporary table name should start with '#'
+SQL> create temporary table #bison_t2 (a int, b int, primary key (b)) on commit preserve rows;
+
+Succeed.
+
+SQL> drop temporary table #bison_t2;
+
+Succeed.
+
+SQL> 
+SQL> create global table #bison_t2 (a int, b int, primary key (b)) on commit preserve rows; --error
+
+OG-00601, [1:86]Sql syntax error: TEMPORARY expected
+SQL> create global temporary table bison_t2 (a int, b int, primary key (b)) on commit preserve rows;
+
+Succeed.
+
+SQL> drop table bison_t2;
+
+Succeed.
+
+SQL> alter system set LOCAL_TEMPORARY_TABLE_ENABLED = false;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists bison_t3;
+
+Succeed.
+
+SQL> create table bison_t3 (a int, b blob) lob (b) store as;
+
+Succeed.
+
+SQL> drop table if exists bison_t3;
+
+Succeed.
+
+SQL> create table bison_t3 (a int, b blob) lob (b) store as clob_bison_t1 (enable storage in row);
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists bison_t3;
+
+Succeed.
+
+SQL> create table bison_t3 (a int, b blob, c blob) lob (b, c) store as appendonly;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists bison_t3;
+
+Succeed.
+
+SQL> create table bison_t3 (a int, b default 'c'); --error
+
+OG-00601, [1:45]Sql syntax error: As-select clause expected
+SQL> create table bison_t3 (a int, b default 'c') as select 1, 'd'; --error, cannot specify datatype
+
+OG-00601, [1:62]Sql syntax error: may not specify column datatypes in CREATE TABLE
+SQL> create table bison_t3 (a, b default 'c') as select 1, 'd';
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists bison_t3;
+
+Succeed.
+
+SQL> create table bison_t3 as select 1, 'd'; --error
+
+OG-00601, [1:39]Sql syntax error: must name expression with a column alias
+SQL> create table bison_t3 as select 1 as a, 'd' as b;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists bison_t3;
+
+Succeed.
+
+SQL> create table bison_t3
+  2 (
+  3 c_int bigint unique ,
+  4 c_clob clob,
+  5 c_varchar varchar(80) ,
+  6 c_number number  check (c_number>=-10000),
+  7 c_date date
+  8 )partition by range (c_number)
+  9 (
+ 10  partition p1 values less than (-1) initrans 40,
+ 11  partition p4 values less than (maxvalue)
+ 12 );
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists bison_t3;
+
+Succeed.
+
+SQL> create table bison_t3
+  2 (
+  3 c_int bigint unique ,
+  4 c_clob clob,
+  5 c_varchar varchar(80) ,
+  6 c_number number  check (c_number>=-10000),
+  7 c_date date
+  8 )partition by hash (c_number)
+  9 (
+ 10  partition p1,
+ 11  partition p4
+ 12 );
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists bison_t3;
+
+Succeed.
+
+SQL> create table bison_t3
+  2 (
+  3 c_int bigint unique ,
+  4 c_clob clob,
+  5 c_varchar varchar(80) ,
+  6 c_number number  check (c_number>=-10000),
+  7 c_date date
+  8 )partition by list (c_number, c_int)
+  9 (
+ 10  partition p1 values ((5, 5), (10, 10)),
+ 11  partition p4 values (default)
+ 12 );
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists bison_t3;
+
+Succeed.
+
+SQL> create table bison_t3
+  2 (
+  3 c_int bigint unique ,
+  4 c_clob clob,
+  5 c_varchar varchar(80) ,
+  6 c_number number  check (c_number>=-10000),
+  7 c_date date
+  8 )partition by range (c_number) subpartition by hash(c_int)
+  9 (
+ 10  partition p1 values less than (-1) initrans 40 (subpartition p11, subpartition p12),
+ 11  partition p4 values less than (1000000) (subpartition p41, subpartition p42)
+ 12 );
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists bison_t3;
+
+Succeed.
+
+SQL> create table bison_t3
+  2 (
+  3 c_int bigint unique ,
+  4 c_clob clob,
+  5 c_varchar varchar(80) ,
+  6 c_number number  check (c_number>=-10000),
+  7 c_date date
+  8 )partition by range (c_number) subpartition by hash(c_int) subpartitions 3
+  9 (
+ 10  partition p1 values less than (-1) initrans 40,
+ 11  partition p4 values less than (1000000)
+ 12 );
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists bison_t3;
+
+Succeed.
+
+SQL> create table bison_t3
+  2 (
+  3 c_int bigint unique ,
+  4 c_clob clob,
+  5 c_varchar varchar(80) ,
+  6 c_number number  check (c_number>=-10000),
+  7 c_date date
+  8 )partition by hash (c_number) subpartition by hash(c_int) partitions 3 subpartitions 2;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists bison_t3;
+
+Succeed.
+
+SQL> create table bison_t3
+  2 (
+  3 c_int bigint unique ,
+  4 c_clob clob,
+  5 c_varchar varchar(80) ,
+  6 c_number number  check (c_number>=-10000),
+  7 c_date date
+  8 )partition by range (c_number) subpartition by hash(c_int) partitions 3 subpartitions 2; --error
+
+OG-00601, [8:60]Sql syntax error: syntax error
+SQL> 
+SQL> create directory tmp_directory as './';
+
+Succeed.
+
+SQL> drop table if exists bison_t3;
+
+Succeed.
+
+SQL> create table bison_t3 (a int, b char(10)) organization external
+  2 (type loader directory tmp_directory access parameters (records delimited by newline fields terminated by ',') location '/home/ogracdba');
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists bison_t3;
+
+Succeed.
+
+SQL> create table bison_t3 (a int, b char(10)) organization external
+  2 (type loader directory tmp_directory access parameters (records delimited by 'a') location '/home/ogracdba'); --error
+
+OG-00601, [2:81]Sql syntax error: syntax error
+SQL> 
+SQL> drop table if exists bison_t3;
+
+Succeed.
+
+SQL> create table bison_t3 (a int, b char(10)) organization external
+  2 (type loader directory tmp_directory location '/home/ogracdba');
+
+Succeed.
+
+SQL> drop directory tmp_directory;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists bison_t1;
+
+Succeed.
+
+SQL> create table bison_t1 (a int, b int);
+
+Succeed.
+
+SQL> alter table bison_t1 add constraint p_key primary key (b) enable disable using index (create unique index idx1 on bison_t1(b));
+
+Succeed.
+
+SQL> 
+SQL> CREATE USER "XBIN" IDENTIFIED BY Huawei123;
+
+Succeed.
+
+SQL> create role role1;
+
+Succeed.
+
+SQL> create directory tmp_directory as './';
+
+Succeed.
+
+SQL> grant alter, insert on table bison_t1 to xbin with grant option;
+
+Succeed.
+
+SQL> grant ON COMMIT REFRESH, GRANT ANY ROLE to xbin;
+
+Succeed.
+
+SQL> grant alter node to xbin;
+
+Succeed.
+
+SQL> grant inherit privileges on user xbin to xbin;
+
+Succeed.
+
+SQL> grant read on directory tmp_directory to xbin;
+
+Succeed.
+
+SQL> grant read on directory tmp_directory to public, xbin;
+
+Succeed.
+
+SQL> grant write, read on directory tmp_directory to xbin; --error
+
+OG-00601, [1:12]Sql syntax error: invalid privilege or role name
+SQL> 
+SQL> grant role1, alter any index to xbin with admin option;
+
+Succeed.
+
+SQL> grant role1, alter any index to xbin with grant option; --error
+
+OG-00601, [1:43]Sql syntax error: syntax error
+SQL> 
+SQL> revoke alter, insert on table bison_t1 from xbin cascade constraints;
+
+Succeed.
+
+SQL> revoke on commit refresh, grant any role from xbin;
+
+Succeed.
+
+SQL> revoke alter node from xbin;
+
+Succeed.
+
+SQL> revoke inherit privileges on user xbin from xbin;
+
+Succeed.
+
+SQL> revoke read on directory tmp_directory from xbin;
+
+Succeed.
+
+SQL> revoke write, read on directory tmp_directory from xbin; --error
+
+OG-00601, [1:13]Sql syntax error: invalid privilege or role name
+SQL> revoke role1, alter any index from xbin cascade constraints; --error
+
+OG-00601, [1:41]Sql syntax error: syntax error
+SQL> 
+SQL> drop role role1;
+
+Succeed.
+
+SQL> drop user xbin;
+
+Succeed.
+
+SQL> drop directory tmp_directory;
+
+Succeed.
+
+SQL> 
+SQL> CREATE OR REPLACE FUNCTION convert1 (
+  2     p_num1 NUMBER,
+  3     p_num2 NUMBER
+  4 )
+  5 RETURN NUMBER IS
+  6     v_result NUMBER;
+  7 BEGIN
+  8     v_result := p_num1 + p_num2;
+  9     RETURN v_result;
+ 10 END convert1;
+ 11 /
+
+Succeed.
+
+SQL> 
+SQL> select convert1(1,1);
+
+CONVERT1(1,1)                           
+----------------------------------------
+2                                       
+
+1 rows fetched.
+
+SQL> drop function convert1;
+
+Succeed.
+
+SQL> 
+SQL> alter system set use_bison_parser = false;
+
+Succeed.
+
+SQL> 
+
+

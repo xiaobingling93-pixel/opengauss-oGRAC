@@ -16,7 +16,7 @@ test: og_index_cluster
 test: og_function
 test: og_order_by_eliminate
 test: og_exp_imp
-test: bison_parser
+test: bison_parser_1
 test: og_auto_increment
 test: og_index_unique
 test: og_explain
@@ -32,3 +32,4 @@ test: og_autotrace
 test: og_hash_join
 test: og_hash_mtrl
 test: og_listagg
+test: bison_parser_2

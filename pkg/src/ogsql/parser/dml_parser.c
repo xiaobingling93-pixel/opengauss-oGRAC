@@ -66,6 +66,16 @@ status_t sql_create_list(sql_stmt_t *stmt, galist_t **list)
     return OG_SUCCESS;
 }
 
+status_t sql_create_temp_list(sql_stmt_t *stmt, galist_t **list)
+{
+    if (sql_stack_alloc(stmt, sizeof(galist_t), (void **)list) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+
+    cm_galist_init((*list), stmt, sql_stack_alloc);
+    return OG_SUCCESS;
+}
+
 static inline void get_next_token_without_yy(int *lookahead_len, struct base_yy_lookahead *lookaheads, int *next_token,
     int *next_yyleng, YYSTYPE *lvalp, YYLTYPE *llocp, yyscan_t yyscanner, char *scanbuf)
 {
@@ -604,6 +614,216 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
                 default:
                     set_lookahead_token(lookahead_len, lookaheads, &next_token, lvalp, llocp, &next_yyleng,
                         &cur_yylloc, scanbuf, cur_yyleng);
+                    lvalp->core_yystype = cur_yylval;
+                    *llocp = cur_yylloc;
+                    scanbuf[cur_yylloc.offset + cur_yyleng] = '\0';
+                    break;
+            }
+            break;
+        case CROSS:
+            get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
+                &cur_yylval, &cur_yylloc);
+            switch (next_token) {
+                case JOIN:
+                    cur_token = CROSS_JOIN;
+                    break;
+                default:
+                    /* save the lookahead token for next time */
+                    set_lookahead_token(lookahead_len, lookaheads, &next_token, lvalp, llocp, &next_yyleng,
+                        &cur_yylloc, scanbuf, cur_yyleng);
+                    /* and back up the output info to cur_token */
+                    lvalp->core_yystype = cur_yylval;
+                    *llocp = cur_yylloc;
+                    scanbuf[cur_yylloc.offset + cur_yyleng] = '\0';
+                    break;
+            }
+            break;
+        case INNER_P:
+            get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
+                &cur_yylval, &cur_yylloc);
+            switch (next_token) {
+                case JOIN:
+                    cur_token = INNER_JOIN;
+                    break;
+                default:
+                    /* save the lookahead token for next time */
+                    set_lookahead_token(lookahead_len, lookaheads, &next_token, lvalp, llocp, &next_yyleng,
+                        &cur_yylloc, scanbuf, cur_yyleng);
+                    /* and back up the output info to cur_token */
+                    lvalp->core_yystype = cur_yylval;
+                    *llocp = cur_yylloc;
+                    scanbuf[cur_yylloc.offset + cur_yyleng] = '\0';
+                    break;
+            }
+            break;
+        case JOIN:
+            get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
+                &cur_yylval, &cur_yylloc);
+            switch (next_token) {
+                case JOIN:
+                case '.':
+                case '(':
+                case ')':
+                    break;
+                default:
+                    cur_token = JOIN_KEY;
+                    break;
+            }
+            /* save the lookahead token for next time */
+            set_lookahead_token(lookahead_len, lookaheads, &next_token, lvalp, llocp, &next_yyleng,
+                &cur_yylloc, scanbuf, cur_yyleng);
+            /* and back up the output info to cur_token */
+            lvalp->core_yystype = cur_yylval;
+            *llocp = cur_yylloc;
+            scanbuf[cur_yylloc.offset + cur_yyleng] = '\0';
+            break;
+        case LEFT:
+            get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
+                &cur_yylval, &cur_yylloc);
+            switch (next_token) {
+                case JOIN:
+                case OUTER_P:
+                    cur_token = LEFT_KEY;
+                    break;
+                default:
+                    break;
+            }
+            /* save the lookahead token for next time */
+            set_lookahead_token(lookahead_len, lookaheads, &next_token, lvalp, llocp, &next_yyleng,
+                &cur_yylloc, scanbuf, cur_yyleng);
+            /* and back up the output info to cur_token */
+            lvalp->core_yystype = cur_yylval;
+            *llocp = cur_yylloc;
+            scanbuf[cur_yylloc.offset + cur_yyleng] = '\0';
+            break;
+        case RIGHT:
+            get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
+                &cur_yylval, &cur_yylloc);
+            switch (next_token) {
+                case JOIN:
+                case OUTER_P:
+                    cur_token = RIGHT_KEY;
+                    break;
+                default:
+                    break;
+            }
+            /* save the lookahead token for next time */
+            set_lookahead_token(lookahead_len, lookaheads, &next_token, lvalp, llocp, &next_yyleng,
+                &cur_yylloc, scanbuf, cur_yyleng);
+            /* and back up the output info to cur_token */
+            lvalp->core_yystype = cur_yylval;
+            *llocp = cur_yylloc;
+            scanbuf[cur_yylloc.offset + cur_yyleng] = '\0';
+            break;
+        case FULL:
+            get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
+                &cur_yylval, &cur_yylloc);
+            switch (next_token) {
+                case JOIN:
+                case OUTER_P:
+                    cur_token = FULL_KEY;
+                    break;
+                default:
+                    break;
+            }
+            /* save the lookahead token for next time */
+            set_lookahead_token(lookahead_len, lookaheads, &next_token, lvalp, llocp, &next_yyleng,
+                &cur_yylloc, scanbuf, cur_yyleng);
+            /* and back up the output info to cur_token */
+            lvalp->core_yystype = cur_yylval;
+            *llocp = cur_yylloc;
+            scanbuf[cur_yylloc.offset + cur_yyleng] = '\0';
+            break;
+        case FOREIGN:
+            get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
+                &cur_yylval, &cur_yylloc);
+            switch (next_token) {
+                case KEY:
+                    cur_token = FOREIGN_KEY;
+                    break;
+                default:
+                    /* save the lookahead token for next time */
+                    set_lookahead_token(lookahead_len, lookaheads, &next_token, lvalp, llocp, &next_yyleng,
+                        &cur_yylloc, scanbuf, cur_yyleng);
+                    /* and back up the output info to cur_token */
+                    lvalp->core_yystype = cur_yylval;
+                    *llocp = cur_yylloc;
+                    scanbuf[cur_yylloc.offset + cur_yyleng] = '\0';
+                    break;
+            }
+            break;
+        case EXECUTE:
+            get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
+                &cur_yylval, &cur_yylloc);
+            core_yystype_1 = cur_yylval;
+            cur_yylloc_1 = cur_yylloc;
+            cur_yyleng_1 = cur_yyleng;
+            next_token_1 = next_token;
+            next_yyleng_1 = next_yyleng;
+            switch (next_token) {
+                case ON:
+                    get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner,
+                        scanbuf, &cur_yylval, &cur_yylloc);
+                    core_yystype_2 = cur_yylval;
+                    cur_yylloc_2 = cur_yylloc;
+                    next_token_2 = next_token;
+                    next_yyleng_2 = next_yyleng;
+                    switch (next_token) {
+                        case DIRECTORY:
+                            cur_token = EXECUTE_ON_DIRECTORY;
+                            break;
+                        default:
+                            cur_token = EXECUTE_KEY;
+                            set_lookahead_two_token(lookahead_len, lookaheads, lvalp, llocp, next_token_1,
+                                next_token_2, core_yystype_1, core_yystype_2, next_yyleng_1, next_yyleng_2,
+                                cur_yylloc_1, cur_yylloc_2, scanbuf, cur_yyleng_1);
+                            break;
+                    }
+                    break;
+                default:
+                    /* save the lookahead token for next time */
+                    set_lookahead_token(lookahead_len, lookaheads, &next_token, lvalp, llocp, &next_yyleng,
+                        &cur_yylloc, scanbuf, cur_yyleng);
+                    /* and back up the output info to cur_token */
+                    lvalp->core_yystype = cur_yylval;
+                    *llocp = cur_yylloc;
+                    scanbuf[cur_yylloc.offset + cur_yyleng] = '\0';
+                    break;
+            }
+            break;
+        case READ:
+            get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
+                &cur_yylval, &cur_yylloc);
+            core_yystype_1 = cur_yylval;
+            cur_yylloc_1 = cur_yylloc;
+            cur_yyleng_1 = cur_yyleng;
+            next_token_1 = next_token;
+            next_yyleng_1 = next_yyleng;
+            switch (next_token) {
+                case ON:
+                    get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner,
+                        scanbuf, &cur_yylval, &cur_yylloc);
+                    core_yystype_2 = cur_yylval;
+                    cur_yylloc_2 = cur_yylloc;
+                    next_token_2 = next_token;
+                    next_yyleng_2 = next_yyleng;
+                    switch (next_token) {
+                        case DIRECTORY:
+                            cur_token = READ_ON_DIRECTORY;
+                            break;
+                        default:
+                            cur_token = READ_KEY;
+                            set_lookahead_two_token(lookahead_len, lookaheads, lvalp, llocp, next_token_1,
+                                next_token_2, core_yystype_1, core_yystype_2, next_yyleng_1, next_yyleng_2,
+                                cur_yylloc_1, cur_yylloc_2, scanbuf, cur_yyleng_1);
+                            break;
+                    }
+                    break;
+                default:
+                    /* save the lookahead token for next time */
+                    set_lookahead_token(lookahead_len, lookaheads, &next_token, lvalp, llocp, &next_yyleng,
+                        &cur_yylloc, scanbuf, cur_yyleng);
+                    /* and back up the output info to cur_token */
                     lvalp->core_yystype = cur_yylval;
                     *llocp = cur_yylloc;
                     scanbuf[cur_yylloc.offset + cur_yyleng] = '\0';

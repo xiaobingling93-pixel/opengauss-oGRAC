@@ -1277,3 +1277,212 @@ status_t sql_parse_create_indexes(sql_stmt_t *stmt)
     OG_RETURN_IFERR(lex_expected_end(lex));
     return OG_SUCCESS;
 }
+
+status_t og_parse_column_list(sql_stmt_t *stmt, galist_t *columns, bool32 *is_func, galist_t *column_list)
+{
+    knl_index_col_def_t *column = NULL;
+    status_t status;
+
+    cm_galist_init(columns, stmt->context, sql_alloc_mem);
+    if (is_func != NULL) {
+        *is_func = OG_FALSE;
+    }
+
+    for (uint32 i = 0; i < column_list->count; i++) {
+        column = (knl_index_col_def_t*)cm_galist_get(column_list, i);
+        status = sql_check_duplicate_index_column(stmt, columns, column);
+        OG_BREAK_IF_ERROR(status);
+
+        status = cm_galist_insert(columns, column);
+        OG_BREAK_IF_ERROR(status);
+
+        if (is_func != NULL && column->is_func) {
+            *is_func = OG_TRUE;
+            status = sql_verify_index_column_expr(stmt, column);
+            OG_BREAK_IF_ERROR(status);
+        }
+    }
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_part_index(sql_stmt_t *stmt, knl_index_def_t *def, galist_t *part_list)
+{
+    knl_part_def_t *part_def = NULL;
+    status_t status;
+    def->parted = OG_TRUE;
+    def->part_def = NULL;
+    index_partition_parse_info *part_parse_info = NULL;
+
+    if (part_list == NULL) {
+        return OG_SUCCESS;
+    }
+
+    status = sql_alloc_mem(stmt->context, sizeof(knl_part_obj_def_t), (pointer_t *)&def->part_def);
+    OG_RETURN_IFERR(status);
+    cm_galist_init(&def->part_def->parts, stmt->context, sql_alloc_mem);
+
+    for (uint32 i = 0; i < part_list->count; i++) {
+        part_parse_info = (index_partition_parse_info*)cm_galist_get(part_list, i);
+
+        status = cm_galist_new(&def->part_def->parts, sizeof(knl_part_def_t), (pointer_t *)&part_def);
+        OG_BREAK_IF_ERROR(status);
+
+        part_def->name.str = part_parse_info->name;
+        part_def->name.len = strlen(part_parse_info->name);
+
+        part_def->support_csf = OG_FALSE;
+        part_def->exist_subparts = def->part_def->is_composite ? OG_TRUE : OG_FALSE;
+
+        if (part_parse_info->opts != NULL) {
+            status = og_parse_partition_attrs(part_def, part_parse_info->opts);
+            OG_BREAK_IF_ERROR(status);
+        }
+
+        if (part_parse_info->subparts != NULL) {
+            def->part_def->is_composite = OG_TRUE;
+            cm_galist_init(&part_def->subparts, stmt->context, sql_alloc_mem);
+            status = cm_galist_copy(&part_def->subparts, part_parse_info->subparts);
+            OG_BREAK_IF_ERROR(status);
+        }
+    }
+    return status;
+}
+
+status_t og_parse_index_attrs(sql_stmt_t *stmt, knl_index_def_t *index_def, galist_t *index_opts)
+{
+    status_t status = OG_SUCCESS;
+    createidx_opt *opt = NULL;
+
+    index_def->cr_mode = OG_INVALID_ID8;
+    index_def->online = OG_FALSE;
+    index_def->pctfree = OG_INVALID_ID32;
+    index_def->parallelism = 0;
+    index_def->is_reverse = OG_FALSE;
+
+    for (uint32 i = 0; index_opts != NULL && i < index_opts->count; i++) {
+        opt = (createidx_opt*)cm_galist_get(index_opts, i);
+        switch (opt->type) {
+            case CREATEIDX_OPT_TABLESPACE:
+                if (index_def->space.len != 0) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate tablespace specification");
+                    return OG_ERROR;
+                }
+                index_def->space.str = opt->name;
+                index_def->space.len = strlen(opt->name);
+                break;
+            case CREATEIDX_OPT_INITRANS:
+                if (index_def->initrans != 0) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate initrans specification");
+                    return OG_ERROR;
+                }
+                index_def->initrans = opt->size;
+                break;
+            case CREATEIDX_OPT_LOCAL:
+                status = og_parse_part_index(stmt, index_def, opt->list);
+                break;
+            case CREATEIDX_OPT_PCTFREE:
+                if (index_def->pctfree != OG_INVALID_ID32) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate pct_free specification");
+                    return OG_ERROR;
+                }
+                index_def->pctfree = opt->size;
+                break;
+            case CREATEIDX_OPT_CRMODE:
+                if (index_def->cr_mode != OG_INVALID_ID8) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate crmode specification");
+                    return OG_ERROR;
+                }
+                index_def->cr_mode = opt->cr_mode;
+                break;
+            case CREATEIDX_OPT_ONLINE:
+                if (index_def->online) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate online");
+                    return OG_ERROR;
+                }
+                index_def->online = OG_TRUE;
+                break;
+            case CREATEIDX_OPT_PARALLEL:
+                if (index_def->parallelism != 0) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate parallel specification");
+                    return OG_ERROR;
+                }
+                index_def->parallelism = opt->size;
+                break;
+            case CREATEIDX_OPT_REVERSE:
+                if (index_def->is_reverse) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate reverse specification");
+                    return OG_ERROR;
+                }
+                index_def->is_reverse = OG_TRUE;
+                break;
+            case CREATEIDX_OPT_NOLOGGING:
+                if (index_def->nologging) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate nologging");
+                    return OG_ERROR;
+                }
+                index_def->nologging = OG_TRUE;
+                break;
+            default:
+                break;
+        }
+        OG_RETURN_IFERR(status);
+    }
+
+    if (index_def->initrans == 0) {
+        index_def->initrans = cm_text_str_equal_ins(&index_def->user, "SYS") ?
+            OG_INI_TRANS : stmt->session->knl_session.kernel->attr.initrans;
+    }
+
+    if (index_def->pctfree == OG_INVALID_ID32) {
+        index_def->pctfree = OG_PCT_FREE;
+    }
+
+    if (index_def->online && index_def->parallelism != 0) {
+        OG_THROW_ERROR(ERR_OPERATIONS_NOT_SUPPORT, "parallel creating", "create index online");
+        return OG_ERROR;
+    }
+    return OG_SUCCESS;
+}
+
+status_t og_parse_create_index(sql_stmt_t *stmt, knl_index_def_t **index_def, name_with_owner *index_name,
+    name_with_owner *table_name, galist_t *column_list, galist_t *index_opts)
+{
+    knl_index_def_t *def = NULL;
+    bool32 idx_schema_explict = index_name->owner.len != 0;
+    stmt->context->type = OGSQL_TYPE_CREATE_INDEX;
+
+    if (sql_alloc_mem(stmt->context, sizeof(knl_index_def_t), (void **)index_def) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+    def = *index_def;
+
+    def->name = index_name->name;
+    if (table_name->owner.len == 0) {
+        cm_str2text(stmt->session->curr_schema, &def->user);
+    } else {
+        def->user = table_name->owner;
+    }
+    def->table = table_name->name;
+
+    if (idx_schema_explict == OG_TRUE && cm_compare_text_ins(&index_name->owner, &def->user)) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+            "index user(%s) is not consistent with table "
+            "user(%s)",
+            T2S(&index_name->owner), T2S_EX(&def->user));
+        return OG_ERROR;
+    }
+
+    /*
+     * regist ddl table
+     */
+    OG_RETURN_IFERR(sql_regist_ddl_table(stmt, &def->user, &def->table));
+
+    if (og_parse_column_list(stmt, &def->columns, &def->is_func, column_list) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+
+    if (og_parse_index_attrs(stmt, def, index_opts) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+    return OG_SUCCESS;
+}

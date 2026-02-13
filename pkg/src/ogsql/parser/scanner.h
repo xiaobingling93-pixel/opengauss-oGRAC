@@ -22,6 +22,7 @@
 #include "ogsql_stmt.h"
 #include "keywords.h"
 #include "ogsql_cond.h"
+#include "sysdba_defs.h"
 
 /*
  * The scanner returns extra data about scanned tokens in this union type.
@@ -202,6 +203,75 @@ typedef struct createdb_opt {
         uint32 max_instance;
     };
 } createdb_opt;
+
+typedef enum createts_opt_type {
+    CREATETS_ALL_OPT,
+    CREATETS_NOLOGGING_OPT,
+    CREATETS_AUTOOFFLINE_OPT,
+    CREATETS_EXTENT_OPT
+} createts_opt_type;
+
+typedef struct createts_opt {
+    createts_opt_type type;
+    bool val;
+} createts_opt;
+
+typedef enum storage_opt_type {
+    STORAGE_OPT_INITIAL,
+    STORAGE_OPT_NEXT,
+    STORAGE_OPT_MAXSIZE
+} storage_opt_type;
+
+typedef struct storage_opt_t {
+    storage_opt_type type;
+    int64 size;
+} storage_opt_t;
+
+typedef enum createseq_opt_type {
+    CREATESEQ_INCREMENT_OPT,
+    CREATESEQ_MINVALUE_OPT,
+    CREATESEQ_NOMINVALUE_OPT,
+    CREATESEQ_MAXVALUE_OPT,
+    CREATESEQ_NOMAXVALUE_OPT,
+    CREATESEQ_START_OPT,
+    CREATESEQ_CACHE_OPT,
+    CREATESEQ_NOCACHE_OPT,
+    CREATESEQ_CYCLE_OPT,
+    CREATESEQ_NOCYCLE_OPT,
+    CREATESEQ_ORDER_OPT,
+    CREATESEQ_NOORDER_OPT
+} createseq_opt_type;
+
+typedef struct createseq_opt {
+    createseq_opt_type type;
+    int64 value;
+} createseq_opt;
+
+typedef enum ctrlfile_opt_type {
+    CTRLFILE_LOGFILE_OPT,
+    CTRLFILE_DATAFILE_OPT,
+    CTRLFILE_CHARSET_OPT,
+    CTRLFILE_ARCHIVELOG_OPT,
+    CTRLFILE_NOARCHIVELOG_OPT
+} ctrlfile_opt_type;
+
+typedef struct ctrlfile_opt {
+    ctrlfile_opt_type type;
+    union {
+        galist_t *file_list;
+        char *charset;
+    };
+} ctrlfile_opt;
+
+typedef struct profile_limit_value {
+    value_type_t type;
+    expr_tree_t *expr;
+} profile_limit_value_t;
+
+typedef struct profile_limit_item {
+    resource_param_t param_type;
+    profile_limit_value_t *value;
+} profile_limit_item_t;
 
 /*
  * The type of yyscanner is opaque outside scan.l.

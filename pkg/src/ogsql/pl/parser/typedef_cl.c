@@ -46,12 +46,6 @@ status_t plc_convert_typedecl(pl_compiler_t *compiler, galist_t *decls)
     return OG_SUCCESS;
 }
 
-/*
- * @brief PLC_PMODE dedicate for the datatype belong to PLSQL object like procedure, user define function or trigger
- */
-#define PLC_PMODE(direction) \
-    (((direction) == PLV_DIR_IN || (direction) == PLV_DIR_OUT || (direction) == PLV_DIR_INOUT) ? PM_PL_ARG : PM_PL_VAR)
-
 static void plm_parse_name_by_copy(sql_stmt_t *stmt, word_t *word, var_udo_t *obj)
 {
     if (word->ex_count == 1) {

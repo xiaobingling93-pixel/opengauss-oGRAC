@@ -27,8 +27,10 @@
 #include "ogsql_privilege.h"
 #include "ogsql_package.h"
 #include "pl_library.h"
+#include "parser/scanner.h"
+#include "obj_defs.h"
 
-static status_t sql_check_privs_duplicated(galist_t *priv_list, const text_t *priv_str, priv_type_def priv_type)
+status_t sql_check_privs_duplicated(galist_t *priv_list, const text_t *priv_str, priv_type_def priv_type)
 {
     uint32 i;
     knl_priv_def_t *priv_def = NULL;
@@ -806,28 +808,28 @@ static status_t sql_parse_holder_type(sql_stmt_t *stmt, word_t *word, knl_holder
     OG_SRC_THROW_ERROR_EX(word->loc, ERR_SQL_SYNTAX_ERROR, "user or role '%s' does not exist", T2S(&holder->name));
     return OG_ERROR;
 }
-static bool32 sql_parse_holder_no_prefix_tenant(sql_stmt_t *stmt, word_t *word)
+static bool32 sql_parse_holder_no_prefix_tenant(sql_stmt_t *stmt, text_t *text)
 {
     uint32 id;
     text_t public_user = { PUBLIC_USER, (uint32)strlen(PUBLIC_USER) };
-    if (knl_get_role_id(&stmt->session->knl_session, &word->text.value, &id)) {
+    if (knl_get_role_id(&stmt->session->knl_session, text, &id)) {
         return OG_TRUE;
     }
-    if (cm_text_equal_ins(&word->text.value, &public_user)) {
+    if (cm_text_equal_ins(text, &public_user)) {
         return OG_TRUE;
     }
     return OG_FALSE;
 }
-static status_t sql_parse_holder_check_name(sql_stmt_t *stmt, galist_t *list, word_t *word, sql_priv_check_t *priv_check,
-    text_t *name)
+static status_t sql_parse_holder_check_name(sql_stmt_t *stmt, galist_t *list, text_t *text,
+    sql_priv_check_t *priv_check, text_t *name)
 {
     sql_copy_func_t sql_copy_func;
     sql_copy_func = sql_copy_name;
 
-    if (sql_parse_holder_no_prefix_tenant(stmt, word)) {
-        sql_copy_name(stmt->context, &word->text.value, name);
+    if (sql_parse_holder_no_prefix_tenant(stmt, text)) {
+        sql_copy_name(stmt->context, text, name);
     } else {
-        OG_RETURN_IFERR(sql_copy_prefix_tenant(stmt, (text_t *)&word->text, name, sql_copy_func));
+        OG_RETURN_IFERR(sql_copy_prefix_tenant(stmt, text, name, sql_copy_func));
     }
 
     if (stmt->context->type == OGSQL_TYPE_REVOKE &&
@@ -847,7 +849,7 @@ static status_t sql_parse_holder(sql_stmt_t *stmt, galist_t *list, word_t *word,
     status_t ret;
     status_t ret_ck;
 
-    OG_RETURN_IFERR(sql_parse_holder_check_name(stmt, list, word, priv_check, &name));
+    OG_RETURN_IFERR(sql_parse_holder_check_name(stmt, list, &word->text.value, priv_check, &name));
 
     OG_RETURN_IFERR(cm_galist_new(list, sizeof(knl_holders_def_t), (pointer_t *)&holder));
 
@@ -1054,6 +1056,207 @@ status_t sql_check_obj_schema(lex_t *lex, text_t *schema, galist_t *holders)
             OG_SRC_THROW_ERROR(LEX_LOC, ERR_REVOKE_FROM_OBJ_HOLDERS);
             return OG_ERROR;
         }
+    }
+
+    return OG_SUCCESS;
+}
+
+status_t og_check_obj_owner(const text_t *curr_user, galist_t *holders)
+{
+    uint32 i;
+    knl_holders_def_t *holder = NULL;
+
+    for (i = 0; i < holders->count; i++) {
+        holder = cm_galist_get(holders, i);
+        if (cm_text_equal_ins(curr_user, &holder->name)) {
+            OG_THROW_ERROR(ERR_PRI_GRANT_SELF);
+            return OG_ERROR;
+        }
+    }
+
+    return OG_SUCCESS;
+}
+
+status_t og_check_obj_schema(text_t *schema, galist_t *holders)
+{
+    uint32 i;
+    knl_holders_def_t *holder = NULL;
+
+    for (i = 0; i < holders->count; i++) {
+        holder = cm_galist_get(holders, i);
+        if (cm_text_equal_ins(schema, &holder->name)) {
+            OG_THROW_ERROR(ERR_REVOKE_FROM_OBJ_HOLDERS);
+            return OG_ERROR;
+        }
+    }
+
+    return OG_SUCCESS;
+}
+
+status_t og_parse_object_info(sql_stmt_t *stmt, text_t *schema, text_t *objname, object_type_t *obj_type,
+    text_t *typename, object_type_t expected_objtype, name_with_owner *obj_name)
+{
+    typename->len = 0;
+    bool32 owner_explict = OG_FALSE;
+
+    if (obj_name->owner.len > 0) {
+        schema->str = obj_name->owner.str;
+        schema->len = obj_name->owner.len;
+        owner_explict = OG_TRUE;
+    } else {
+        cm_str2text(stmt->session->curr_schema, schema);
+    }
+    objname->str = obj_name->name.str;
+    objname->len = obj_name->name.len;
+
+    if (OBJ_IS_INVALID_TYPE(expected_objtype)) {
+        OG_RETURN_IFERR(sql_parse_dc_info(stmt, schema, objname, owner_explict, obj_type, typename));
+        OG_RETSUC_IFTRUE(typename->len != 0);
+
+        OG_RETURN_IFERR(sql_parse_sequence_info(stmt, schema, objname, obj_type, typename));
+        OG_RETSUC_IFTRUE(typename->len != 0);
+
+        OG_RETURN_IFERR(sql_parse_pl_info(stmt, schema, objname, owner_explict, obj_type, typename));
+        OG_RETSUC_IFTRUE(typename->len != 0);
+
+        OG_RETURN_IFERR(sql_parse_lib_info(stmt, schema, objname, obj_type, typename));
+        OG_RETSUC_IFTRUE(typename->len != 0);
+    } else {
+        return sql_parse_expect_type(stmt, schema, objname, owner_explict, obj_type, typename, expected_objtype);
+    }
+    sql_check_user_priv(stmt, schema);
+    int32 code = cm_get_error_code();
+    if (code != ERR_INSUFFICIENT_PRIV) {
+        cm_reset_error();
+        OG_THROW_ERROR(ERR_USER_OBJECT_NOT_EXISTS, "object", T2S(schema), T2S_EX(objname));
+    }
+    return OG_ERROR;
+}
+
+status_t og_parse_user_priv_info(sql_stmt_t *stmt, text_t *objname, text_t *typename, name_with_owner *name)
+{
+    knl_session_t *session = &stmt->session->knl_session;
+    uint32 uid = 0;
+
+    objname->str = name->name.str;
+    objname->len = name->name.len;
+
+    if (!knl_get_user_id((knl_handle_t)session, objname, &uid)) {
+        OG_THROW_ERROR(ERR_USER_NOT_EXIST, T2S(objname));
+        return OG_ERROR;
+    }
+    OG_RETURN_IFERR(sql_copy_str(stmt->context, "USER", typename));
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_holder_type(sql_stmt_t *stmt, knl_holders_def_t *holder)
+{
+    uint32 id;
+
+    if (knl_get_user_id(&stmt->session->knl_session, &holder->name, &id)) {
+        holder->type = TYPE_USER;
+        return OG_SUCCESS;
+    }
+
+    if (knl_get_role_id(&stmt->session->knl_session, &holder->name, &id)) {
+        holder->type = TYPE_ROLE;
+        return OG_SUCCESS;
+    }
+
+    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "user or role '%s' does not exist", T2S(&holder->name));
+    return OG_ERROR;
+}
+
+static status_t og_parse_holder(sql_stmt_t *stmt, galist_t *list, sql_priv_check_t *priv_check, char* name_str)
+{
+    text_t name;
+    knl_holders_def_t *holder = NULL;
+    status_t ret;
+    status_t ret_ck;
+    text_t tmp;
+    cm_str2text(name_str, &tmp);
+
+    OG_RETURN_IFERR(sql_parse_holder_check_name(stmt, list, &tmp, priv_check, &name));
+
+    OG_RETURN_IFERR(cm_galist_new(list, sizeof(knl_holders_def_t), (pointer_t *)&holder));
+
+    holder->name = name;
+    ret = og_parse_holder_type(stmt, holder);
+    if (ret == OG_ERROR) {
+        ret_ck = sql_check_grant_revoke_priv(stmt, priv_check);
+        if (ret_ck == OG_ERROR) {
+            cm_reset_error();
+            OG_THROW_ERROR(ERR_INSUFFICIENT_PRIV);
+        }
+    }
+    return ret;
+}
+
+status_t og_parse_grantee_def(sql_stmt_t *stmt, knl_grant_def_t *grant_def, galist_t *grantee_list,
+    bool with_opt)
+{
+    status_t status;
+    char *name = NULL;
+    uint32 i;
+    knl_holders_def_t *grantee = NULL;
+
+    grant_def->grant_opt = 0;
+    grant_def->admin_opt = 0;
+
+    sql_priv_check_t priv_check;
+    priv_check.objowner = &grant_def->schema;
+    priv_check.objname = &grant_def->objname;
+    priv_check.priv_list = &grant_def->privs;
+    priv_check.objtype = grant_def->objtype;
+    priv_check.priv_type = grant_def->priv_type;
+
+    for (uint32 i = 0; i < grantee_list->count; i++) {
+        name = (char*)cm_galist_get(grantee_list, i);
+        status = og_parse_holder(stmt, &grant_def->grantees, &priv_check, name);
+        OG_RETURN_IFERR(status);
+    }
+
+    if (!with_opt) {
+        return OG_SUCCESS;
+    }
+
+    if (grant_def->priv_type == PRIV_TYPE_SYS_PRIV) {
+        grant_def->admin_opt = 1;
+    } else if (grant_def->priv_type == PRIV_TYPE_OBJ_PRIV) {
+        for (i = 0; i < grant_def->grantees.count; i++) {
+            grantee = cm_galist_get(&grant_def->grantees, i);
+            if (grantee->type == TYPE_ROLE) {
+                OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "cannot GRANT to a role WITH GRANT OPTION");
+                return OG_ERROR;
+            }
+        }
+        grant_def->grant_opt = 1;
+    }
+    return OG_SUCCESS;
+}
+
+status_t og_parse_revokee_def(sql_stmt_t *stmt, knl_revoke_def_t *revoke_def, galist_t *revokee_list,
+    bool cascade_opt)
+{
+    status_t status;
+    char *name = NULL;
+    uint32 i;
+
+    sql_priv_check_t priv_check;
+    priv_check.objowner = &revoke_def->schema;
+    priv_check.objname = &revoke_def->objname;
+    priv_check.priv_list = &revoke_def->privs;
+    priv_check.objtype = revoke_def->objtype;
+    priv_check.priv_type = revoke_def->priv_type;
+
+    for (i = 0; i < revokee_list->count; i++) {
+        name = (char *)cm_galist_get(revokee_list, i);
+        status = og_parse_holder(stmt, &revoke_def->revokees, &priv_check, name);
+        OG_RETURN_IFERR(status);
+    }
+
+    if (cascade_opt) {
+        revoke_def->cascade_opt = 1;
     }
 
     return OG_SUCCESS;

@@ -71,7 +71,11 @@ static status_t sql_create_or_replace_lead(sql_stmt_t *stmt)
 
     switch (word.id) {
         case KEY_WORD_VIEW: {
-            status = sql_parse_create_view(stmt, OG_TRUE, is_force);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_view(stmt, OG_TRUE, is_force);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         }
         case KEY_WORD_PUBLIC: {
@@ -86,28 +90,48 @@ static status_t sql_create_or_replace_lead(sql_stmt_t *stmt)
         case KEY_WORD_FUNCTION:
         case KEY_WORD_PROCEDURE:
         case KEY_WORD_TYPE:
-            status = pl_parse_create(stmt, OG_TRUE, &word);
+            if (!g_instance->sql.use_bison_parser) {
+                status = pl_parse_create(stmt, OG_TRUE, &word);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         case KEY_WORD_TRIGGER:
             status = pl_parse_create_trigger(stmt, OG_TRUE, &word);
             break;
         case KEY_WORD_SYNONYM: {
-            status = sql_parse_create_synonym(stmt, SYNONYM_IS_REPLACE);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_synonym(stmt, SYNONYM_IS_REPLACE);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         }
 
         case KEY_WORD_DIRECTORY: {
-            status = sql_parse_create_directory(stmt, OG_TRUE);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_directory(stmt, OG_TRUE);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         }
 
         case KEY_WORD_LIBRARY: {
-            status = sql_parse_create_library(stmt, OG_TRUE);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_library(stmt, OG_TRUE);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         }
 
         case KEY_WORD_PROFILE: {
-            status = sql_parse_create_profile(stmt, OG_TRUE);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_profile(stmt, OG_TRUE);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         }
 
@@ -226,34 +250,70 @@ status_t sql_parse_create(sql_stmt_t *stmt)
             }
             break;
         case KEY_WORD_TABLE:
-            status = sql_parse_create_table(stmt, OG_FALSE, OG_FALSE);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_table(stmt, OG_FALSE, OG_FALSE);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         case KEY_WORD_INDEX:
-            status = sql_parse_create_index(stmt, OG_FALSE);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_index(stmt, OG_FALSE);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         case KEY_WORD_INDEXCLUSTER:
             status = sql_parse_create_indexes(stmt);
             break;
         case KEY_WORD_SEQUENCE:
-            status = sql_parse_create_sequence(stmt);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_sequence(stmt);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         case KEY_WORD_TABLESPACE:
-            status = sql_parse_create_space(stmt, OG_FALSE, OG_FALSE);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_space(stmt, OG_FALSE, OG_FALSE);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         case KEY_WORD_TEMPORARY:
-            status = sql_create_temporary_lead(stmt);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_create_temporary_lead(stmt);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         case KEY_WORD_GLOBAL:
-            status = sql_create_global_lead(stmt);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_create_global_lead(stmt);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         case KEY_WORD_UNIQUE:
-            status = sql_parse_create_unique_lead(stmt);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_unique_lead(stmt);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         case KEY_WORD_UNDO:
-            status = sql_parse_create_undo_space(stmt);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_undo_space(stmt);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         case KEY_WORD_VIEW:
-            status = sql_parse_create_view(stmt, OG_FALSE, OG_FALSE);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_view(stmt, OG_FALSE, OG_FALSE);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
 
         case KEY_WORD_PROCEDURE:
@@ -269,22 +329,46 @@ status_t sql_parse_create(sql_stmt_t *stmt)
             status = sql_create_or_replace_lead(stmt);
             break;
         case KEY_WORD_PUBLIC:
-            status = sql_create_public_lead(stmt);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_create_public_lead(stmt);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         case KEY_WORD_SYNONYM:
-            status = sql_parse_create_synonym(stmt, SYNONYM_IS_NULL);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_synonym(stmt, SYNONYM_IS_NULL);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         case KEY_WORD_PROFILE:
-            status = sql_parse_create_profile(stmt, OG_FALSE);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_profile(stmt, OG_FALSE);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         case KEY_WORD_DIRECTORY:
-            status = sql_parse_create_directory(stmt, OG_FALSE);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_directory(stmt, OG_FALSE);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         case KEY_WORD_CTRLFILE:
-            status = sql_parse_create_ctrlfiles(stmt);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_ctrlfiles(stmt);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         case KEY_WORD_LIBRARY:
-            status = sql_parse_create_library(stmt, OG_FALSE);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_create_library(stmt, OG_FALSE);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         default:
             OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "object type expected but %s found", W2S(&word));
@@ -874,10 +958,18 @@ status_t sql_parse_ddl(sql_stmt_t *stmt, word_t *leader_word)
             }
             break;
         case KEY_WORD_GRANT:
-            status = sql_parse_grant(stmt);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_grant(stmt);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         case KEY_WORD_REVOKE:
-            status = sql_parse_revoke(stmt);
+            if (!g_instance->sql.use_bison_parser) {
+                status = sql_parse_revoke(stmt);
+            } else {
+                status = raw_parser(stmt, &stmt->session->lex->text, &stmt->context->entry);
+            }
             break;
         case KEY_WORD_ANALYZE:
             if (!g_instance->sql.use_bison_parser) {
@@ -1101,6 +1193,182 @@ status_t sql_verify_als_create_index_parallelism(void *se, void *lex, void *def)
         OG_THROW_ERROR(ERR_PARAMETER_TOO_LARGE, "CREATE_INDEX_PARALLELISM", (int64)OG_MAX_CREATE_INDEX_PARALLELISM);
         return OG_ERROR;
     }
+    return OG_SUCCESS;
+}
+
+status_t og_parse_create_directory(sql_stmt_t *stmt, knl_directory_def_t **def, char *dir_name, char *path,
+    bool32 is_replace)
+{
+    status_t status;
+    knl_directory_def_t *dir_def = NULL;
+    text_t path_text;
+
+#ifdef OG_RAC_ING
+    if (IS_COORDINATOR && IS_APP_CONN(stmt->session)) {
+        OG_THROW_ERROR(ERR_COORD_NOT_SUPPORT, "Create directory");
+        return OG_ERROR;
+    }
+#endif
+
+    stmt->context->type = OGSQL_TYPE_CREATE_DIRECTORY;
+
+    status = sql_alloc_mem(stmt->context, sizeof(knl_directory_def_t), (void **)def);
+    OG_RETURN_IFERR(status);
+    dir_def = *def;
+
+    dir_def->is_replace = is_replace;
+
+    dir_def->name.str = dir_name;
+    dir_def->name.len = strlen(dir_name);
+
+    cm_str2text(path, &path_text);
+    status = sql_copy_text(stmt->context, &path_text, &dir_def->path);
+    OG_RETURN_IFERR(status);
+
+    return OG_SUCCESS;
+}
+
+status_t og_parse_create_library(sql_stmt_t *stmt, pl_library_def_t **def, name_with_owner *lib_name, char *path,
+    bool32 is_replace)
+{
+    status_t status;
+    pl_library_def_t *lib_def = NULL;
+    text_t path_text;
+
+    stmt->context->type = OGSQL_TYPE_CREATE_LIBRARY;
+
+    status = sql_alloc_mem(stmt->context, sizeof(pl_library_def_t), (void **)def);
+    OG_RETURN_IFERR(status);
+    lib_def = *def;
+
+    lib_def->is_replace = is_replace;
+
+    // Parse library name
+    if (lib_name->owner.len > 0) {
+        lib_def->owner = lib_name->owner;
+    } else {
+        cm_str2text(stmt->session->curr_schema, &lib_def->owner);
+    }
+    lib_def->name = lib_name->name;
+
+    cm_str2text(path, &path_text);
+    status = sql_copy_text(stmt->context, &path_text, &lib_def->path);
+    OG_RETURN_IFERR(status);
+
+    if (sql_verify_library(stmt, lib_def) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+
+    return OG_SUCCESS;
+}
+
+status_t og_parse_grant(sql_stmt_t *stmt, knl_grant_def_t **grant_def, priv_type_def priv_type, galist_t *priv_list,
+    object_type_t obj_type, name_with_owner *obj_name, galist_t *grantee_list, bool with_opt)
+{
+    knl_session_t *se = &stmt->session->knl_session;
+    status_t status;
+    knl_grant_def_t *def = NULL;
+    bool32 dire_priv = OG_FALSE;
+    stmt->session->sql_audit.audit_type = SQL_AUDIT_DCL;
+    stmt->context->type = OGSQL_TYPE_GRANT;
+
+    if (knl_ddl_enabled(se, OG_TRUE) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+
+    status = sql_alloc_mem(stmt->context, sizeof(knl_grant_def_t), (void **)grant_def);
+    OG_RETURN_IFERR(status);
+    def = *grant_def;
+
+    sql_init_grant_def(stmt, def);
+
+    def->priv_type = priv_type;
+    cm_galist_copy(&def->privs, priv_list);
+    if (def->priv_type == PRIV_TYPE_OBJ_PRIV) {
+        OG_RETURN_IFERR(sql_check_dir_priv(&def->privs, &dire_priv));
+        if (dire_priv) {
+            def->objtype = OBJ_TYPE_DIRECTORY;
+        }
+        OG_RETURN_IFERR(og_parse_object_info(stmt, &def->schema, &def->objname, &def->objtype, &def->type_name,
+            obj_type, obj_name));
+    }
+    if (def->priv_type == PRIV_TYPE_USER_PRIV) {
+        OG_RETURN_IFERR(sql_check_user_privileges(&def->privs));
+        def->objtype = OBJ_TYPE_USER;
+        OG_RETURN_IFERR(og_parse_user_priv_info(stmt, &def->objname, &def->type_name, obj_name));
+    }
+
+    OG_RETURN_IFERR(og_parse_grantee_def(stmt, def, grantee_list, with_opt));
+    if (def->priv_type == PRIV_TYPE_OBJ_PRIV) {
+        // User who has GRANT ANY OBJECT PRIVILEGE  can't grant privilege to himself except his owner object
+        if (og_check_obj_owner(&stmt->session->curr_user, &def->grantees) != OG_SUCCESS) {
+            if (cm_compare_text(&stmt->session->curr_user, &def->schema) != 0) {
+                return OG_ERROR;
+            } else {
+                // og_check_obj_owner may set error code, if object owner is current user we must clear error code.
+                cm_reset_error();
+            }
+        }
+    }
+    /* check privilege's type */
+    status = sql_check_privs_type(stmt, &def->privs, def->priv_type, def->objtype, &def->type_name);
+    OG_RETURN_IFERR(status);
+
+    return OG_SUCCESS;
+}
+
+status_t og_parse_revoke(sql_stmt_t *stmt, knl_revoke_def_t **revoke_def, priv_type_def priv_type,
+    galist_t *priv_list, object_type_t obj_type, name_with_owner *obj_name, galist_t *revokee_list,
+    bool cascade_opt)
+{
+    knl_session_t *se = &stmt->session->knl_session;
+    status_t status;
+    knl_revoke_def_t *def = NULL;
+    bool32 dire_priv = OG_FALSE;
+    stmt->session->sql_audit.audit_type = SQL_AUDIT_DCL;
+    stmt->context->type = OGSQL_TYPE_REVOKE;
+
+    if (knl_ddl_enabled(se, OG_TRUE) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+
+    status = sql_alloc_mem(stmt->context, sizeof(knl_revoke_def_t), (void **)revoke_def);
+    OG_RETURN_IFERR(status);
+    def = *revoke_def;
+
+    cm_galist_init(&def->privs, stmt->context, sql_alloc_mem);
+    cm_galist_init(&def->revokees, stmt->context, sql_alloc_mem);
+    cm_galist_init(&def->privs_list, stmt->context, sql_alloc_mem);
+    cm_galist_init(&def->revokee_list, stmt->context, sql_alloc_mem);
+
+    def->priv_type = priv_type;
+    cm_galist_copy(&def->privs, priv_list);
+
+    if (def->priv_type == PRIV_TYPE_OBJ_PRIV) {
+        OG_RETURN_IFERR(sql_check_dir_priv(&def->privs, &dire_priv));
+        if (dire_priv) {
+            def->objtype = OBJ_TYPE_DIRECTORY;
+        }
+        OG_RETURN_IFERR(og_parse_object_info(stmt, &def->schema, &def->objname, &def->objtype, &def->type_name,
+            obj_type, obj_name));
+    }
+
+    if (def->priv_type == PRIV_TYPE_USER_PRIV) {
+        OG_RETURN_IFERR(sql_check_user_privileges(&def->privs));
+        def->objtype = OBJ_TYPE_USER;
+        OG_RETURN_IFERR(og_parse_user_priv_info(stmt, &def->objname, &def->type_name, obj_name));
+    }
+
+    OG_RETURN_IFERR(og_parse_revokee_def(stmt, def, revokee_list, cascade_opt));
+
+    if (def->priv_type == PRIV_TYPE_OBJ_PRIV) {
+        OG_RETURN_IFERR(og_check_obj_owner(&stmt->session->curr_user, &def->revokees));
+        OG_RETURN_IFERR(og_check_obj_schema(&def->schema, &def->revokees));
+    }
+
+    status = sql_check_privs_type(stmt, &def->privs, def->priv_type, def->objtype, &def->type_name);
+    OG_RETURN_IFERR(status);
+
     return OG_SUCCESS;
 }
 

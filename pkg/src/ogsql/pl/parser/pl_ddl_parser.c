@@ -933,3 +933,66 @@ status_t pl_parse_drop_type(sql_stmt_t *stmt, word_t *word)
     stmt->context->entry = drop_def;
     return OG_SUCCESS;
 }
+
+static status_t pl_bison_parse_create_function_core(sql_stmt_t *stmt, var_udo_t *obj, uint32 type,
+    galist_t *args, type_word_t *ret_type, text_t *body, text_t *source)
+{
+    plc_desc_t desc = { 0 };
+    status_t compl_ret;
+    pl_entity_t *pl_ctx = stmt->pl_context;
+
+    pl_prepare_compile_desc(&desc, stmt, obj, type);
+    compl_ret = plc_bison_compile(stmt, &desc, args, ret_type, body);
+    if (compl_ret != OG_SUCCESS) {
+        stmt->pl_failed = OG_TRUE;
+        pl_ctx->create_def->compl_result = OG_FALSE;
+    } else {
+        cm_reset_error();
+        pl_ctx->create_def->compl_result = OG_TRUE;
+    }
+
+    return pl_record_source(stmt, pl_ctx, source);
+}
+
+status_t pl_bison_parse_create_function(sql_stmt_t *stmt, bool32 replace, bool32 if_not_exists,
+    name_with_owner *func_name, galist_t *args, type_word_t *ret_type, text_t *body, text_t *source)
+{
+    uint16 create_option = 0;
+    uint32 type;
+    pl_entity_t *pl_ctx = (pl_entity_t *)stmt->pl_context;
+
+    SQL_SET_IGNORE_PWD(stmt->session);
+    SQL_SET_COPY_LOG(stmt->session, OG_TRUE);
+
+    stmt->context->type = OGSQL_TYPE_CREATE_FUNC;
+    type = PL_FUNCTION;
+
+    if (replace) {
+        create_option |= CREATE_OR_REPLACE;
+    }
+
+    if (if_not_exists) {
+        create_option |= CREATE_IF_NOT_EXISTS;
+    }
+
+    if (func_name->owner.len > 0) {
+        pl_ctx->def.user = func_name->owner;
+    } else {
+        cm_str2text(stmt->session->curr_schema, &pl_ctx->def.user);
+    }
+    pl_ctx->def.name = func_name->name;
+
+    pl_ctx->create_def->create_option = create_option;
+    pl_ctx->pl_type = type;
+
+    return pl_bison_parse_create_function_core(stmt, &pl_ctx->def, type, args, ret_type, body, source);
+}
+
+status_t pl_init_compiler(sql_stmt_t *stmt)
+{
+    pl_entity_t *pl_ctx = NULL;
+    CM_ASSERT(stmt->pl_context == NULL);
+    OG_RETURN_IFERR(pl_alloc_context(&pl_ctx, stmt->context));
+    SET_STMT_PL_CONTEXT(stmt, pl_ctx);
+    return OG_SUCCESS;
+}

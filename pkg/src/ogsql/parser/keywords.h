@@ -31,7 +31,7 @@
 #define RESERVED_KEYWORD 2
 
 #include "kwlookup.h"
-typedef struct PlpgsqlKeywordValue {
+typedef struct PlsqlKeywordValue {
     int16 procedure;
     int16 function;
     int16 begin;
@@ -40,7 +40,7 @@ typedef struct PlpgsqlKeywordValue {
     int16 insert;
     int16 Delete;
     int16 merge;
-} PlpgsqlKeywordValue;
+} PlsqlKeywordValue;
 
 extern const ScanKeywordList ScanKeywords;
 extern const uint8 ScanKeywordCategories[];

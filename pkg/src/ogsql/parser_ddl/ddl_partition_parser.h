@@ -34,6 +34,71 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef enum index_partition_opt_type {
+    INDEX_PARTITION_OPT_TABLESPACE,
+    INDEX_PARTITION_OPT_INITRANS,
+    INDEX_PARTITION_OPT_PCTFREE,
+    INDEX_PARTITION_OPT_STORAGE,
+    INDEX_PARTITION_OPT_COMPRESS,
+    INDEX_PARTITION_OPT_FORMAT
+} index_partition_opt_type;
+
+typedef struct index_partition_opt {
+    index_partition_opt_type type;
+    union {
+        char *name;
+        uint32 size;
+        knl_storage_def_t *storage_def;
+        compress_type_t compress_type;
+        bool8 csf;
+    };
+} index_partition_opt;
+
+typedef struct {
+    text_t interval_text;
+    expr_tree_t *expr;
+    galist_t *tablespaces;
+} parser_interval_part;
+
+typedef struct {
+    part_type_t part_type;
+    galist_t *column_list;
+} parser_table_subpart;
+
+typedef struct {
+    uint32 num;
+    galist_t *tablespaces;
+} part_store_in_clause;
+
+typedef struct {
+    bool32 is_store_in;
+    union {
+        part_store_in_clause *subpart_store_in;
+        galist_t *subparts;
+    };
+} subpart_clause_t;
+
+typedef struct {
+    char *name;
+    text_t hiboundval;
+    galist_t *boundaries;
+    galist_t *opts;
+    char *tablespace; /* for subpart */
+    subpart_clause_t *subpart_clause;
+} part_item_t;
+
+typedef struct {
+    part_type_t part_type;
+    galist_t *column_list;
+
+    parser_interval_part *interval; /* for range part */
+    parser_table_subpart *subpart;
+    part_store_in_clause *part_store_in;
+    part_store_in_clause *subpart_store_in;
+    galist_t *partitions;
+} parser_table_part;
+
 status_t sql_parse_partition_attrs(sql_stmt_t *stmt, lex_t *lex, word_t *word, knl_part_def_t *def);
 status_t sql_delay_verify_part_attrs(sql_stmt_t *stmt, knl_table_def_t *def, bool32 *expect_as, word_t *word);
 status_t sql_parse_altable_set_clause(sql_stmt_t *stmt, lex_t *lex, word_t *word, knl_altable_def_t *def);
@@ -45,6 +110,8 @@ status_t sql_parse_altable_partition(sql_stmt_t *stmt, word_t *word, knl_altable
 status_t sql_parse_split_partition(sql_stmt_t *stmt, lex_t *lex, knl_altable_def_t *def);
 status_t sql_parse_purge_partition(sql_stmt_t *stmt, knl_purge_def_t *def);
 status_t sql_parse_subpartition_attrs(sql_stmt_t *stmt, lex_t *lex, word_t *word, knl_part_def_t *part_def);
+status_t og_parse_partition_attrs(knl_part_def_t *def, galist_t *opts);
+status_t og_part_parse_table(sql_stmt_t *stmt, knl_table_def_t *table_def, parser_table_part *partition);
 
 #ifdef __cplusplus
 }

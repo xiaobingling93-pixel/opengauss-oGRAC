@@ -32,6 +32,8 @@
 #include "decl_cl.h"
 #include "param_decl_cl.h"
 #include "ogsql_select_parser.h"
+#include "base_compiler.h"
+#include "pl_udt.h"
 
 #define MIN_TYPEMODE_COUNT 1
 #define MAX_TYPEMODE_COUNT 2
@@ -1730,7 +1732,7 @@ static status_t sql_parse_native_typmod_bison(char *user, type_word_t *type, pmo
     }
 }
 
-static status_t sql_parse_typmode_bison(char *user, type_word_t *type, pmode_t pmod, typmode_t *typmod, word_t *typword)
+status_t sql_parse_typmode_bison(char *user, type_word_t *type, pmode_t pmod, typmode_t *typmod, word_t *typword)
 {
     status_t status;
     typmode_t tmode = { 0 };
@@ -3352,6 +3354,28 @@ status_t sql_create_columnref_expr(sql_stmt_t *stmt, expr_tree_t **expr, const c
         var->column.name.value.len = strlen(val);
         var->column.ss_start = OG_INVALID_ID32;
         var->column.ss_end = OG_INVALID_ID32;
+
+        if (stmt->context->type >= OGSQL_TYPE_CREATE_PROC && stmt->context->type < OGSQL_TYPE_PL_CEIL_END) {
+            pl_compiler_t *compiler = stmt->pl_compiler;
+            uint32 types = PLV_TYPE | PLV_VARIANT_AND_CUR;
+            plv_decl_t *decl = NULL;
+            plc_variant_name_t variant_name;
+            char block_name_buf[OG_NAME_BUFFER_SIZE];
+            char name_buf[OG_NAME_BUFFER_SIZE];
+            plc_var_type_t type;
+
+            PLC_INIT_VARIANT_NAME(&variant_name, block_name_buf, name_buf, OG_FALSE, types);
+            type = PLC_NORMAL_VAR;
+            variant_name.block_name.len = 0;
+            plc_concat_text_upper_by_type(&variant_name.name, OG_MAX_NAME_LEN, &var->column.name.value,
+                WORD_TYPE_VARIANT);
+
+            if (type == PLC_NORMAL_VAR || type == PLC_TRIGGER_VAR) {
+                plc_find_block_decl(compiler, &variant_name, &decl);
+            }
+
+            plc_build_var_address(stmt, decl, node, UDT_STACK_ADDR);
+        }
     } else {
         if (sql_set_columnref_indirection(*expr, node, list, var, val) != OG_SUCCESS) {
             return OG_ERROR;

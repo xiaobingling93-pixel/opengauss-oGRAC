@@ -557,15 +557,18 @@ OG-00601, Sql syntax error: BISON_T2 is not a partition table
 SQL> 
 SQL> delete from bison_t1, bison_t2 using bison_t1 join bison_t2 where a = c;
 
-OG-00601, [1:52]Sql syntax error: syntax error
+0 rows affected.
+
 SQL> 
 SQL> delete from bison_t1, bison_t2 using bison_t1 inner join bison_t2 where a = c;
 
-OG-00601, Sql syntax error: unknown table BISON_T1 in multi delete
+0 rows affected.
+
 SQL> 
 SQL> delete from bison_t1, bison_t2 using bison_t1 join bison_t2 on a = c;
 
-OG-00601, [1:52]Sql syntax error: syntax error
+0 rows affected.
+
 SQL> 
 SQL> delete from bison_t1, bison_t2; -- error
 
@@ -2277,7 +2280,7 @@ Succeed.
 SQL> 
 SQL> create temporary table #temp_bison_t1 (a int);
 
-OG-00601, Sql syntax error: parameter LOCAL_TEMPORARY_TABLE_ENABLED is false, can't create local temporary table
+OG-00601, [1:46]Sql syntax error: parameter LOCAL_TEMPORARY_TABLE_ENABLED is false, can't create local temporary table
 SQL> drop table #temp_bison_t1;
 
 OG-00843, [1:26]The table or view SYS.#TEMP_BISON_T1 does not exist.
@@ -2382,16 +2385,16 @@ Succeed.
 SQL> 
 SQL> drop tablespace bison_t1;
 
-OG-00780, The tablespace  does not exist.
+OG-00780, The tablespace BISON_T1 does not exist.
 SQL> drop tablespace bison_t1 including contents cascade;
 
-OG-00780, The tablespace  does not exist.
+OG-00780, The tablespace BISON_T1 does not exist.
 SQL> drop tablespace bison_t1 including contents and datafiles cascade;
 
-OG-00780, The tablespace  does not exist.
+OG-00780, The tablespace BISON_T1 does not exist.
 SQL> drop tablespace bison_t1 including contents keep datafiles;
 
-OG-00780, The tablespace  does not exist.
+OG-00780, The tablespace BISON_T1 does not exist.
 SQL> 
 SQL> drop user if exists xbin;
 
@@ -3897,7 +3900,12 @@ COUNT(*)
 
 SQL> select sys_columns.name from sys_tables join sys_columns on sys_tables.id=sys_columns.TABLE# where sys_tables.NAME='t_lowercase';
 
-OG-00601, [1:46]Sql syntax error: syntax error
+NAME                                                            
+----------------------------------------------------------------
+a_lowercase                                                     
+
+1 rows fetched.
+
 SQL> drop table t_lowercase; --error
 
 OG-00843, [1:23]The table or view SYS.T_LOWERCASE does not exist.
@@ -3909,28 +3917,28 @@ SQL>
 SQL> --- error, reservered keyword, can't be object name
 SQL> create table t_reserverd_test(rownum int);
 
-OG-00601, [1:31]Sql syntax error: invalid column name 'rownum'
+OG-00601, [1:31]Sql syntax error: syntax error
 SQL> create table t_reserverd_test(rowid int);
 
-OG-00601, [1:31]Sql syntax error: invalid column name 'rowid'
+OG-00601, [1:31]Sql syntax error: syntax error
 SQL> create table t_reserverd_test(rowscn int);
 
-OG-00601, [1:31]Sql syntax error: invalid column name 'rowscn'
+OG-00601, [1:31]Sql syntax error: syntax error
 SQL> create table t_reserverd_test(sysdate int);
 
-OG-00601, [1:31]Sql syntax error: invalid column name 'sysdate'
+OG-00601, [1:31]Sql syntax error: syntax error
 SQL> create table t_reserverd_test(null int);
 
-OG-00601, [1:31]Sql syntax error: invalid column name 'null'
+OG-00601, [1:31]Sql syntax error: syntax error
 SQL> create table t_reserverd_test(true int);
 
-OG-00601, [1:31]Sql syntax error: invalid column name 'true'
+OG-00601, [1:31]Sql syntax error: syntax error
 SQL> create table t_reserverd_test(false int);
 
-OG-00601, [1:31]Sql syntax error: invalid column name 'false'
+OG-00601, [1:31]Sql syntax error: syntax error
 SQL> create table t_reserverd_test(user int);
 
-OG-00601, [1:31]Sql syntax error: invalid column name 'user'
+OG-00601, [1:31]Sql syntax error: syntax error
 SQL> 
 SQL> --- quoted keyword can be column name, but "ROWID" is an exception
 SQL> drop table if exists t_reserverd_test;
@@ -3947,7 +3955,7 @@ Succeed.
 
 SQL> create table test4("ROWID" int);
 
-OG-00601, [1:20]Sql syntax error: invalid column name 'ROWID'
+OG-00601, [1:32]Sql syntax error: invalid column name 'ROWID'
 SQL> 
 SQL> --test special no arg func
 SQL> create table t_special_no_arg_func(a varchar(100));

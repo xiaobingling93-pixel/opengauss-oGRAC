@@ -44,6 +44,13 @@ typedef enum en_plc_match_type {
     MATCH_TABLE
 } plc_match_type_t;
 
+/*
+ * @brief PLC_PMODE dedicate for the datatype belong to PLSQL object like procedure, user define function or trigger
+ */
+#define PLC_PMODE(direction) \
+    (((direction) == PLV_DIR_IN || (direction) == PLV_DIR_OUT || (direction) == PLV_DIR_INOUT) ? PM_PL_ARG : PM_PL_VAR)
+
+
 status_t plc_convert_typedecl(pl_compiler_t *compiler, galist_t *decls);
 status_t plc_try_find_global_type(pl_compiler_t *compiler, word_t *word, plv_decl_t **decl, bool32 *found);
 status_t plc_copy_variant_rowtype(pl_compiler_t *compiler, plv_decl_t *src, plc_var_type_t var_type,

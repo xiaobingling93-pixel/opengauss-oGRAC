@@ -37,6 +37,8 @@ status_t plc_compile_label(pl_compiler_t *compiler, word_t *word, text_t *label_
 status_t plc_label_name_verify(pl_compiler_t *compiler, const word_t *word);
 status_t plc_compile_into_clause(pl_compiler_t *compiler, pl_into_t *into, word_t *word);
 status_t plc_compile_bulk_into_clause(pl_compiler_t *compiler, pl_into_t *into, word_t *word);
+status_t plc_verify_stack_var_assign(pl_compiler_t *compiler, plv_decl_t *left_decl, expr_tree_t *right);
+status_t plc_verify_setval(pl_compiler_t *compiler, expr_node_t *left, expr_tree_t *right);
 
 #ifdef __cplusplus
 }

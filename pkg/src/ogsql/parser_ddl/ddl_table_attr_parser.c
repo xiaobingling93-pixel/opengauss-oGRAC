@@ -1034,3 +1034,272 @@ status_t sql_parse_table_attrs(sql_stmt_t *stmt, lex_t *lex, knl_table_def_t *ta
 
     return OG_SUCCESS;
 }
+
+static status_t og_parse_lob_parameter(sql_stmt_t *stmt, knl_lobstor_def_t *def, galist_t *parameters)
+{
+    lob_store_param_t *param = NULL;
+    def->in_row = OG_TRUE;
+
+    if (parameters == NULL) {
+        def->space.len = 0;
+        return OG_SUCCESS;
+    }
+
+    for (uint32 i = 0; i < parameters->count; i++) {
+        param = (lob_store_param_t *)cm_galist_get(parameters, i);
+
+        switch (param->type) {
+            case LOB_STORE_PARAM_TABLESPACE:
+                if (def->space.len != 0) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate tablespace specification");
+                    return OG_ERROR;
+                }
+                def->space.str = param->str_value;
+                def->space.len = strlen(param->str_value);
+                break;
+            case LOB_STORE_PARAM_STORAGE_IN_ROW:
+                def->in_row = param->bool_value;
+            default:
+                break;
+        }
+    }
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_lob_store(sql_stmt_t * stmt, galist_t *defs, table_attr_t *attr)
+{
+    knl_lobstor_def_t *def = NULL;
+    text_t col_name;
+
+    for (uint32 i = 0; i < attr->lob_columns->count; i++) {
+        col_name.str = (char*)cm_galist_get(attr->lob_columns, i);
+        col_name.len = strlen(col_name.str);
+
+        // check duplicate column
+        for (uint32 i = 0; i < defs->count; i++) {
+            def = (knl_lobstor_def_t *)cm_galist_get(defs, i);
+            if (cm_text_equal_ins(&def->col_name, &col_name)) {
+                OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate lob storage option specificed");
+                return OG_ERROR;
+            }
+        }
+        OG_RETURN_IFERR(cm_galist_new(defs, sizeof(knl_lobstor_def_t), (pointer_t *)&def));
+        def->col_name = col_name;
+    }
+
+    if (attr->seg_name != NULL) {
+        def->seg_name.str = attr->seg_name;
+        def->seg_name.len = strlen(attr->seg_name);
+    } else {
+        def->seg_name.str = NULL;
+        def->seg_name.len = 0;
+    }
+
+    return og_parse_lob_parameter(stmt, def, attr->lob_store_params);
+}
+
+status_t og_parse_table_attrs(sql_stmt_t *stmt, knl_table_def_t *table_def, galist_t *table_attrs)
+{
+    table_attr_t *attr = NULL;
+    uint32 ex_flags = 0;
+
+    table_def->cr_mode = OG_INVALID_ID8;
+    table_def->pctfree = OG_INVALID_ID32;
+    table_def->csf = OG_INVALID_ID8;
+
+    for (uint32 i = 0; i < table_attrs->count; i++) {
+        attr = (table_attr_t *)cm_galist_get(table_attrs, i);
+        
+        switch (attr->type) {
+            case TABLE_ATTR_TABLESPACE:
+                if (table_def->space.len != 0) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate tablespace specification");
+                    return OG_ERROR;
+                }
+                table_def->space.str = attr->str_value;
+                table_def->space.len = strlen(attr->str_value);
+                break;
+            case TABLE_ATTR_INITRANS:
+                if (table_def->initrans != 0) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate initrans specification");
+                    return OG_ERROR;
+                }
+                table_def->initrans = attr->int_value;
+                break;
+            case TABLE_ATTR_MAXTRANS:
+                if (table_def->maxtrans != 0) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate maxtrans specification");
+                    return OG_ERROR;
+                }
+                table_def->maxtrans = attr->int_value;
+                break;
+            case TABLE_ATTR_PCTFREE:
+                if (table_def->pctfree != OG_INVALID_ID32) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate pctfree specification");
+                    return OG_ERROR;
+                }
+                table_def->pctfree = attr->int_value;
+                break;
+            case TABLE_ATTR_CRMODE:
+                if (table_def->cr_mode != OG_INVALID_ID8) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate crmode specification");
+                    return OG_ERROR;
+                }
+                table_def->cr_mode = attr->int_value;
+                break;
+            case TABLE_ATTR_FORMAT:
+                if (table_def->csf != OG_INVALID_ID8) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate format specification");
+                    return OG_ERROR;
+                }
+                table_def->csf = attr->bool_value;
+                break;
+            case TABLE_ATTR_SYSTEM:
+                if (table_def->sysid != OG_INVALID_ID32) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate system specification");
+                    return OG_ERROR;
+                }
+                table_def->sysid = attr->int_value;
+                break;
+            case TABLE_ATTR_STORAGE:
+                if ((table_def->storage_def.initial > 0) || (table_def->storage_def.next > 0) ||
+                    (table_def->storage_def.maxsize > 0)) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate storage option specification");
+                    return OG_ERROR;
+                }
+                table_def->storage_def = *attr->storage_def;
+                break;
+            case TABLE_ATTR_ON_COMMIT:
+                if (table_def->type == TABLE_TYPE_HEAP) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "ON COMMIT only used on temporary table");
+                    return OG_ERROR;
+                }
+                if (ex_flags & TEMP_TBL_ATTR_PARSED) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "too many options for table");
+                    return OG_ERROR;
+                }
+                table_def->type = attr->int_value;
+                if (IS_LTT_BY_NAME(table_def->name.str) && table_def->type == TABLE_TYPE_TRANS_TEMP) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+                        "local temporary table don't support on commit delete rows");
+                    return OG_ERROR;
+                }
+                ex_flags |= TEMP_TBL_ATTR_PARSED;
+                break;
+            case TABLE_ATTR_APPENDONLY:
+                table_def->appendonly = attr->bool_value;
+                break;
+            case TABLE_ATTR_PARTITION:
+                OG_RETURN_IFERR(og_part_parse_table(stmt, table_def, attr->partition));
+                break;
+            case TABLE_ATTR_AUTO_INCREMENT:
+                if (ex_flags & TBLOPTS_EX_AUTO_INCREMENT) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+                        "duplicate or conflicting auto_increment specifications");
+                    return OG_ERROR;
+                }
+                table_def->serial_start = attr->int64_value;
+                ex_flags |= TBLOPTS_EX_AUTO_INCREMENT;
+                break;
+            case TABLE_ATTR_CHARSET: {
+                text_t charset_text = {attr->str_value, strlen(attr->str_value)};
+                uint16 charset_id = cm_get_charset_id_ex(&charset_text);
+                if (charset_id == OG_INVALID_ID16) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "unknown charset option %s", attr->str_value);
+                    return OG_ERROR;
+                }
+                table_def->charset = (uint8)charset_id;
+                break;
+            }
+            case TABLE_ATTR_COLLATE:{
+                text_t collate_text = {attr->str_value, strlen(attr->str_value)};
+                uint16 collate_id = cm_get_collation_id(&collate_text);
+                if (collate_id == OG_INVALID_ID16) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "unknown collation option %s", attr->str_value);
+                    return OG_ERROR;
+                }
+                table_def->collate = (uint8)collate_id;
+                break;
+            }
+            case TABLE_ATTR_NO_LOGGING:
+                if (table_def->type == TABLE_TYPE_TRANS_TEMP || table_def->type == TABLE_TYPE_SESSION_TEMP) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+                        "cannot sepecify NOLOGGING on temporary table");
+                    return OG_ERROR;
+                } else if (table_def->compress_algo > COMPRESS_NONE) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+                        "unexpected text %s, table compress only supported on (part)table", attr->str_value);
+                    return OG_ERROR;
+                } else {
+                    table_def->type = TABLE_TYPE_NOLOGGING;
+                }
+                break;
+            case TABLE_ATTR_LOB:
+                if (table_def->type == TABLE_TYPE_SESSION_TEMP || table_def->type == TABLE_TYPE_TRANS_TEMP) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+                        "Temporary tables do not support LOB clauses");
+                    return OG_ERROR;
+                }
+                OG_RETURN_IFERR(og_parse_lob_store(stmt, &table_def->lob_stores, attr));
+                break;
+            case TABLE_ATTR_COMPRESS:
+                if (table_def->type == TABLE_TYPE_HEAP) {
+                    table_def->compress_type = attr->int_value;
+                    table_def->compress_algo = attr->int_value == COMPRESS_TYPE_GENERAL ?
+                        COMPRESS_ZSTD : COMPRESS_NONE;
+                    break;
+                }
+                OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR,
+                    "unexpected text %s, table compress only supported on (part)table", attr->str_value);
+                return OG_ERROR;
+            case TABLE_ATTR_NO_COMPRESS:
+                table_def->compress_type = COMPRESS_TYPE_NO;
+                break;
+            case TABLE_ATTR_LOGGING:
+            case TABLE_ATTR_CACHE:
+            case TABLE_ATTR_NO_CACHE:
+            default:
+                break;
+        }
+    }
+    OG_RETURN_IFERR(sql_set_table_attrs(stmt, table_def));
+
+    return OG_SUCCESS;
+}
+
+status_t og_parse_organization(sql_stmt_t *stmt, knl_ext_def_t **extern_def, char *directory, char *location,
+    char *record_delimiter, char *fields_terminator)
+{
+    knl_ext_def_t *def = NULL;
+
+    if (sql_alloc_mem(stmt->context, sizeof(knl_ext_def_t), (void **)extern_def) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+    def = *extern_def;
+    def->external_type = LOADER;
+    def->fields_terminator = ',';
+    def->records_delimiter = '\n';
+
+    cm_str2text(directory, &def->directory);
+#ifdef WIN32
+    if (cm_strstri(location, "..\\") != NULL || cm_strstri(location, ".\\") != NULL) {
+        OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "File name cannot contain a path specification: ..\\ or .\\");
+        return OG_ERROR;
+    }
+#else
+    if (cm_strstri(location, "../") != NULL || cm_strstri(location, "./") != NULL) {
+        OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "File name cannot contain a path specification: ../ or ./");
+        return OG_ERROR;
+    }
+#endif
+    cm_str2text(location, &def->location);
+
+    if (record_delimiter != NULL) {
+        def->records_delimiter = record_delimiter[0];
+    }
+
+    if (fields_terminator != NULL) {
+        def->fields_terminator = fields_terminator[0];
+    }
+    return OG_SUCCESS;
+}

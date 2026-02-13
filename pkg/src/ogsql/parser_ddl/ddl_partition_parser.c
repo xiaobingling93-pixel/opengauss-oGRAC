@@ -2511,3 +2511,678 @@ status_t sql_delay_verify_part_attrs(sql_stmt_t *stmt, knl_table_def_t *def, boo
 
     return OG_SUCCESS;
 }
+
+status_t og_parse_partition_attrs(knl_part_def_t *def, galist_t *opts)
+{
+    index_partition_opt *opt = NULL;
+    def->pctfree = OG_INVALID_ID32;
+    def->is_csf = OG_INVALID_ID8;
+
+    if (opts == NULL) {
+        return OG_SUCCESS;
+    }
+
+    for (uint32 i = 0; i < opts->count; i++) {
+        opt = (index_partition_opt*)cm_galist_get(opts, i);
+
+        switch (opt->type) {
+            case INDEX_PARTITION_OPT_TABLESPACE:
+                if (def->space.len != 0) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate tablespace specification");
+                    return OG_ERROR;
+                }
+                def->space.str = opt->name;
+                def->space.len = strlen(opt->name);
+                break;
+            case INDEX_PARTITION_OPT_INITRANS:
+                if (def->initrans != 0) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate initrans specification");
+                    return OG_ERROR;
+                }
+                def->initrans = opt->size;
+                break;
+            case INDEX_PARTITION_OPT_PCTFREE:
+                if (def->pctfree != OG_INVALID_ID32) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate pct_free specification");
+                    return OG_ERROR;
+                }
+                def->pctfree = opt->size;
+                break;
+            case INDEX_PARTITION_OPT_STORAGE:
+                if ((def->storage_def.initial > 0) || (def->storage_def.next > 0) || (def->storage_def.maxsize > 0)) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate storage option specification");
+                    return OG_ERROR;
+                }
+                def->storage_def = *opt->storage_def;
+                break;
+            case INDEX_PARTITION_OPT_COMPRESS:
+                if (!def->exist_subparts) {
+                    def->compress_type = opt->compress_type;
+                    def->compress_algo = def->compress_type == COMPRESS_TYPE_GENERAL ? COMPRESS_ZSTD : COMPRESS_NONE;
+                    break;
+                }
+                OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "table part doesn't support compress if exists subpartitons");
+                return OG_ERROR;
+            case INDEX_PARTITION_OPT_FORMAT:
+                if (!def->support_csf) {
+                    OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "unexpected text format clause.");
+                    return OG_ERROR;
+                }
+                def->is_csf = opt->csf;
+                break;
+            default:
+                break;
+        }
+    }
+    return OG_SUCCESS;
+}
+
+static inline void og_part_parse_type(knl_part_obj_def_t *part_def, part_type_t part_type)
+{
+    if (part_def->is_composite) {
+        part_def->subpart_type = part_type;
+    } else {
+        part_def->part_type = part_type;
+    }
+}
+
+static status_t og_check_part_keys(knl_table_def_t *table_def, knl_part_column_def_t *part_column, char *col_name)
+{
+    knl_part_column_def_t *column_def = NULL;
+    knl_part_obj_def_t *def = table_def->part_def;
+
+    if (def->part_keys.count > OG_MAX_PARTKEY_COLUMNS) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "part key count %u more than max value %u",
+            def->part_keys.count, OG_MAX_PARTKEY_COLUMNS);
+        return OG_ERROR;
+    }
+
+    if (def->subpart_keys.count > OG_MAX_PARTKEY_COLUMNS) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, ", subpart key count %u more than max value %u",
+            def->subpart_keys.count, OG_MAX_PARTKEY_COLUMNS);
+        return OG_ERROR;
+    }
+
+    if (def->is_composite) {
+        for (uint32 i = 0; i < def->subpart_keys.count - 1; i++) {
+            column_def = (knl_part_column_def_t *)cm_galist_get(&def->subpart_keys, i);
+            if (part_column->column_id == column_def->column_id) {
+                OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate column name %s", col_name);
+                return OG_ERROR;
+            }
+        }
+    } else {
+        for (uint32 i = 0; i < def->part_keys.count - 1; i++) {
+            column_def = (knl_part_column_def_t *)cm_galist_get(&def->part_keys, i);
+            if (part_column->column_id == column_def->column_id) {
+                OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "duplicate column name %s", col_name);
+                return OG_ERROR;
+            }
+        }
+    }
+
+    return OG_SUCCESS;
+}
+
+static status_t og_part_parse_keys(sql_stmt_t *stmt, knl_table_def_t *table_def, galist_t *column_list)
+{
+    status_t status;
+    char *col = NULL;
+    text_t col_name;
+    knl_part_column_def_t *part_col = NULL;
+    knl_part_obj_def_t *def = table_def->part_def;
+
+    for (uint32 i = 0; i < column_list->count; i++) {
+        col = (char*)cm_galist_get(column_list, i);
+
+        if (def->is_composite) {
+            status = cm_galist_new(&def->subpart_keys, sizeof(knl_part_column_def_t), (pointer_t *)&part_col);
+        } else {
+            status = cm_galist_new(&def->part_keys, sizeof(knl_part_column_def_t), (pointer_t *)&part_col);
+        }
+        OG_RETURN_IFERR(status);
+
+        col_name.str = col;
+        col_name.len = strlen(col);
+
+        part_col->column_id = OG_INVALID_ID32;
+        for (uint32 i = 0; i < table_def->columns.count; i++) {
+            knl_column_def_t *column_def = cm_galist_get(&table_def->columns, i);
+
+            if (cm_text_equal(&col_name, &column_def->name)) {
+                part_col->column_id = i;
+
+                status = sql_part_verify_key_type(&column_def->typmod);
+                OG_RETURN_IFERR(status);
+                part_col->datatype = column_def->datatype;
+                if (column_def->typmod.size > OG_MAX_PART_COLUMN_SIZE) {
+                    OG_THROW_ERROR(ERR_MAX_PART_CLOUMN_SIZE, T2S(&column_def->name), OG_MAX_PART_COLUMN_SIZE);
+                    return OG_ERROR;
+                }
+                part_col->is_char = column_def->typmod.is_char;
+                part_col->precision = column_def->typmod.precision;
+                part_col->scale = column_def->typmod.scale;
+                part_col->size = column_def->size;
+                break;
+            }
+        }
+
+        if (part_col->column_id == OG_INVALID_ID32) {
+            OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "partition key %s can not find in table", col);
+            return OG_ERROR;
+        }
+
+        if (og_check_part_keys(table_def, part_col, col) != OG_SUCCESS) {
+            return OG_ERROR;
+        }
+    }
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_interval_key(sql_stmt_t *stmt, part_key_t *interval_key, knl_part_obj_def_t *obj_def,
+    expr_tree_t *value_expr)
+{
+    sql_verifier_t verf = { 0 };
+    variant_t value;
+    knl_part_column_def_t *key = NULL;
+
+    if (obj_def->part_keys.count > 1) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "only support one interval partition column");
+        return OG_ERROR;
+    }
+
+    key = cm_galist_get(&obj_def->part_keys, 0);
+    if (!OG_IS_NUMERIC_TYPE(key->datatype) && !OG_IS_DATETIME_TYPE(key->datatype)) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "invalid interval partition column data type");
+        return OG_ERROR;
+    }
+
+    part_key_init(interval_key, 1);
+
+    verf.context = stmt->context;
+    verf.stmt = stmt;
+    verf.excl_flags = SQL_EXCL_AGGR | SQL_EXCL_COLUMN | SQL_EXCL_STAR | SQL_EXCL_SUBSELECT | SQL_EXCL_JOIN |
+        SQL_EXCL_ROWNUM | SQL_EXCL_ROWID | SQL_EXCL_DEFAULT | SQL_EXCL_ROWSCN | SQL_EXCL_WIN_SORT | SQL_EXCL_ROWNODEID;
+
+    OG_RETURN_IFERR(sql_verify_expr(&verf, value_expr));
+
+    OG_RETURN_IFERR(sql_exec_expr(stmt, value_expr, &value));
+
+    if (value.is_null) {
+        OG_SRC_THROW_ERROR(value_expr->loc, ERR_OPERATIONS_NOT_ALLOW, "set inerval to null");
+        return OG_ERROR;
+    }
+
+    if (OG_IS_NUMERIC_TYPE(key->datatype)) {
+        OG_RETURN_IFERR(sql_part_put_key(stmt, &value, key->datatype, key->size, key->is_char, key->precision,
+            key->scale, interval_key));
+        if (var_as_decimal(&value) != OG_SUCCESS || IS_DEC8_NEG(&value.v_dec)) {
+            OG_SRC_THROW_ERROR(value_expr->loc, ERR_INVALID_PART_TYPE, "interval key data", "");
+            return OG_ERROR;
+        }
+    } else {
+        if (!OG_IS_DSITVL_TYPE(value.type) && !OG_IS_YMITVL_TYPE(value.type)) {
+            OG_SRC_THROW_ERROR(value_expr->loc, ERR_INVALID_PART_TYPE, "interval key data", "");
+            return OG_ERROR;
+        }
+        OG_RETURN_IFERR(sql_part_put_key(stmt, &value, value.type, key->size, key->is_char, key->precision, key->scale,
+            interval_key));
+    }
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_store_in_space(sql_stmt_t *stmt, knl_store_in_set_t *store_in, galist_t *space_list)
+{
+    char *space_name = NULL;
+    text_t *space = NULL;
+
+    if (space_list == NULL) {
+        return OG_SUCCESS;
+    }
+
+    for (uint32 i = 0; i < space_list->count; i++) {
+        space_name = (char*)cm_galist_get(space_list, i);
+
+        OG_RETURN_IFERR(cm_galist_new(&store_in->space_list, sizeof(text_t), (pointer_t *)&space));
+        store_in->space_cnt++;
+        cm_str2text(space_name, space);
+    }
+    return OG_SUCCESS;
+}
+
+static status_t og_try_parse_interval(sql_stmt_t *stmt, knl_part_obj_def_t *obj_def, parser_interval_part *interval)
+{
+    part_key_t *interval_key = NULL;
+
+    if (interval == NULL) {
+        return OG_SUCCESS;
+    }
+
+    OG_RETURN_IFERR(sql_alloc_mem(stmt->context, OG_MAX_COLUMN_SIZE, (pointer_t *)&interval_key));
+    obj_def->interval = interval->interval_text;
+    OG_RETURN_IFERR(og_parse_interval_key(stmt, interval_key, obj_def, interval->expr));
+
+    obj_def->binterval.bytes = (uint8 *)interval_key;
+    obj_def->binterval.size = interval_key->size;
+
+    OG_RETURN_IFERR(og_parse_store_in_space(stmt, &obj_def->part_store_in, interval->tablespaces));
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_part_type_keys(sql_stmt_t *stmt, knl_table_def_t *table_def, parser_table_part *partition)
+{
+    knl_part_obj_def_t *def = table_def->part_def;
+    status_t status;
+
+    og_part_parse_type(def, partition->part_type);
+    status = og_part_parse_keys(stmt, table_def, partition->column_list);
+    OG_RETURN_IFERR(status);
+
+    if (def->part_type == PART_TYPE_RANGE) {
+        OG_RETURN_IFERR(og_try_parse_interval(stmt, def, partition->interval));
+    }
+
+    if (partition->subpart != NULL) {
+        def->is_composite = OG_TRUE;
+        og_part_parse_type(def, partition->subpart->part_type);
+
+        status = og_part_parse_keys(stmt, table_def, partition->subpart->column_list);
+        OG_RETURN_IFERR(status);
+    }
+    return OG_SUCCESS;
+}
+
+static status_t og_part_parse_store_in(sql_stmt_t *stmt, knl_part_obj_def_t *def, part_store_in_clause *store_in)
+{
+    if (store_in == NULL) {
+        return OG_SUCCESS;
+    }
+
+    if (def->part_type != PART_TYPE_HASH) {
+        return OG_ERROR;
+    }
+
+    def->part_store_in.is_store_in = OG_TRUE;
+    if (store_in->num == 0) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "invalid partition number");
+        return OG_ERROR;
+    }
+    def->part_store_in.part_cnt = store_in->num;
+    OG_RETURN_IFERR(sql_part_parse_hash_attrs(stmt, &def->parts, def->part_store_in.part_cnt));
+    OG_RETURN_IFERR(og_parse_store_in_space(stmt, &def->part_store_in, store_in->tablespaces));
+    if (def->part_store_in.space_cnt > 0) {
+        OG_RETURN_IFERR(sql_part_generate_space_name(stmt, &def->part_store_in, &def->parts));
+    }
+
+    return OG_SUCCESS;
+}
+
+static status_t og_subpart_parse_store_in(sql_stmt_t *stmt, knl_part_obj_def_t *def, part_store_in_clause *store_in)
+{
+    if (store_in == NULL) {
+        return OG_SUCCESS;
+    }
+
+    if (!def->is_composite || def->subpart_type != PART_TYPE_HASH) {
+        return OG_ERROR;
+    }
+
+    def->subpart_store_in.is_store_in = OG_TRUE;
+    if (store_in->num == 0) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "invalid partition number");
+        return OG_ERROR;
+    }
+    def->subpart_store_in.part_cnt = store_in->num;
+    OG_RETURN_IFERR(og_parse_store_in_space(stmt, &def->subpart_store_in, store_in->tablespaces));
+
+    return OG_SUCCESS;
+}
+
+static status_t og_generate_subpart_for_storein(sql_stmt_t *stmt, knl_part_obj_def_t *def)
+{
+    knl_part_def_t *part_def = NULL;
+
+    if (!def->is_composite) {
+        return OG_SUCCESS;
+    }
+
+    for (uint32 i = 0; i < def->parts.count; i++) {
+        part_def = (knl_part_def_t *)cm_galist_get(&def->parts, i);
+        part_def->is_parent = OG_TRUE;
+        cm_galist_init(&part_def->subparts, stmt->context, sql_alloc_mem);
+        if (def->subpart_store_in.is_store_in) { // subpart is also defined in "store in"
+            knl_part_def_t *subpart_def = NULL;
+            for (uint32 j = 0; j < def->subpart_store_in.part_cnt; j++) {
+                OG_RETURN_IFERR(cm_galist_new(&part_def->subparts, sizeof(knl_part_def_t), (pointer_t *)&subpart_def));
+                OG_RETURN_IFERR(sql_alloc_mem(stmt->context, sizeof(part_key_t), (pointer_t *)&subpart_def->partkey));
+                subpart_def->initrans = 0;
+                subpart_def->is_parent = OG_FALSE;
+                subpart_def->is_csf = OG_INVALID_ID8;
+                subpart_def->pctfree = OG_INVALID_ID32;
+            }
+        } else { // it's not specify subpartition desc
+            OG_RETURN_IFERR(sql_generate_default_subpart(stmt, def, &part_def->subparts));
+        }
+    }
+
+    return OG_SUCCESS;
+}
+
+static status_t og_part_parse_list_value(sql_stmt_t *stmt, knl_part_def_t *parent_part_def, knl_part_def_t *part_def,
+    uint32 key_count, knl_part_obj_def_t *obj_def, galist_t *boundaries)
+{
+    status_t status;
+    expr_tree_t *value_expr = NULL;
+    expr_tree_t *tmp_expr = NULL;
+    galist_t *value_list = &part_def->value_list;
+    uint32 count;
+    sql_verifier_t verf = { 0 };
+    verf.context = stmt->context;
+    verf.stmt = stmt;
+    verf.excl_flags = SQL_EXCL_AGGR | SQL_EXCL_COLUMN | SQL_EXCL_STAR | SQL_EXCL_SUBSELECT | SQL_EXCL_JOIN |
+        SQL_EXCL_ROWNUM | SQL_EXCL_ROWID | SQL_EXCL_DEFAULT | SQL_EXCL_ROWSCN | SQL_EXCL_WIN_SORT | SQL_EXCL_ROWNODEID;
+
+    for (uint32 i = 0; i < boundaries->count; i++) {
+        tmp_expr = (expr_tree_t *)cm_galist_get(boundaries, i);
+        count = 0;
+
+        while (tmp_expr != NULL) {
+            value_expr = tmp_expr;
+            tmp_expr = tmp_expr->next;
+            value_expr->next = NULL;
+
+            status = sql_verify_expr(&verf, value_expr);
+            OG_RETURN_IFERR(status);
+
+            status = cm_galist_insert(value_list, value_expr);
+            OG_RETURN_IFERR(status);
+            count++;
+        }
+
+        if (count != key_count) {
+            OG_SRC_THROW_ERROR_EX(value_expr->loc, ERR_SQL_SYNTAX_ERROR, "value count must equal to partition keys");
+        }
+
+        if (key_count == 1) {
+            OG_RETURN_IFERR(sql_list_verify_one_key(stmt, value_expr, parent_part_def, obj_def, &part_def->name));
+        } else {
+            OG_RETURN_IFERR(sql_list_verify_multi_key(stmt, &part_def->value_list, parent_part_def, obj_def,
+                &part_def->name));
+        }
+    }
+    return sql_put_list_key(stmt, part_def, obj_def, parent_part_def);
+}
+
+static status_t og_parse_list_partition(sql_stmt_t *stmt, knl_part_def_t *part_def, knl_part_obj_def_t *obj_def,
+    knl_part_def_t *parent_part_def, part_item_t *item)
+{
+    bool32 *has_default = parent_part_def != NULL ? &obj_def->sub_has_default : &obj_def->has_default;
+    galist_t *tmp_part_keys = parent_part_def == NULL ? &obj_def->part_keys : &obj_def->subpart_keys;
+    part_def->hiboundval = item->hiboundval;
+
+    if (*has_default) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "default must be in last partition");
+        return OG_ERROR;
+    }
+
+    if (item->boundaries == NULL) {
+        /* values (DEFAULT) case */
+        *has_default = OG_TRUE;
+        part_key_init(part_def->partkey, 1);
+        part_put_default(part_def->partkey);
+        return OG_SUCCESS;
+    }
+
+    return og_part_parse_list_value(stmt, parent_part_def, part_def, tmp_part_keys->count, obj_def, item->boundaries);
+}
+
+static status_t og_parse_range_values(sql_stmt_t *stmt, knl_part_def_t *part_def, knl_part_obj_def_t *obj_def,
+    knl_part_def_t *parent_def, galist_t *boundaries)
+{
+    variant_t value;
+    expr_tree_t *value_expr = NULL;
+    sql_verifier_t verf = { 0 };
+    knl_part_column_def_t *key = NULL;
+    galist_t *tmp_part_keys = &obj_def->part_keys;
+
+    sql_init_verifier(stmt, &verf);
+
+    if (boundaries->count != tmp_part_keys->count) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "value count must equal to partition keys");
+        return OG_ERROR;
+    }
+
+    if (parent_def != NULL) {
+        tmp_part_keys = &obj_def->subpart_keys;
+    }
+
+    part_key_init(part_def->partkey, tmp_part_keys->count);
+
+    for (uint32 i = 0; i < boundaries->count; i++) {
+        value_expr = (expr_tree_t *)cm_galist_get(boundaries, i);
+        if (value_expr->root->type == EXPR_NODE_COLUMN &&
+            cm_compare_text_str_ins(&value_expr->root->word.column.name.value, PART_VALUE_MAX) == 0) {
+            if ((obj_def->is_interval) && parent_def == NULL) {
+                OG_SRC_THROW_ERROR_EX(value_expr->loc, ERR_SQL_SYNTAX_ERROR,
+                    "Maxvalue partition cannot be specified for interval partitioned");
+                return OG_ERROR;
+            }
+            part_put_max(part_def->partkey);
+        } else {
+            key = cm_galist_get(tmp_part_keys, i);
+            OG_RETURN_IFERR(sql_verify_expr(&verf, value_expr));
+            OG_RETURN_IFERR(sql_exec_expr(stmt, value_expr, &value));
+            OG_RETURN_IFERR(sql_part_put_key(stmt, &value, key->datatype, key->size, key->is_char, key->precision,
+                key->scale, part_def->partkey));
+        }
+    }
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_range_partition(sql_stmt_t *stmt, knl_part_def_t *part_def, knl_part_obj_def_t *obj_def,
+    knl_part_def_t *parent_def, part_item_t *item)
+{
+    part_def->hiboundval = item->hiboundval;
+
+    OG_RETURN_IFERR(og_parse_range_values(stmt, part_def, obj_def, parent_def, item->boundaries));
+
+    return sql_range_verify_keys(stmt, obj_def, part_def, parent_def);
+}
+
+static status_t og_part_parse_partition_key(sql_stmt_t *stmt, knl_part_obj_def_t *part_obj, knl_part_def_t *part_def,
+    knl_part_def_t *parent_def, part_item_t *item)
+{
+    part_key_t *partkey = NULL;
+    uint32 alloc_size = sizeof(part_key_t);
+    status_t status;
+    part_type_t part_type = part_obj->part_type;
+
+    OG_RETURN_IFERR(sql_push(stmt, OG_MAX_COLUMN_SIZE, (void **)&partkey));
+    MEMS_RETURN_IFERR(memset_s(partkey, OG_MAX_COLUMN_SIZE, 0x00, OG_MAX_COLUMN_SIZE));
+    part_def->partkey = partkey;
+
+    if (parent_def != NULL) {
+        part_type = part_obj->subpart_type;
+    }
+
+    cm_galist_init(&part_def->value_list, stmt->context, sql_alloc_mem);
+    switch (part_type) {
+        case PART_TYPE_LIST:
+            status = og_parse_list_partition(stmt, part_def, part_obj, parent_def, item);
+            break;
+        case PART_TYPE_RANGE:
+            status = og_parse_range_partition(stmt, part_def, part_obj, parent_def, item);
+            break;
+        default:
+            status = OG_SUCCESS;
+            break;
+    }
+
+    if (status == OG_ERROR) {
+        return OG_ERROR;
+    }
+
+    if (partkey->size > 0) {
+        alloc_size = partkey->size;
+    }
+
+    if (sql_alloc_mem(stmt->context, alloc_size, (pointer_t *)&part_def->partkey) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+
+    MEMS_RETURN_IFERR(memcpy_sp(part_def->partkey, alloc_size, partkey, alloc_size));
+
+    return status;
+}
+
+static status_t og_part_parse_partition(sql_stmt_t *stmt, knl_part_obj_def_t *obj_def, knl_part_def_t *part_def,
+    part_item_t *item)
+{
+    cm_str2text(item->name, &part_def->name);
+
+    if (sql_check_sys_interval_part(obj_def, &part_def->name)) {
+        OG_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "create table with interval part name _SYS_P");
+        return OG_ERROR;
+    }
+
+    OGSQL_SAVE_STACK(stmt);
+    if (og_part_parse_partition_key(stmt, obj_def, part_def, NULL, item) != OG_SUCCESS) {
+        OGSQL_RESTORE_STACK(stmt);
+        return OG_ERROR;
+    }
+    OGSQL_RESTORE_STACK(stmt);
+
+    part_def->support_csf = OG_TRUE;
+    part_def->exist_subparts = obj_def->is_composite ? OG_TRUE : OG_FALSE;
+    return og_parse_partition_attrs(part_def, item->opts);
+}
+
+static status_t og_part_parse_subpartitions(sql_stmt_t *stmt, knl_part_obj_def_t *obj_def, knl_part_def_t *parent_def,
+    galist_t *subpartitions)
+{
+    knl_part_def_t *subpart_def = NULL;
+    part_item_t *item = NULL;
+
+    obj_def->sub_has_default = OG_FALSE;
+
+    for (uint32 i = 0; i < subpartitions->count; i++) {
+        item = (part_item_t *)cm_galist_get(subpartitions, i);
+
+        OG_RETURN_IFERR(cm_galist_new(&parent_def->subparts, sizeof(knl_part_def_t), (pointer_t *)&subpart_def));
+        cm_str2text(item->name, &subpart_def->name);
+        if (sql_check_sys_interval_subpart(obj_def, &subpart_def->name)) {
+            OG_THROW_ERROR(ERR_OPERATIONS_NOT_ALLOW, "create table with interval subpart name _SYS_SUBP");
+            return OG_ERROR;
+        }
+        OGSQL_SAVE_STACK(stmt);
+        if (og_part_parse_partition_key(stmt, obj_def, subpart_def, parent_def, item) != OG_SUCCESS) {
+            OGSQL_RESTORE_STACK(stmt);
+            return OG_ERROR;
+        }
+        OGSQL_RESTORE_STACK(stmt);
+
+        if (item->tablespace != NULL) {
+            cm_str2text(item->tablespace, &subpart_def->space);
+        }
+    }
+
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_subpartitions_for_compart(sql_stmt_t *stmt, knl_part_obj_def_t *def, knl_part_def_t *part_def,
+    part_item_t *item)
+{
+    knl_store_in_set_t store_in;
+    part_store_in_clause *store_in_clause = NULL;
+
+    cm_galist_init(&part_def->subparts, stmt->context, sql_alloc_mem);
+    cm_galist_init(&part_def->group_subkeys, stmt->context, sql_alloc_mem);
+
+    if (def->subpart_store_in.is_store_in) {
+        if (item->subpart_clause != NULL) {
+            OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "invalid subpartition definition");
+            return OG_ERROR;
+        }
+        OG_RETURN_IFERR(sql_part_new_part_def(stmt, def->subpart_store_in.part_cnt, &part_def->subparts));
+        if (def->subpart_store_in.space_cnt > 0) {
+            OG_RETURN_IFERR(sql_part_generate_space_name(stmt, &def->subpart_store_in, &part_def->subparts));
+        }
+    } else if (item->subpart_clause != NULL && item->subpart_clause->is_store_in) {
+        store_in_clause = item->subpart_clause->subpart_store_in;
+        store_in.is_store_in = OG_TRUE;
+        store_in.space_cnt = 0;
+        cm_galist_init(&store_in.space_list, stmt->context, sql_alloc_mem);
+        if (store_in_clause->num == 0) {
+            OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "invalid partition number");
+            return OG_ERROR;
+        }
+        store_in.part_cnt = store_in_clause->num;
+        OG_RETURN_IFERR(og_parse_store_in_space(stmt, &store_in, store_in_clause->tablespaces));
+        OG_RETURN_IFERR(sql_part_new_part_def(stmt, store_in.part_cnt, &part_def->subparts));
+        if (store_in.space_cnt > 0) {
+            OG_RETURN_IFERR(sql_part_generate_space_name(stmt, &store_in, &part_def->subparts));
+        }
+    } else if (item->subpart_clause != NULL) {
+        OG_RETURN_IFERR(og_part_parse_subpartitions(stmt, def, part_def, item->subpart_clause->subparts));
+    } else {
+        OG_RETURN_IFERR(sql_generate_default_subpart(stmt, def, &part_def->subparts));
+    }
+
+    part_def->is_parent = OG_TRUE;
+
+    return OG_SUCCESS;
+}
+
+static status_t og_part_parse_partitions(sql_stmt_t *stmt, knl_table_def_t *table_def, galist_t *partitions)
+{
+    knl_part_def_t *part_def = NULL;
+    knl_part_obj_def_t *def = table_def->part_def;
+    part_item_t *item = NULL;
+
+    for (uint32 i = 0; i < partitions->count; i++) {
+        item = (part_item_t *)cm_galist_get(partitions, i);
+
+        OG_RETURN_IFERR(cm_galist_new(&def->parts, sizeof(knl_part_def_t), (pointer_t *)&part_def));
+        OG_RETURN_IFERR(og_part_parse_partition(stmt, def, part_def, item));
+
+        if (def->is_composite) {
+            OG_RETURN_IFERR(og_parse_subpartitions_for_compart(stmt, def, part_def, item));
+        }
+    }
+    return OG_SUCCESS;
+}
+
+status_t og_part_parse_table(sql_stmt_t *stmt, knl_table_def_t *table_def, parser_table_part *partition)
+{
+    knl_part_obj_def_t *def = NULL;
+
+    if (cm_lic_check(LICENSE_PARTITION) != OG_SUCCESS) {
+        OG_THROW_ERROR(ERR_LICENSE_CHECK_FAIL, " effective partition function license is required.");
+        return OG_ERROR;
+    }
+
+    if (table_def->part_def != NULL) {
+        OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "duplicate partition definition");
+        return OG_ERROR;
+    }
+
+    OG_RETURN_IFERR(sql_alloc_mem(stmt->context, sizeof(knl_part_obj_def_t), (pointer_t *)&table_def->part_def));
+    def = table_def->part_def;
+    table_def->parted = OG_TRUE;
+
+    cm_galist_init(&def->parts, stmt->context, sql_alloc_mem);
+    cm_galist_init(&def->part_keys, stmt->context, sql_alloc_mem);
+    cm_galist_init(&def->group_keys, stmt->context, sql_alloc_mem);
+    cm_galist_init(&def->part_store_in.space_list, stmt->context, sql_alloc_mem);
+    cm_galist_init(&def->subpart_store_in.space_list, stmt->context, sql_alloc_mem);
+    cm_galist_init(&def->subpart_keys, stmt->context, sql_alloc_mem);
+
+    OG_RETURN_IFERR(og_parse_part_type_keys(stmt, table_def, partition));
+    OG_RETURN_IFERR(og_part_parse_store_in(stmt, def, partition->part_store_in));
+    OG_RETURN_IFERR(og_subpart_parse_store_in(stmt, def, partition->subpart_store_in));
+    if (def->part_store_in.is_store_in) {
+        return og_generate_subpart_for_storein(stmt, def);
+    }
+
+    return og_part_parse_partitions(stmt, table_def, partition->partitions);
+}

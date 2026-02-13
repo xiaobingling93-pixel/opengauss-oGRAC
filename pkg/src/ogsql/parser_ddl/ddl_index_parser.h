@@ -42,6 +42,34 @@ typedef struct st_index_column_def {
     char *function_name;
 } index_knl_column_def_t;
 
+typedef enum createidx_opt_type {
+    CREATEIDX_OPT_TABLESPACE,
+    CREATEIDX_OPT_INITRANS,
+    CREATEIDX_OPT_LOCAL,
+    CREATEIDX_OPT_PCTFREE,
+    CREATEIDX_OPT_CRMODE,
+    CREATEIDX_OPT_ONLINE,
+    CREATEIDX_OPT_PARALLEL,
+    CREATEIDX_OPT_REVERSE,
+    CREATEIDX_OPT_NOLOGGING
+} createidx_opt_type;
+
+typedef struct createidx_opt {
+    createidx_opt_type type;
+    union {
+        char *name;
+        uint32 size;
+        galist_t *list;
+        uint8 cr_mode;
+    };
+} createidx_opt;
+
+typedef struct index_partition_parse_info {
+    char *name;
+    galist_t *opts;
+    galist_t *subparts;
+} index_partition_parse_info;
+
 status_t sql_parse_using_index(sql_stmt_t *stmt, lex_t *lex, knl_constraint_def_t *cons_def);
 status_t sql_parse_column_list(sql_stmt_t *stmt, lex_t *lex, galist_t *column_list, bool32 have_sort,
     bool32 *have_func);
@@ -53,6 +81,10 @@ status_t sql_parse_drop_index(sql_stmt_t *stmt);
 status_t sql_parse_analyze_index(sql_stmt_t *stmt);
 status_t sql_parse_purge_index(sql_stmt_t *stmt, knl_purge_def_t *def);
 status_t sql_parse_create_indexes(sql_stmt_t *stmt);
+status_t og_parse_create_index(sql_stmt_t *stmt, knl_index_def_t **index_def, name_with_owner *index_name,
+    name_with_owner *table_name, galist_t *column_list, galist_t *index_opts);
+status_t og_parse_column_list(sql_stmt_t *stmt, galist_t *columns, bool32 *is_func, galist_t *column_list);
+status_t og_parse_index_attrs(sql_stmt_t *stmt, knl_index_def_t *index_def, galist_t *index_opts);
 
 #ifdef __cplusplus
 }

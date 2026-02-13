@@ -1518,7 +1518,7 @@ static status_t plc_verify_array_assign(plv_decl_t *decl, expr_tree_t *right)
     return OG_SUCCESS;
 }
 
-static status_t plc_verify_stack_var_assign(pl_compiler_t *compiler, plv_decl_t *left_decl, expr_tree_t *right)
+status_t plc_verify_stack_var_assign(pl_compiler_t *compiler, plv_decl_t *left_decl, expr_tree_t *right)
 {
     switch (left_decl->type) {
         case PLV_PARAM:
@@ -1803,7 +1803,7 @@ static status_t plc_verify_var_assign(pl_compiler_t *compiler, expr_node_t *left
     return OG_SUCCESS;
 }
 
-static status_t plc_verify_setval(pl_compiler_t *compiler, expr_node_t *left, expr_tree_t *right)
+status_t plc_verify_setval(pl_compiler_t *compiler, expr_node_t *left, expr_tree_t *right)
 {
     OG_RETURN_IFERR(plc_verify_expr(compiler, right));
     if (sql_is_skipped_expr(right)) {

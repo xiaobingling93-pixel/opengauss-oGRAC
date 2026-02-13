@@ -986,7 +986,8 @@ status_t sql_parse_create_tenant(sql_stmt_t *stmt)
     return lex_expected_end(lex);
 }
 
-static status_t sql_get_timetype_value(knl_profile_def_t *def, variant_t *value, lex_t *lex, uint32 id, dec8_t *unlimit)
+static status_t sql_get_timetype_value(knl_profile_def_t *def, variant_t *value, source_location_t loc, uint32 id,
+    dec8_t *unlimit)
 {
     dec8_t result;
     if (OG_SUCCESS != cm_int64_mul_dec((int64)SECONDS_PER_DAY, &(value->v_dec), &result)) {
@@ -994,33 +995,34 @@ static status_t sql_get_timetype_value(knl_profile_def_t *def, variant_t *value,
     }
 
     if (cm_dec_cmp(&result, unlimit) > 0) {
-        OG_SRC_THROW_ERROR(lex->loc, ERR_INVALID_RESOURCE_LIMIT);
+        OG_SRC_THROW_ERROR(loc, ERR_INVALID_RESOURCE_LIMIT);
         return OG_ERROR;
     }
 
     int64 check_scale = 0;
     if (cm_dec_to_int64(&result, (int64 *)&check_scale, ROUND_HALF_UP) != OG_SUCCESS || check_scale < 1) {
-        OG_SRC_THROW_ERROR(lex->loc, ERR_INVALID_RESOURCE_LIMIT);
+        OG_SRC_THROW_ERROR(loc, ERR_INVALID_RESOURCE_LIMIT);
         return OG_ERROR;
     }
     value->v_dec = result;
 
     if (cm_dec_to_int64(&(value->v_dec), (int64 *)&def->limit[id].value, ROUND_HALF_UP)) {
-        OG_SRC_THROW_ERROR(lex->loc, ERR_INVALID_RESOURCE_LIMIT);
+        OG_SRC_THROW_ERROR(loc, ERR_INVALID_RESOURCE_LIMIT);
         return OG_ERROR;
     }
     return OG_SUCCESS;
 }
 
-static status_t sql_get_extra_values(knl_profile_def_t *def, variant_t *value, lex_t *lex, uint32 id, dec8_t *unlimit)
+static status_t sql_get_extra_values(knl_profile_def_t *def, variant_t *value, source_location_t loc, uint32 id,
+    dec8_t *unlimit)
 {
     if (OG_TRUE != cm_dec_is_integer(&(value->v_dec))) {
-        OG_SRC_THROW_ERROR(lex->loc, ERR_INVALID_RESOURCE_LIMIT);
+        OG_SRC_THROW_ERROR(loc, ERR_INVALID_RESOURCE_LIMIT);
         return OG_ERROR;
     }
 
     if (cm_dec_to_int64(&(value->v_dec), (int64 *)&def->limit[id].value, ROUND_HALF_UP)) {
-        OG_SRC_THROW_ERROR(lex->loc, ERR_INVALID_RESOURCE_LIMIT);
+        OG_SRC_THROW_ERROR(loc, ERR_INVALID_RESOURCE_LIMIT);
         return OG_ERROR;
     }
 
@@ -1033,7 +1035,7 @@ static status_t sql_get_extra_values(knl_profile_def_t *def, variant_t *value, l
 
     if (id == PASSWORD_MIN_LEN) {
         if (def->limit[id].value < OG_PASSWD_MIN_LEN || def->limit[id].value > OG_PASSWD_MAX_LEN) {
-            OG_SRC_THROW_ERROR(lex->loc, ERR_INVALID_RESOURCE_LIMIT);
+            OG_SRC_THROW_ERROR(loc, ERR_INVALID_RESOURCE_LIMIT);
             return OG_ERROR;
         }
     }
@@ -1090,7 +1092,7 @@ static status_t sql_get_profile_parameters_value(sql_stmt_t *stmt, knl_profile_d
         return OG_ERROR;
     }
 
-    status = handle->func(def, &value, lex, id, &unlimit);
+    status = handle->func(def, &value, lex->loc, id, &unlimit);
     OG_RETURN_IFERR(status);
 
     lex_back(lex, &word);
@@ -1575,14 +1577,26 @@ status_t og_parse_create_tenant(sql_stmt_t *stmt, knl_tenant_def_t **tenant_def,
     
     // Copy space list
     if (space_list != NULL) {
+        char *name = NULL;
+        text_t tmp;
         cm_galist_init(&def->space_lst, stmt->context, sql_alloc_mem);
         
         for (i = 0; i < space_list->count; i++) {
-            tmp_space = (text_t *)cm_galist_get(space_list, i);
+            name = (char*)cm_galist_get(space_list, i);
+            cm_str2text(name, &tmp);
+
+            if (sql_find_space_in_list(&def->space_lst, &tmp)) {
+                OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "tablespace %s is already exists", name);
+                return OG_ERROR;
+            }
             if (cm_galist_new(&def->space_lst, sizeof(text_t), (pointer_t *)&space_name) != OG_SUCCESS) {
                 return OG_ERROR;
             }
-            if (sql_copy_name(stmt->context, tmp_space, space_name) != OG_SUCCESS) {
+            if (sql_copy_name(stmt->context, &tmp, space_name) != OG_SUCCESS) {
+                return OG_ERROR;
+            }
+            if (def->space_lst.count >= OG_MAX_SPACES) {
+                OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "exclude spaces number out of max spaces number");
                 return OG_ERROR;
             }
         }
@@ -1622,5 +1636,107 @@ status_t og_parse_create_tenant(sql_stmt_t *stmt, knl_tenant_def_t **tenant_def,
     }
     
     stmt->context->entry = def;
+    return OG_SUCCESS;
+}
+
+static status_t og_get_profile_parameters_value(sql_stmt_t *stmt, knl_profile_def_t *def, expr_tree_t *expr, uint32 id)
+{
+    dec8_t unlimit;
+    status_t status;
+    sql_verifier_t verf = { 0 };
+    variant_t value;
+
+    verf.context = stmt->context;
+    verf.stmt = stmt;
+    verf.excl_flags = SQL_NON_NUMERIC_FLAGS;
+
+    OG_RETURN_IFERR(sql_verify_expr(&verf, expr));
+
+    if (!sql_is_const_expr_tree(expr)) {
+        OG_SRC_THROW_ERROR(expr->root->loc, ERR_INVALID_RESOURCE_LIMIT);
+        return OG_ERROR;
+    }
+
+    OG_RETURN_IFERR(sql_exec_expr(stmt, expr, &value));
+
+    OG_RETURN_IFERR(sql_convert_variant(stmt, &value, OG_TYPE_NUMBER));
+
+    cm_int32_to_dec(OG_INVALID_INT32, &unlimit);
+    if (value.is_null || IS_DEC8_NEG(&value.v_dec) || DECIMAL8_IS_ZERO(&value.v_dec) ||
+        cm_dec_cmp(&value.v_dec, &unlimit) >= 0) {
+        OG_SRC_THROW_ERROR(expr->root->loc, ERR_INVALID_RESOURCE_LIMIT);
+        return OG_ERROR;
+    }
+
+    check_profile_t *handle = &g_check_pvalues[id];
+    if (handle->func == NULL) {
+        OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "the req cmd is not valid");
+        return OG_ERROR;
+    }
+
+    status = handle->func(def, &value, expr->root->loc, id, &unlimit);
+    OG_RETURN_IFERR(status);
+
+    return OG_SUCCESS;
+}
+
+status_t og_parse_create_profile(sql_stmt_t *stmt, knl_profile_def_t **def, char *profile_name, bool32 is_replace,
+    galist_t *limit_list)
+{
+    status_t status;
+    knl_profile_def_t *profile_def = NULL;
+    text_t default_profile = { DEFAULT_PROFILE_NAME, (uint32)strlen(DEFAULT_PROFILE_NAME) };
+    bool32 is_default = (strcmp(profile_name, DEFAULT_PROFILE_NAME) == 0);
+    profile_limit_item_t *item = NULL;
+
+    stmt->context->type = OGSQL_TYPE_CREATE_PROFILE;
+
+    status = sql_alloc_mem(stmt->context, sizeof(knl_profile_def_t), (void **)def);
+    OG_RETURN_IFERR(status);
+    profile_def = *def;
+
+    profile_def->is_replace = is_replace;
+    profile_def->mask = 0;
+
+    if (is_default) {
+        status = sql_copy_text(stmt->context, &default_profile, &profile_def->name);
+        OG_RETURN_IFERR(status);
+    } else {
+        profile_def->name.str = profile_name;
+        profile_def->name.len = strlen(profile_name);
+    }
+
+    // Process parsed limit list
+    for (uint32 i = 0; i < limit_list->count; i++) {
+        item = (profile_limit_item_t *)cm_galist_get(limit_list, i);
+        // Check for duplicate parameters
+        if (OG_BIT_TEST(profile_def->mask, OG_GET_MASK(item->param_type))) {
+            OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "keyword cannot appear more than once");
+            return OG_ERROR;
+        }
+        OG_BIT_SET(profile_def->mask, OG_GET_MASK(item->param_type));
+
+        // Check for invalid UNLIMITED on PASSWORD_MIN_LEN
+        if (item->param_type == PASSWORD_MIN_LEN && item->value->type == VALUE_UNLIMITED) {
+            OG_THROW_ERROR(ERR_INVALID_RESOURCE_LIMIT);
+            return OG_ERROR;
+        }
+
+        // Set the limit value
+        profile_def->limit[item->param_type].type = item->value->type;
+        if (item->value->type == VALUE_NORMAL &&
+            og_get_profile_parameters_value(stmt, profile_def, item->value->expr, item->param_type) != OG_SUCCESS) {
+            return OG_ERROR;
+        }
+    }
+
+    // Initialize all limits to DEFAULT
+    for (int i = FAILED_LOGIN_ATTEMPTS; i < RESOURCE_PARAM_END; i++) {
+        if (!OG_BIT_TEST(profile_def->mask, OG_GET_MASK(i))) {
+            OG_BIT_SET(profile_def->mask, OG_GET_MASK(i));
+            profile_def->limit[i].type = VALUE_DEFAULT;
+        }
+    }
+
     return OG_SUCCESS;
 }

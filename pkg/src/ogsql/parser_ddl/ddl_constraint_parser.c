@@ -30,6 +30,7 @@
 #include "ddl_column_parser.h"
 #include "ddl_parser_common.h"
 #include "cond_parser.h"
+#include "ddl_index_parser.h"
 
 /*
  * a recursive process which will stop when encountering the first non-constraint-state word.
@@ -731,7 +732,7 @@ static status_t sql_try_parse_primary_unique_cons(sql_stmt_t *stmt, lex_t *lex, 
     }
 }
 
-static status_t sql_append_primary_key_cols(sql_stmt_t *stmt, text_t *ref_user, text_t *ref_table,
+status_t sql_append_primary_key_cols(sql_stmt_t *stmt, text_t *ref_user, text_t *ref_table,
     galist_t *ref_columns)
 {
     knl_dictionary_t dc;
@@ -1258,4 +1259,193 @@ status_t sql_parse_altable_constraint_rename(sql_stmt_t *stmt, lex_t *lex, knl_a
     }
     lex->flags = pre_flags;
     return lex_expected_end(lex);
+}
+
+status_t og_parse_constraint_state(sql_stmt_t *stmt, knl_constraint_def_t *cons_def, galist_t *opts)
+{
+    knl_constraint_state_t *cons_state = NULL;
+    constraint_state *state = NULL;
+    uint32 i;
+
+    if (opts == NULL) {
+        return OG_SUCCESS;
+    }
+    CM_POINTER2(stmt, cons_def);
+
+    cons_state = &cons_def->cons_state;
+
+    for (i = 0; i < opts->count; i++) {
+        state = (constraint_state *)cm_galist_get(opts, i);
+
+        switch (state->type) {
+            case CONS_STATE_ENABLE:
+                cons_state->is_enable = OG_TRUE;
+                break;
+            case CONS_STATE_DISABLE:
+                cons_state->is_enable = OG_FALSE;
+                break;
+            case CONS_STATE_DEFEREABLE:
+                cons_state->deferrable_ops = STATE_DEFERRABLE;
+                break;
+            case CONS_STATE_NOT_DEFEREABLE:
+                cons_state->deferrable_ops = STATE_NOT_DEFERRABLE;
+                break;
+            case CONS_STATE_INITIALLY_IMMEDIATE:
+                cons_state->initially_ops = STATE_INITIALLY_IMMEDIATE;
+                break;
+            case CONS_STATE_INITIALLY_DEFERRED:
+                cons_state->initially_ops = STATE_INITIALLY_DEFERRED;
+                break;
+            case CONS_STATE_RELY:
+                cons_state->rely_ops = STATE_RELY;
+                break;
+            case CONS_STATE_NO_RELY:
+                cons_state->rely_ops = STATE_NO_RELY;
+                break;
+            case CONS_STATE_VALIDATE:
+                cons_state->is_validate = OG_TRUE;
+                break;
+            case CONS_STATE_NO_VALIDATE:
+                cons_state->is_validate = OG_FALSE;
+                break;
+            case CONS_STATE_PARALLEL:
+                if ((cons_def->type != CONS_TYPE_PRIMARY) && (cons_def->type != CONS_TYPE_UNIQUE)) {
+                    OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR,
+                        "\"PARALLEL\" cannot be specified in a constraint clause other than primary "
+                        "key constraint and unique constraint.");
+                    return OG_ERROR;
+                }
+                if (cons_def->index.parallelism != 0) {
+                    OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "duplicate parallelism specification");
+                    return OG_ERROR;
+                }
+                cons_def->index.parallelism = state->parallelism;
+                break;
+            case CONS_STATE_REVERSE:
+                if ((cons_def->type != CONS_TYPE_PRIMARY) && (cons_def->type != CONS_TYPE_UNIQUE)) {
+                    OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR,
+                        "\"REVERSE\" cannot be specified in a constraint clause other than primary "
+                        "key constraint and unique constraint.");
+                    return OG_ERROR;
+                }
+                if (cons_def->index.is_reverse) {
+                    OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "duplicate reverse specification");
+                    return OG_ERROR;
+                }
+                cons_def->index.is_reverse = OG_TRUE;
+                break;
+            default:
+                break;
+        }
+    }
+
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_primary_unique_cons(sql_stmt_t *stmt, knl_table_def_t *def, parse_constraint_t *cons)
+{
+    status_t status;
+    knl_constraint_def_t *cons_def = NULL;
+
+    if (cons->type == CONS_TYPE_PRIMARY) {
+        status = sql_alloc_inline_cons(stmt, CONS_TYPE_PRIMARY, &def->constraints, &cons_def);
+        OG_RETURN_IFERR(status);
+        cons_def->index.primary = OG_TRUE;
+        cons_def->index.cr_mode = OG_INVALID_ID8;
+        cons_def->index.pctfree = OG_INVALID_ID32;
+
+        status = og_parse_column_list(stmt, &cons_def->columns, NULL, cons->column_list);
+        OG_RETURN_IFERR(status);
+    } else {
+        status = sql_alloc_inline_cons(stmt, CONS_TYPE_UNIQUE, &def->constraints, &cons_def);
+        OG_RETURN_IFERR(status);
+        cons_def->index.unique = OG_TRUE;
+        cons_def->index.cr_mode = OG_INVALID_ID8;
+        cons_def->index.pctfree = OG_INVALID_ID32;
+
+        status = og_parse_column_list(stmt, &cons_def->columns, NULL, cons->column_list);
+        OG_RETURN_IFERR(status);
+    }
+
+    if (cons->name != NULL) {
+        cons_def->cons_state.is_anonymous = OG_FALSE;
+        cons_def->name.str = cons->name;
+        cons_def->name.len = strlen(cons->name);
+        status = og_parse_constraint_state(stmt, cons_def, cons->idx_opts);
+        OG_RETURN_IFERR(status);
+    } else {
+        status = og_parse_index_attrs(stmt, &cons_def->index, cons->idx_opts);
+        OG_RETURN_IFERR(status);
+    }
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_check_cons(sql_stmt_t *stmt, knl_table_def_t *def, parse_constraint_t *cons)
+{
+    status_t status;
+    knl_constraint_def_t *cons_def = NULL;
+
+    status = sql_alloc_inline_cons(stmt, CONS_TYPE_CHECK, &def->constraints, &cons_def);
+    OG_RETURN_IFERR(status);
+
+    if (cons->name != NULL) {
+        cons_def->cons_state.is_anonymous = OG_FALSE;
+        cons_def->name.str = cons->name;
+        cons_def->name.len = strlen(cons->name);
+    }
+    cons_def->check.text = cons->check_text;
+    cons_def->check.cond = cons->cond;
+    OG_RETURN_IFERR(status);
+
+    return OG_SUCCESS;
+}
+
+static status_t og_parse_foreign_key(sql_stmt_t *stmt, knl_table_def_t *def, parse_constraint_t *cons)
+{
+    status_t status;
+    knl_reference_def_t *ref = NULL;
+    knl_constraint_def_t *cons_def = NULL;
+
+    status = sql_alloc_inline_cons(stmt, CONS_TYPE_REFERENCE, &def->constraints, &cons_def);
+    OG_RETURN_IFERR(status);
+    ref = &cons_def->ref;
+    status = og_parse_column_list(stmt, &cons_def->columns, NULL, cons->cols);
+    OG_RETURN_IFERR(status);
+
+    if (cons->ref->owner.len != 0) {
+        ref->ref_user = cons->ref->owner;
+    } else {
+        cm_str2text(stmt->session->curr_schema, &ref->ref_user);
+    }
+    ref->ref_table = cons->ref->name;
+    ref->refactor = cons->refactor;
+
+    status = og_parse_column_list(stmt, &ref->ref_columns, NULL, cons->ref_cols);
+    OG_RETURN_IFERR(status);
+
+    status = sql_append_primary_key_cols(stmt, &ref->ref_user, &ref->ref_table, &ref->ref_columns);
+    OG_RETURN_IFERR(status);
+
+    if (cons_def->columns.count != ref->ref_columns.count) {
+        OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR,
+            "foreign key columns count must be equal to primary key columns count");
+        return OG_ERROR;
+    }
+    return OG_SUCCESS;
+}
+
+status_t og_try_parse_cons(sql_stmt_t *stmt, knl_table_def_t *def, parse_constraint_t *cons)
+{
+    switch (cons->type) {
+        case CONS_TYPE_PRIMARY:
+            return og_parse_primary_unique_cons(stmt, def, cons);
+        case CONS_TYPE_UNIQUE:
+            return og_parse_primary_unique_cons(stmt, def, cons);
+        case CONS_TYPE_REFERENCE:
+            return og_parse_foreign_key(stmt, def, cons);
+        case CONS_TYPE_CHECK:
+            return og_parse_check_cons(stmt, def, cons);
+        default:
+            return OG_ERROR;
+    }
 }
