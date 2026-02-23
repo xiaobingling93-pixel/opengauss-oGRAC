@@ -567,6 +567,8 @@ static double ineq_balanced_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, u
     if (NODE_IS_RES_TRUE(node) || NODE_IS_RES_FALSE(node)) {
         (void)sql_get_reserved_value(stmt, node, &reserved_value);
         const_val = &reserved_value;
+    } else if (NODE_IS_RES_NULL(node)) {
+        return 0.0;
     } else if (node->type != EXPR_NODE_CONST) {
         return CBO_DEFAULT_INEQ_FF;
     }
@@ -674,6 +676,8 @@ static double eq_balanced_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, uin
     if (NODE_IS_RES_TRUE(node) || NODE_IS_RES_FALSE(node)) {
         (void)sql_get_reserved_value(stmt, node, &reserved_value);
         const_val = &reserved_value;
+    } else if (NODE_IS_RES_NULL(node)) {
+        return 0.0;
     } else if (node->type != EXPR_NODE_CONST) {
         return CBO_DEFAULT_EQ_FF;
     }
@@ -729,6 +733,8 @@ static double eq_frequence_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, ui
     if (NODE_IS_RES_TRUE(node) || NODE_IS_RES_FALSE(node)) {
         (void)sql_get_reserved_value(stmt, node, &reserved_value);
         const_val = &reserved_value;
+    } else if (NODE_IS_RES_NULL(node)) {
+        return 0.0;
     } else if (node->type != EXPR_NODE_CONST) {
         return CBO_DEFAULT_EQ_FF;
     }
@@ -777,6 +783,8 @@ static double ineq_frequence_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, 
     if (NODE_IS_RES_TRUE(node) || NODE_IS_RES_FALSE(node)) {
         (void)sql_get_reserved_value(stmt, node, &reserved_value);
         const_val = &reserved_value;
+    } else if (NODE_IS_RES_NULL(node)) {
+        return 0.0;
     } else if (node->type != EXPR_NODE_CONST) {
         return CBO_DEFAULT_INEQ_FF;
     }
@@ -790,7 +798,10 @@ static double btw_balanced_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, ui
     if (node == NULL ||node->owner == NULL || node->owner->next == NULL || node->owner->next->root == NULL) {
         return 0.0;
     }
-    
+    if (NODE_IS_RES_NULL(node) || NODE_IS_RES_NULL(node->owner->next->root)) {
+        return 0.0;
+    }
+
     double hist_frac_left =
         ineq_balanced_hist_factor(stmt, entity, col_id, column_stats, node, false);
     double hist_frac_right =
@@ -808,7 +819,9 @@ static double btw_frequence_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, u
     if (node == NULL || node->owner == NULL || node->owner->next == NULL || node->owner->next->root == NULL) {
         return 0.0;
     }
-    
+    if (NODE_IS_RES_NULL(node) || NODE_IS_RES_NULL(node->owner->next->root)) {
+        return 0.0;
+    }
     double hist_frac_left =
         ineq_frequence_hist_factor(stmt, entity, col_id, column_stats, node, false);
     double hist_frac_right =
