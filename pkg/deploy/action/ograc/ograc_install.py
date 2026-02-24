@@ -2813,11 +2813,19 @@ class Installer:
                 log('wait for ogracd thread startup')
                 time.sleep(20)
                 self.create_db()
+                self.create_3rd_pkg()
         except Exception as error:
             LOGGER.error(str(error))
             raise Exception(str(error))
         self.check_db_status()
         LOGGER.info("Creating database succeed.")
+    
+    def create_3rd_pkg(self):
+        LOGGER.info("Creating third package ...")
+        sql_file_path = "%s/admin/scripts" % self.install_path
+        file_name = "create_3rd_pkg.sql"
+        self.execute_sql_file(os.path.join(sql_file_path, file_name))
+        LOGGER.info("Creating third package succeed.")
 
     def create_db(self):
         if skip_execute_in_node_1():
