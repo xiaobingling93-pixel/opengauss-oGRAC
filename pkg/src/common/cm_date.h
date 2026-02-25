@@ -434,7 +434,8 @@ status_t cm_text2date(const text_t *text, const text_t *fmt, date_t *date);
 status_t cm_str2time(char *date, const text_t *fmt, time_t *time_stamp);
 status_t cm_check_tstz_is_valid(timestamp_tz_t *tstz);
 status_t cm_text2timestamp_tz(const text_t *text, const text_t *fmt, timezone_info_t default_tz, timestamp_tz_t *tstz);
-status_t cm_text2date_fixed(const text_t *text, const text_t *fmt, date_t *date, bool32 is_date_fmt);
+status_t cm_text2date_fixed(const text_t *text, const text_t *fmt, date_t *date,
+                            timezone_info_t *tz_offset, bool32 is_date_fmt);
 status_t cm_fetch_date_field(text_t *text, uint32 minval, uint32 maxval, char spilt_char, uint32 *field_val);
 status_t cm_text2date_def(const text_t *text, date_t *date);
 status_t cm_text2timestamp_def(const text_t *text, date_t *date);

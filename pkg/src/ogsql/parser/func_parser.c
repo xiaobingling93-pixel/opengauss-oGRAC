@@ -358,18 +358,12 @@ static status_t sql_build_func_args_substr(sql_stmt_t *stmt, word_t *word, expr_
 static status_t sql_build_func_args_extract(sql_stmt_t *stmt, word_t *word, expr_node_t *func_node,
     sql_text_t *arg_text)
 {
-    uint32 match_id;
     lex_t *lex = stmt->session->lex;
     expr_tree_t *arg_expr = NULL;
     // datetime unit expr
     OG_RETURN_IFERR(lex_expected_fetch(lex, word));
     // verify word text
     OG_RETURN_IFERR(lex_push(lex, &word->text));
-    if (lex_expected_fetch_1ofn(lex, &match_id, 6, "YEAR", "MONTH", "DAY", "HOUR", "MINUTE", "SECOND") != OG_SUCCESS) {
-        lex_pop(lex);
-        cm_set_error_loc(word->loc);
-        return OG_ERROR;
-    }
     lex_pop(lex);
     OG_RETURN_IFERR(sql_create_expr_from_word(stmt, word, &arg_expr));
     OG_RETURN_IFERR(sql_generate_expr(arg_expr));

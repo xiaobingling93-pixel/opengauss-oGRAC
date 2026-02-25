@@ -1,0 +1,125 @@
+
+
+SQL> select extract(timezone_hour from to_timestamp('2023-05-19 10:20:30 +8:00')) from dual;
+
+EXTRACT(TIMEZONE_HOUR FROM TO_TIMESTAMP('2023-05-19 10:20:30 +8:
+----------------------------------------------------------------
+8                                                               
+
+1 rows fetched.
+
+SQL> select extract(timezone_minute from to_timestamp('2023-05-19 10:20:30 +8:00')) from dual;
+
+EXTRACT(TIMEZONE_MINUTE FROM TO_TIMESTAMP('2023-05-19 10:20:30 +
+----------------------------------------------------------------
+0                                                               
+
+1 rows fetched.
+
+SQL> 
+SQL> select
+  2   extract(timezone_hour   from to_timestamp('2026-02-26 00:00:00 +00:00')) as tzh,
+  3   extract(timezone_minute from to_timestamp('2026-02-26 00:00:00 +00:00')) as tzm
+  4 from dual;
+
+TZH          TZM         
+------------ ------------
+0            0           
+
+1 rows fetched.
+
+SQL> 
+SQL> select
+  2   extract(timezone_hour   from to_timestamp('2026-02-26 00:00:00 -00:00')) as tzh,
+  3   extract(timezone_minute from to_timestamp('2026-02-26 00:00:00 -00:00')) as tzm
+  4 from dual;
+
+TZH          TZM         
+------------ ------------
+0            0           
+
+1 rows fetched.
+
+SQL> 
+SQL> select
+  2   extract(timezone_hour   from to_timestamp('2026-02-26 00:00:00 -14:00')) as tzh,
+  3   extract(timezone_minute from to_timestamp('2026-02-26 00:00:00 -14:00')) as tzm
+  4 from dual;
+
+OG-00146, [2:43]Time zone hour should be from -12 to 14
+SQL> 
+SQL> select
+  2   extract(timezone_hour   from to_timestamp('2026-02-26 00:00:00 +12:00')) as tzh,
+  3   extract(timezone_minute from to_timestamp('2026-02-26 00:00:00 +12:00')) as tzm
+  4 from dual;
+
+TZH          TZM         
+------------ ------------
+12           0           
+
+1 rows fetched.
+
+SQL> 
+SQL> select
+  2   extract(timezone_hour   from to_timestamp('2026-02-26 00:00:00 +5:45')) as tzh,
+  3   extract(timezone_minute from to_timestamp('2026-02-26 00:00:00 +5:45')) as tzm
+  4 from dual;
+
+TZH          TZM         
+------------ ------------
+5            45          
+
+1 rows fetched.
+
+SQL> 
+SQL> select
+  2   extract(timezone_hour   from to_timestamp('2026-02-26 00:00:00.001 +08:30')) as tzh,
+  3   extract(timezone_minute from to_timestamp('2026-02-26 00:00:00.001 +08:30')) as tzm
+  4 from dual;
+
+TZH          TZM         
+------------ ------------
+8            30          
+
+1 rows fetched.
+
+SQL> 
+SQL> select
+  2   extract(timezone_hour   from to_timestamp('2026-02-26 00:00:00.001 +08')) as tzh,
+  3   extract(timezone_minute from to_timestamp('2026-02-26 00:00:00.001 +08')) as tzm
+  4 from dual;
+
+TZH          TZM         
+------------ ------------
+8            0           
+
+1 rows fetched.
+
+SQL> 
+SQL> select
+  2   extract(timezone_hour   from to_timestamp('2026-02-26 00:00:00 +08')) as tzh,
+  3   extract(timezone_minute from to_timestamp('2026-02-26 00:00:00 +08')) as tzm
+  4 from dual;
+
+TZH          TZM         
+------------ ------------
+8            0           
+
+1 rows fetched.
+
+SQL> 
+SQL> select
+  2   extract(timezone_hour   from to_timestamp('2026-02-26 00:00:00 +08:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM')) as tzh,
+  3   extract(timezone_minute from to_timestamp('2026-02-26 00:00:00 +08:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM')) as tzm
+  4 from dual;
+
+TZH          TZM         
+------------ ------------
+8            0           
+
+1 rows fetched.
+
+SQL> 
+SQL> 
+
+

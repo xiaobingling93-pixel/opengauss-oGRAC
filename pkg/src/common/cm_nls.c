@@ -49,6 +49,7 @@ const nlsparam_item_t g_nlsparam_items[] = {
     [NLS_TERRITORY] = { NLS_TERRITORY,           { "NLS_TERRITORY", 13 }, OG_FALSE, OG_FALSE, OG_FALSE, NULL },
     [NLS_TIMESTAMP_FORMAT] = { NLS_TIMESTAMP_FORMAT,    { "NLS_TIMESTAMP_FORMAT", 20 }, OG_TRUE, OG_FALSE, OG_FALSE, cm_verify_timestamp_fmt },
     [NLS_TIMESTAMP_TZ_FORMAT] = { NLS_TIMESTAMP_TZ_FORMAT, { "NLS_TIMESTAMP_TZ_FORMAT", 23 }, OG_TRUE, OG_FALSE, OG_FALSE, NULL },
+    [NLS_TIMESTAMP_TZ_FORMAT2] = { NLS_TIMESTAMP_TZ_FORMAT2, { "NLS_TIMESTAMP_TZ_FORMAT2", 24 }, OG_TRUE, OG_FALSE, OG_FALSE, NULL },
     [NLS_TIME_FORMAT] = { NLS_TIME_FORMAT,         { "NLS_TIME_FORMAT", 15 }, OG_TRUE, OG_FALSE, OG_FALSE, NULL },
     [NLS_TIME_TZ_FORMAT] = { NLS_TIME_TZ_FORMAT,      { "NLS_TIME_TZ_FORMAT", 18 }, OG_TRUE, OG_FALSE, OG_FALSE, NULL },
 };
@@ -58,6 +59,7 @@ const nlsparams_t g_default_session_nlsparams = {
         [NLS_DATE_FORMAT] = { "YYYY-MM-DD HH24:MI:SS",            21 },
         [NLS_TIMESTAMP_FORMAT] = { "YYYY-MM-DD HH24:MI:SS.FF",         24 },
         [NLS_TIMESTAMP_TZ_FORMAT] = { "YYYY-MM-DD HH24:MI:SS.FF TZH:TZM", 32 },
+        [NLS_TIMESTAMP_TZ_FORMAT2] = { "YYYY-MM-DD HH24:MI:SS TZH:TZM", 29 },
         [NLS_TIME_FORMAT] = { "HH:MI:SS.FF AM",                   14 },
         [NLS_TIME_TZ_FORMAT] = { "HH:MI:SS.FF AM TZR",               18 },
     },

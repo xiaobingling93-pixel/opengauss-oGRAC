@@ -587,6 +587,8 @@ static key_word_t g_datetime_unit_words[] = {
     { (uint32)IU_SECOND,      OG_TRUE, { "SQL_TSI_SECOND", 14 } },
     { (uint32)IU_WEEK,        OG_TRUE, { "SQL_TSI_WEEK", 12 } },
     { (uint32)IU_YEAR,        OG_TRUE, { "SQL_TSI_YEAR", 12 } },
+    { (uint32)IU_TZ_HOUR,     OG_TRUE, { "TIMEZONE_HOUR", 13 } },
+    { (uint32)IU_TZ_MINUTE,   OG_TRUE, { "TIMEZONE_MINUTE", 15 } },
     { (uint32)IU_WEEK,        OG_TRUE, { "WEEK", 4 } },
     { (uint32)IU_YEAR,        OG_TRUE, { "YEAR", 4 } },
 };
