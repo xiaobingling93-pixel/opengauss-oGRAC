@@ -115,7 +115,7 @@ SQLRETURN SQL_API SQLFreeHandle(SQLSMALLINT HandleType, SQLHANDLE Handle)
         case SQL_HANDLE_DBC: {
             connection_class *conn = (connection_class *)Handle;
             clean_conn_handle(Handle);
-            ogconn_free_conn(conn->ctconn_conn);
+            ogconn_free_conn(conn->ogconn);
             free(conn);
             conn = NULL;
             break;
@@ -141,7 +141,7 @@ SQLRETURN SQL_API SQLFreeConnect(SQLHDBC hdbc)
         return SQL_INVALID_HANDLE;
     }
     clean_conn_handle(hdbc);
-    ogconn_free_conn(conn->ctconn_conn);
+    ogconn_free_conn(conn->ogconn);
     free(conn);
     conn = NULL;
     return SQL_SUCCESS;
@@ -188,7 +188,7 @@ SQLRETURN SQL_API SQLSetConnectAttr(SQLHDBC ConnectionHandle,
     switch (Attribute) {
         case SQL_ATTR_AUTOCOMMIT:
             newValue = (SQLINTEGER)(SQLULEN)ValuePtr;
-            status = ogconn_set_conn_attr(conn->ctconn_conn, OGCONN_ATTR_AUTO_COMMIT, &newValue, StringLength);
+            status = ogconn_set_conn_attr(conn->ogconn, OGCONN_ATTR_AUTO_COMMIT, &newValue, StringLength);
             break;
         case SQL_ATTR_QUERY_TIMEOUT:
             status = set_conn_attr(conn, ValuePtr, StringLength, OGCONN_ATTR_SOCKET_TIMEOUT);
@@ -200,7 +200,7 @@ SQLRETURN SQL_API SQLSetConnectAttr(SQLHDBC ConnectionHandle,
             status = set_conn_attr(conn, ValuePtr, StringLength, OGCONN_ATTR_SOCKET_TIMEOUT);
             break;
         default:
-            CLT_THROW_ERROR((clt_conn_t *)(conn->ctconn_conn), ERR_CLT_INVALID_VALUE,
+            CLT_THROW_ERROR((clt_conn_t *)(conn->ogconn), ERR_CLT_INVALID_VALUE,
                              "connection attribute", Attribute);
             return SQL_ERROR;
     }
