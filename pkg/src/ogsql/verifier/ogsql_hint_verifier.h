@@ -52,6 +52,7 @@ typedef enum en_opt_param_id {
     OPT_OR_EXPANSION,
     OPT_PRED_REORDER,
     OPT_DISTINCT_ELIMINATION,
+    OPT_ORDER_BY_PLACEMENT,
     OPT_PARAM_COUNT,
 } opt_param_id_t;
 

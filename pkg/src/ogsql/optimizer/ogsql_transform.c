@@ -45,6 +45,7 @@
 #include "ogsql_in2exists.h"
 #include "ogsql_distinct_rewrite.h"
 #include "ogsql_join_elimination.h"
+#include "ogsql_pushdown_orderby.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -236,6 +237,8 @@ status_t ogsql_apply_rule_set_2(sql_stmt_t *statement, sql_query_t *qry)
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_cond_reorder);
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_eliminate_proj_col);
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_eliminate_distinct);
+    // transform to push down orderby.
+    OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_pushdown_orderby);
     return OG_SUCCESS;
 }
 

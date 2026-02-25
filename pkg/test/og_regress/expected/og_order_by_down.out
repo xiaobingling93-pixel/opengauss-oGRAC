@@ -1,0 +1,439 @@
+
+
+SQL> drop table if exists update_push_down_t1;
+
+Succeed.
+
+SQL> create table update_push_down_t1 (c1 int not null, c2 int);
+
+Succeed.
+
+SQL> insert into update_push_down_t1 values (1,1),(2,2);
+
+2 rows affected.
+
+SQL> 
+SQL> begin
+  2 execute immediate 'update
+  3 (update_push_down_t1 as tab_0) 
+  4 left join 
+  5 ((select 1 as c0 from sys_dummy as tab_1) as subqry_0) on (subqry_0.c0 = (select 2 from sys_dummy))
+  6 set tab_0.c1 = (select 3 from sys_dummy)';
+  7 end;
+  8 /
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> explain update
+  2 (update_push_down_t1 as tab_0) 
+  3 left join 
+  4 ((select 1 as c0 from sys_dummy as tab_1) as subqry_0) on (subqry_0.c0 = (select 2 from sys_dummy))
+  5 set tab_0.c1 = (select 3 from sys_dummy);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name                      | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------------------
+| 0  | UPDATE STATEMENT              |       |                           | 1    | 20000 | 0         |       |        |
+| 1  |   NESTED LOOPS OUTER          |       |                           | 1    | 20000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL       | SYS   | UPDATE_PUSH_DOWN_T1 TAB_0 | 0    | 10000 | 0         |       |        |
+| 3  |       SUBSELECT               | SYS   | SUBQRY_0                  | 0    | 10000 | 0         |       |        |
+| 4  |         KERNEL FILTER         |       |                           | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL   | SYS   | SYS_DUMMY TAB_1           | 0    | 10000 | 0         |       |        |
+| 6  |             TABLE ACCESS FULL | SYS   | SYS_DUMMY                 | 0    | 10000 | 0         |       |        |
+| 7  |     TABLE ACCESS FULL         | SYS   | SYS_DUMMY                 | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: 1 = (SELECT 2 FROM SYS_DUMMY)                   
+
+15 rows fetched.
+
+SQL> 
+SQL> update
+  2 (update_push_down_t1 as tab_0) 
+  3 left join 
+  4 ((select 1 as c0 from sys_dummy as tab_1) as subqry_0) on (subqry_0.c0 = (select 2 from sys_dummy))
+  5 set tab_0.c1 = (select 3 from sys_dummy);
+
+2 rows affected.
+
+SQL> 
+SQL> select * from update_push_down_t1 order by 1, 2;
+
+C1           C2          
+------------ ------------
+3            1           
+3            2           
+
+2 rows fetched.
+
+SQL> 
+SQL> drop table if exists update_push_down_t1;
+
+Succeed.
+
+SQL> create table update_push_down_t1 (c1 int not null, c2 int);
+
+Succeed.
+
+SQL> insert into update_push_down_t1 values (1,1),(2,2);
+
+2 rows affected.
+
+SQL> 
+SQL> begin
+  2 execute immediate 'update
+  3 (update_push_down_t1 as tab_0) 
+  4 left join 
+  5 ((select 1 as c0 from sys_dummy as tab_1) as subqry_0) on (subqry_0.c0 = (select 2 from sys_dummy))
+  6 set tab_0.c1 = (select 3 from sys_dummy)';
+  7 end;
+  8 /
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> update
+  2 (update_push_down_t1 as tab_0) 
+  3 left join 
+  4 ((select 1 as c0 from sys_dummy as tab_1) as subqry_0) on (subqry_0.c0 = (select 2 from sys_dummy))
+  5 set tab_0.c1 = (select 3 from sys_dummy);
+
+2 rows affected.
+
+SQL> 
+SQL> select * from update_push_down_t1 order by 1, 2;
+
+C1           C2          
+------------ ------------
+3            1           
+3            2           
+
+2 rows fetched.
+
+SQL> drop table if exists update_push_down_t1;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists push_down_table_t1;
+
+Succeed.
+
+SQL> create table push_down_table_t1(div1 int, div2 int);
+
+Succeed.
+
+SQL> insert into push_down_table_t1 values(1, 0);
+
+1 rows affected.
+
+SQL> insert into push_down_table_t1 values(2, 1);
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> alter system set _OPTIM_SUBQUERY_ELIMINATION=false;
+
+Succeed.
+
+SQL> select * from (select div1/div2 avg from push_down_table_t1 where div1 > 0 and div2 > 0) where avg < 3;
+
+OG-00637, [1:27]The divisor was zero
+SQL> alter system set _OPTIM_SUBQUERY_ELIMINATION=true;
+
+Succeed.
+
+SQL> alter system flush sqlpool;
+
+Succeed.
+
+SQL> select * from (select div1/div2 avg from push_down_table_t1 where div1 > 0 and div2 > 0) where avg < 3;
+
+AVG                 
+--------------------
+2                   
+
+1 rows fetched.
+
+SQL> drop table if exists push_down_table_t1;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists push_down_t1;
+
+Succeed.
+
+SQL> create table push_down_t1(c1 int, c2 int);
+
+Succeed.
+
+SQL> insert into push_down_t1 values(1, 0);
+
+1 rows affected.
+
+SQL> insert into push_down_t1 values(2, 1);
+
+1 rows affected.
+
+SQL> create table push_down_t2 as select * from push_down_t1;
+
+Succeed.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT * FROM push_down_t1 WHERE c2 > 20) ORDER BY c1 DESC;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |              | 0    | 10000 | 0         |       |        |
+| 1  |   QUERY SORT ORDER BY   |       |              | 0    | 10000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | PUSH_DOWN_T1 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: C2 > 20                                         
+
+10 rows fetched.
+
+SQL> SELECT * FROM (SELECT * FROM push_down_t1 WHERE c2 > 20) ORDER BY c1 DESC;
+
+C1           C2          
+------------ ------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT * FROM push_down_t1) ORDER BY c1 ASC;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |              | 0    | 10000 | 0         |       |        |
+| 1  |   QUERY SORT ORDER BY   |       |              | 0    | 10000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | PUSH_DOWN_T1 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+
+7 rows fetched.
+
+SQL> SELECT * FROM (SELECT * FROM push_down_t1) ORDER BY c1 ASC;
+
+C1           C2          
+------------ ------------
+1            0           
+2            1           
+
+2 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT * FROM push_down_t1 WHERE c2 > 20 ORDER BY c1) ORDER BY c2 DESC;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |              | 0    | 10000 | 0         |       |        |
+| 1  |   QUERY SORT ORDER BY   |       |              | 0    | 10000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | PUSH_DOWN_T1 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: C2 > 20                                         
+
+10 rows fetched.
+
+SQL> SELECT * FROM (SELECT * FROM push_down_t1 WHERE c2 > 20 ORDER BY c1) ORDER BY c2 DESC;
+
+C1           C2          
+------------ ------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT * FROM push_down_t1 WHERE c1 > 2 UNION ALL SELECT * FROM push_down_t2 WHERE c2 < 5) t ORDER BY c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |              | 0    | 20000 | 0         |       |        |
+| 1  |   QUERY SORT ORDER BY         |       |              | 0    | 20000 | 0         |       |        |
+| 2  |       SUBSELECT               | SYS   | T            | 0    | 20000 | 0         |       |        |
+| 3  |         UNION ALL             |       |              | 0    | 20000 | 0         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | PUSH_DOWN_T1 | 0    | 10000 | 0         |       |        |
+| 5  |             TABLE ACCESS FULL | SYS   | PUSH_DOWN_T2 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: C1 > 2                                          
+    5 - filter: C2 < 5                                          
+
+14 rows fetched.
+
+SQL> SELECT * FROM (SELECT * FROM push_down_t1 WHERE c1 > 2 UNION ALL SELECT * FROM push_down_t2 WHERE c2 < 5) t ORDER BY c1;
+
+C1           C2          
+------------ ------------
+1            0           
+2            1           
+
+2 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT * FROM push_down_t1 WHERE c1 > 2 UNION SELECT * FROM push_down_t2 WHERE c2 < 5) t ORDER BY c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |              | 0    | 20000 | 0         |       |        |
+| 1  |   QUERY SORT ORDER BY         |       |              | 0    | 20000 | 0         |       |        |
+| 2  |       SUBSELECT               | SYS   | T            | 0    | 20000 | 0         |       |        |
+| 3  |         HASH UNION            |       |              | 0    | 20000 | 0         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | PUSH_DOWN_T1 | 0    | 10000 | 0         |       |        |
+| 5  |             TABLE ACCESS FULL | SYS   | PUSH_DOWN_T2 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: C1 > 2                                          
+    5 - filter: C2 < 5                                          
+
+14 rows fetched.
+
+SQL> SELECT * FROM (SELECT * FROM push_down_t1 WHERE c1 > 2 UNION SELECT * FROM push_down_t2 WHERE c2 < 5) t ORDER BY c1;
+
+C1           C2          
+------------ ------------
+1            0           
+2            1           
+
+2 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT * FROM push_down_t1 WHERE c1 > 2 EXCEPT SELECT * FROM push_down_t2 WHERE c2 < 5) t ORDER BY c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |              | 0    | 20000 | 0         |       |        |
+| 1  |   QUERY SORT ORDER BY         |       |              | 0    | 20000 | 0         |       |        |
+| 2  |       SUBSELECT               | SYS   | T            | 0    | 20000 | 0         |       |        |
+| 3  |         MINUS(L)              |       |              | 0    | 20000 | 0         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | PUSH_DOWN_T1 | 0    | 10000 | 0         |       |        |
+| 5  |             TABLE ACCESS FULL | SYS   | PUSH_DOWN_T2 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: C1 > 2                                          
+    5 - filter: C2 < 5                                          
+
+14 rows fetched.
+
+SQL> SELECT * FROM (SELECT * FROM push_down_t1 WHERE c1 > 2 EXCEPT SELECT * FROM push_down_t2 WHERE c2 < 5) t ORDER BY c1;
+
+C1           C2          
+------------ ------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT * FROM push_down_t1 WHERE c1 > 2 INTERSECT SELECT * FROM push_down_t2 WHERE c2 < 5) t ORDER BY c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |              | 0    | 20000 | 0         |       |        |
+| 1  |   QUERY SORT ORDER BY         |       |              | 0    | 20000 | 0         |       |        |
+| 2  |       SUBSELECT               | SYS   | T            | 0    | 20000 | 0         |       |        |
+| 3  |         INTERSECT(L)          |       |              | 0    | 20000 | 0         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | PUSH_DOWN_T1 | 0    | 10000 | 0         |       |        |
+| 5  |             TABLE ACCESS FULL | SYS   | PUSH_DOWN_T2 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: C1 > 2                                          
+    5 - filter: C2 < 5                                          
+
+14 rows fetched.
+
+SQL> SELECT * FROM (SELECT * FROM push_down_t1 WHERE c1 > 2 INTERSECT SELECT * FROM push_down_t2 WHERE c2 < 5) t ORDER BY c1;
+
+C1           C2          
+------------ ------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT c1, COUNT(*) cnt FROM push_down_t1 GROUP BY c1) ORDER BY 2 DESC;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |              | 0    | 10000 | 0         |       |        |
+| 1  |   QUERY SORT ORDER BY         |       |              | 0    | 10000 | 0         |       |        |
+| 2  |       SUBSELECT               | SYS   |              | 0    | 10000 | 0         |       |        |
+| 3  |         HASH GROUP BY         |       |              | 0    | 10000 | 0         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | PUSH_DOWN_T1 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
+
+9 rows fetched.
+
+SQL> SELECT * FROM (SELECT c1, COUNT(*) cnt FROM push_down_t1 GROUP BY c1) ORDER BY 2 DESC;
+
+C1           CNT                 
+------------ --------------------
+2            1                   
+1            1                   
+
+2 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT c1, COUNT(*) cnt FROM push_down_t1 GROUP BY c1 LIMIT 2) ORDER BY 1 DESC;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |              | 0    | 10000 | 0         |       |        |
+| 1  |   QUERY SORT ORDER BY           |       |              | 0    | 10000 | 0         |       |        |
+| 2  |       SUBSELECT                 | SYS   |              | 0    | 10000 | 0         |       |        |
+| 3  |         QUERY LIMIT             |       |              | 0    | 10000 | 0         |       |        |
+| 4  |           HASH GROUP BY         |       |              | 0    | 10000 | 0         |       |        |
+| 5  |               TABLE ACCESS FULL | SYS   | PUSH_DOWN_T1 | 0    | 10000 | 0         |       |        |
+-----------------------------------------------------------------------------------------------------------
+
+10 rows fetched.
+
+SQL> SELECT * FROM (SELECT c1, COUNT(*) cnt FROM push_down_t1 GROUP BY c1 LIMIT 2) ORDER BY 1 DESC;
+
+C1           CNT                 
+------------ --------------------
+2            1                   
+1            1                   
+
+2 rows fetched.
+
+SQL> 
+
+
