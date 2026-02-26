@@ -443,14 +443,6 @@ status_t sql_create_rowid_set(sql_stmt_t *stmt, plan_assist_t *pa, sql_table_t *
     return create_rowid_set_impl(&ctx, node, *plan_rid_set);
 }
 
-static void set_full_scan_mode(sql_table_t *tbl)
-{
-    tbl->cost = RBO_COST_FULL_TABLE_SCAN;
-    tbl->scan_mode = SCAN_MODE_TABLE_FULL;
-    tbl->rowid_usable = OG_FALSE;
-    tbl->rowid_set = NULL;
-}
-
 static void set_rowid_scan_mode(sql_table_t *tbl, plan_rowid_set_t *set, bool32 is_temp)
 {
     tbl->cost = RBO_COST_ROWID_SCAN;
@@ -464,9 +456,7 @@ status_t sql_get_rowid_cost(sql_stmt_t *stmt, plan_assist_t *pa, cond_node_t *co
 {
     plan_rowid_set_t *set = NULL;
     OG_RETURN_IFERR(sql_create_rowid_set(stmt, pa, table, cond, &set, is_temp));
-    if (set->type == RANGE_LIST_FULL) {
-        set_full_scan_mode(table);
-    } else {
+    if (set->type != RANGE_LIST_FULL) {
         set_rowid_scan_mode(table, set, is_temp);
     }
     return OG_SUCCESS;
