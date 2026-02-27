@@ -539,7 +539,7 @@ C1
 
 1 rows fetched.
 
-SQL>
+SQL> 
 SQL> DROP TABLE T_JSON_TEST_1;
 
 Succeed.
@@ -737,6 +737,11 @@ C1
 
 1 rows fetched.
 
+SQL> -- cbo issue: wrong choice of merge join
+SQL> alter system set ENABLE_MERGE_JOIN=FALSE;
+
+Succeed.
+
 SQL> SELECT 'CREATE OR REPLACE VIEW ' || U.NAME || '.' || V.NAME || ' ( '|| VC.COLUMNS || ' ) AS ', V.TEXT || ';' AS VIEWDEF FROM SYS.VIEW$ V, (SELECT USER#, VIEW#, GROUP_CONCAT(NAME ORDER BY ID) COLUMNS FROM SYS.VIEWCOL$ GROUP BY USER#, VIEW#) VC, SYS.USER$ U WHERE V.USER# = VC.USER# AND V.ID = VC.VIEW# AND V.USER# = U.ID AND V.NAME = 'V_JSON_TEST_1'; 
 
 'CREATE OR REPLACE VIEW ' || U.NAME || '.' || V.NAME || ' ( '||  VIEWDEF                                                         
@@ -745,12 +750,17 @@ CREATE OR REPLACE VIEW SYS.V_JSON_TEST_1 ( C1 ) AS               select json_val
 
 1 rows fetched.
 
+SQL> alter system set ENABLE_MERGE_JOIN=TRUE;
+
+Succeed.
+
 SQL> drop view V_JSON_TEST_1;
 
 Succeed.
 
 SQL> --2020021009659
 SQL> select json_array('true' format json, '1234' format json, 'null' format json) from dual;
+
 JSON_ARRAY('TRUE' FORMAT JSON, '1234' FORMAT JSON, 'NULL' FORMAT
 ----------------------------------------------------------------
 [true,1234,null]                                                

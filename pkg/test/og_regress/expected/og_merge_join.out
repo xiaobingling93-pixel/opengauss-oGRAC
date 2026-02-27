@@ -1,0 +1,1366 @@
+
+
+SQL> --- prepare
+SQL> drop table if exists t1;
+
+Succeed.
+
+SQL> drop table if exists t2;
+
+Succeed.
+
+SQL> drop table if exists t3;
+
+Succeed.
+
+SQL> drop table if exists t4;
+
+Succeed.
+
+SQL> drop table if exists t5;
+
+Succeed.
+
+SQL> drop table if exists t6;
+
+Succeed.
+
+SQL> drop table if exists t7;
+
+Succeed.
+
+SQL> drop table if exists t8;
+
+Succeed.
+
+SQL> drop table if exists t9;
+
+Succeed.
+
+SQL> create table t1 (c1 int, c2 int, c3 int);
+
+Succeed.
+
+SQL> create table t2 (c1 int, c2 int, c3 int);
+
+Succeed.
+
+SQL> create table t3 (c1 int);
+
+Succeed.
+
+SQL> create table t4 (c1 varchar(20));
+
+Succeed.
+
+SQL> create table t5 (c1 int, c2 int, c3 int);
+
+Succeed.
+
+SQL> create table t6 (c1 int, c2 int, c3 int);
+
+Succeed.
+
+SQL> create table t7 (c1 int, c2 int, c3 int);
+
+Succeed.
+
+SQL> create table t8 (c1 int, c2 int, c3 int);
+
+Succeed.
+
+SQL> create table t9 (c1 int, c2 int, c3 int);
+
+Succeed.
+
+SQL> 
+SQL> create or replace procedure batch_insert(tbl varchar, dx int, cnt int) as
+  2 i int;
+  3 x int;
+  4 v_sql varchar(100);
+  5 begin
+  6     i := 0;
+  7     x := 0;
+  8     while i < cnt loop
+  9         v_sql := 'INSERT INTO ' ||tbl|| ' VALUES(' ||x|| ',' ||x|| ',' ||x|| ')';
+ 10         execute immediate v_sql;
+ 11         i := i+1;
+ 12         x := x+dx;
+ 13     end loop;
+ 14     commit;
+ 15 end;
+ 16 /
+
+Succeed.
+
+SQL> exec batch_insert('t5', 1, 1000);
+
+PL/SQL procedure successfully completed.
+
+SQL> exec batch_insert('t6', 1, 1000);
+
+PL/SQL procedure successfully completed.
+
+SQL> exec batch_insert('t7', 1, 1000);
+
+PL/SQL procedure successfully completed.
+
+SQL> exec batch_insert('t5', -1, 1000);
+
+PL/SQL procedure successfully completed.
+
+SQL> exec batch_insert('t6', -1, 1000);
+
+PL/SQL procedure successfully completed.
+
+SQL> exec batch_insert('t7', -1, 1000);
+
+PL/SQL procedure successfully completed.
+
+SQL> exec batch_insert('t8', 1, 3000);
+
+PL/SQL procedure successfully completed.
+
+SQL> exec batch_insert('t9', 1, 6000);
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> insert into t1 values (1,4,4),(2,3,3),(3,2,2),(4,1,1);
+
+4 rows affected.
+
+SQL> insert into t2 values (1,4,4),(2,3,3),(3,2,2),(4,1,1);
+
+4 rows affected.
+
+SQL> insert into t3 values (3);
+
+1 rows affected.
+
+SQL> insert into t4 values ('11111'),('3');
+
+2 rows affected.
+
+SQL> 
+SQL> analyze table  t1  compute STATISTICS;
+
+Succeed.
+
+SQL> analyze table  t2  compute STATISTICS;
+
+Succeed.
+
+SQL> analyze table  t3  compute STATISTICS;
+
+Succeed.
+
+SQL> analyze table  t4  compute STATISTICS;
+
+Succeed.
+
+SQL> analyze table  t5  compute STATISTICS;
+
+Succeed.
+
+SQL> analyze table  t6  compute STATISTICS;
+
+Succeed.
+
+SQL> analyze table  t7  compute STATISTICS;
+
+Succeed.
+
+SQL> 
+SQL> --- disable nl join
+SQL> alter system set ENABLE_NESTLOOP_JOIN=false;
+
+Succeed.
+
+SQL> 
+SQL> explain select t1.c1, t2.c1 from t1 join t2 on t1.c1 = t2.c1 ;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 4    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN            |       |      | 4    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 4    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 4    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C1 = T2.C1                                   
+
+11 rows fetched.
+
+SQL> 
+SQL> --- use_merge hint
+SQL> explain select /*+ use_merge(t1 t2) */ t1.c1, t2.c1 from t1 join t2 on t1.c1 = t2.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 4    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN            |       |      | 4    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 4    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 4    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C1 = T2.C1                                   
+
+11 rows fetched.
+
+SQL> 
+SQL> --- merge join plan requirements
+SQL> explain select /*+ use_merge(t1 t2) */ t1.c1, t2.c1 from t1 join t2 on t1.c1 = t2.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 4    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN            |       |      | 4    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 4    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 4    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C1 = T2.C1                                   
+
+11 rows fetched.
+
+SQL> explain select /*+ use_merge(t1 t2) */ t1.c1, t2.c1 from t1 join t2 on t1.c1 < t2.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 5    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN            |       |      | 5    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 4    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 4    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C1 < T2.C1                                   
+
+11 rows fetched.
+
+SQL> explain select /*+ use_merge(t1 t2) */ t1.c1, t2.c1 from t1 join t2 on t1.c1 > t2.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 5    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN            |       |      | 5    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 4    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 4    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C1 > T2.C1                                   
+
+11 rows fetched.
+
+SQL> 
+SQL> explain select /*+ use_merge(t1 t2) */ t1.c1, t2.c1 from t1,t2 where t1.c1 = t2.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 4    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN            |       |      | 4    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 4    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 4    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C1 = T2.C1                                   
+
+11 rows fetched.
+
+SQL> explain select /*+ use_merge(t1 t2) */ t1.c1, t2.c1 from t1 cross join t2 where t1.c1 = t2.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 4    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN            |       |      | 4    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 4    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 4    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C1 = T2.C1                                   
+
+11 rows fetched.
+
+SQL> 
+SQL> explain select /*+ use_merge(t1 t2) */ t1.c1, t2.c1 from t1 left join t2 on t1.c1 = t2.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost        | StartCost   | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 4    | 10000000002 | 10000000001 |       |        |
+| 1  |   HASH JOIN OUTER(R)    |       |      | 4    | 10000000002 | 10000000001 |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 4    | 1           | 0           |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 4    | 1           | 0           |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C1 = T2.C1                                   
+
+11 rows fetched.
+
+SQL> explain select /*+ use_merge(t1 t2) */ t1.c1, t2.c1 from t1 right join t2 on t1.c1 = t2.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost        | StartCost   | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 4    | 10000000002 | 10000000001 |       |        |
+| 1  |   HASH JOIN OUTER(R)    |       |      | 4    | 10000000002 | 10000000001 |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T2   | 4    | 1           | 0           |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T1   | 4    | 1           | 0           |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T2.C1 = T1.C1                                   
+
+11 rows fetched.
+
+SQL> 
+SQL> explain select /*+ use_merge(t1 t2) */ t1.c1, t2.c1 from t1 join t2 on true;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost        | StartCost   | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 5    | 10000000005 | 10000000000 |       |        |
+| 1  |   NESTED LOOPS          |       |      | 5    | 10000000005 | 10000000000 |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 4    | 1           | 0           |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 4    | 1           | 0           |       |        |
+---------------------------------------------------------------------------------------------------
+
+8 rows fetched.
+
+SQL> explain select /*+ use_merge(t1 t2) */ t1.c1, t2.c1 from t1 join t2 on t1.c1 = t2.c1 or true;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost        | StartCost   | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 5    | 10000000005 | 10000000000 |       |        |
+| 1  |   NESTED LOOPS          |       |      | 5    | 10000000005 | 10000000000 |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 4    | 1           | 0           |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 4    | 1           | 0           |       |        |
+---------------------------------------------------------------------------------------------------
+
+8 rows fetched.
+
+SQL> explain select /*+ use_merge(t1 t2) */ t1.c1, t2.c1 from t1 join t2 on t1.c1 = t2.c1 and true;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 4    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN            |       |      | 4    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 4    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 4    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C1 = T2.C1                                   
+
+11 rows fetched.
+
+SQL> 
+SQL> explain select /*+ use_merge(t1 t2) */ t1.c1, t2.c1 from t1 join t2 on t1.c1 <> t2.c1 and t1.c2 = t2.c2;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 3    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN            |       |      | 3    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 4    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 4    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C2 = T2.C2                                   
+        filter: T1.C1 != T2.C1                                  
+    3 - filter: T1.C1 != T2.C1                                  
+
+13 rows fetched.
+
+SQL> explain select /*+ use_merge(t1 t2) */ t1.c1, t2.c1 from t1 join t2 on t1.c2 = t2.c2 and t1.c1 <> t2.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 3    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN            |       |      | 3    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 4    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 4    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C2 = T2.C2                                   
+        filter: T1.C1 != T2.C1                                  
+    3 - filter: T1.C1 != T2.C1                                  
+
+13 rows fetched.
+
+SQL> explain select /*+ use_merge(t1 t2) */ t1.c1, t2.c1 from t1 join t2 on t1.c1 <> t2.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost        | StartCost   | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 12   | 10000000005 | 10000000000 |       |        |
+| 1  |   NESTED LOOPS          |       |      | 12   | 10000000005 | 10000000000 |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 4    | 1           | 0           |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 4    | 1           | 0           |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: T1.C1 != T2.C1                                  
+
+11 rows fetched.
+
+SQL> explain select /*+ use_merge(t1 t2) */ t1.c1, t2.c1 from t1 join t2 on t1.c1 <> t2.c1 where t1.c2 = t2.c2;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 3    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN            |       |      | 3    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 4    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 4    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C2 = T2.C2                                   
+        filter: T1.C1 != T2.C1                                  
+    3 - filter: T1.C1 != T2.C1                                  
+
+13 rows fetched.
+
+SQL> 
+SQL> --- Inconsistent Left and Right Data Types
+SQL> explain select /*+ use_merge(t3 t4) */ t3.c1, t4.c1 from t3 join t4 on t3.c1 = t4.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 1    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN            |       |      | 1    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T4   | 2    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T3   | 1    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T4.C1 = T3.C1                                   
+
+11 rows fetched.
+
+SQL> select /*+ use_merge(t3 t4) */ t3.c1, t4.c1 from t3 join t4 on t3.c1 = t4.c1;
+
+C1           C1                  
+------------ --------------------
+3            3                   
+
+1 rows fetched.
+
+SQL> 
+SQL> --- sub query rewrite
+SQL> explain select  /*+ use_merge(t1 t2) */ count(*) from t1 where t1.c1 in (select c1 from t2);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 1    | 1    | 0         |       |        |
+| 1  |   AGGR                    |       |      | 1    | 1    | 0         |       |        |
+| 2  |     KERNEL FILTER         |       |      | 1    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL   | SYS   | T1   | 1    | 1    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T2   | 4    | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: T1.C1 IN ((SELECT C1 FROM T2))                  
+
+12 rows fetched.
+
+SQL> select  /*+ use_merge(t1 t2) */ count(*) from t1 where t1.c1 in (select c1 from t2);
+
+COUNT(*)            
+--------------------
+4                   
+
+1 rows fetched.
+
+SQL> 
+SQL> --- filter pushdown
+SQL> explain select * from t5 join t6 on t5.c1 = t6.c1 and t5.c2 = t6.c2  join t7 on t5.c1 = t7.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 1    | 27903 | 365       |       |        |
+| 1  |   MERGE JOIN              |       |      | 1    | 27903 | 365       |       |        |
+| 2  |       TABLE ACCESS FULL   | SYS   | T7   | 2000 | 11    | 0         |       |        |
+| 3  |     MERGE JOIN            |       |      | 1    | 27763 | 243       |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T5   | 2000 | 11    | 0         |       |        |
+| 5  |         TABLE ACCESS FULL | SYS   | T6   | 2000 | 11    | 0         |       |        |
+---------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T7.C1 = T5.C1                                   
+    3 - access: T5.C1 = T6.C1                                   
+        filter: T5.C2 = T6.C2                                   
+    5 - filter: T5.C2 = T6.C2                                   
+
+16 rows fetched.
+
+SQL> 
+SQL> --- single column index
+SQL> 
+SQL> create index idx_t5_c1 on t5(c1);
+
+Succeed.
+
+SQL> analyze table  t5  compute STATISTICS;
+
+Succeed.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c1 = t6.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------
+| Id | Operation                           | Owner | Name      | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                    |       |           | 1    | 17785 | 139       |       |        |
+| 1  |   AGGR                              |       |           | 1    | 17785 | 139       |       |        |
+| 2  |     MERGE JOIN                      |       |           | 2001 | 17640 | 129       |       |        |
+| 3  |         TABLE ACCESS BY INDEX ONLY  | SYS   | T5        | 2000 | 8     | 8         |       |        |
+| 4  |           INDEX FULL SCAN           | SYS   | IDX_T5_C1 | 2000 | 8     | 8         |       |        |
+| 5  |         TABLE ACCESS FULL           | SYS   | T6        | 2000 | 11    | 0         |       |        |
+------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T5.C1 = T6.C1                                   
+
+13 rows fetched.
+
+SQL> select count(*) from t5 join t6 on t5.c1 = t6.c1;
+
+COUNT(*)            
+--------------------
+2002                
+
+1 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on floor(t5.c1) = t6.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows  | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 1     | 18164 | 349       |       |        |
+| 1  |   AGGR                    |       |      | 1     | 18164 | 349       |       |        |
+| 2  |     MERGE JOIN            |       |      | 20000 | 17764 | 249       |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | T5   | 2000  | 11    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T6   | 2000  | 11    | 0         |       |        |
+----------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: FLOOR(T5.C1) = T6.C1                            
+
+12 rows fetched.
+
+SQL> select count(*) from t5 join t6 on floor(t5.c1) = t6.c1;
+
+COUNT(*)            
+--------------------
+2002                
+
+1 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t6.c1 = t5.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------
+| Id | Operation                           | Owner | Name      | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                    |       |           | 1    | 17785 | 139       |       |        |
+| 1  |   AGGR                              |       |           | 1    | 17785 | 139       |       |        |
+| 2  |     MERGE JOIN                      |       |           | 2001 | 17640 | 129       |       |        |
+| 3  |         TABLE ACCESS BY INDEX ONLY  | SYS   | T5        | 2000 | 8     | 8         |       |        |
+| 4  |           INDEX FULL SCAN           | SYS   | IDX_T5_C1 | 2000 | 8     | 8         |       |        |
+| 5  |         TABLE ACCESS FULL           | SYS   | T6        | 2000 | 11    | 0         |       |        |
+------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T5.C1 = T6.C1                                   
+
+13 rows fetched.
+
+SQL> select count(*) from t5 join t6 on t6.c1 = t5.c1;
+
+COUNT(*)            
+--------------------
+2002                
+
+1 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c2 = t6.c2;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 1    | 18016 | 253       |       |        |
+| 1  |   AGGR                    |       |      | 1    | 18016 | 253       |       |        |
+| 2  |     MERGE JOIN            |       |      | 2001 | 17758 | 243       |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | T5   | 2000 | 11    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T6   | 2000 | 11    | 0         |       |        |
+---------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T5.C2 = T6.C2                                   
+
+12 rows fetched.
+
+SQL> select count(*) from t5 join t6 on t5.c2 = t6.c2;
+
+COUNT(*)            
+--------------------
+2002                
+
+1 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c2 = t6.c2 where t5.c1 = 1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------
+| Id | Operation                            | Owner | Name      | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                     |       |           | 1    | 289  | 130       |       |        |
+| 1  |   AGGR                               |       |           | 1    | 289  | 130       |       |        |
+| 2  |     MERGE JOIN                       |       |           | 1    | 159  | 130       |       |        |
+| 3  |         TABLE ACCESS FULL            | SYS   | T6        | 2000 | 11   | 0         |       |        |
+| 4  |         TABLE ACCESS BY INDEX ROWID  | SYS   | T5        | 1    | 8    | 8         |       |        |
+| 5  |           INDEX RANGE SCAN           | SYS   | IDX_T5_C1 | 1    | 8    | 8         |       |        |
+------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T6.C2 = T5.C2                                   
+    4 - filter: T5.C2 = T6.C2                                   
+    5 - access: T5.C1 = 1                                       
+
+15 rows fetched.
+
+SQL> select count(*) from t5 join t6 on t5.c2 = t6.c2 where t5.c1 = 1;
+
+COUNT(*)            
+--------------------
+1                   
+
+1 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c2 = t6.c2 and t5.c1 = t6.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 1    | 28006 | 243       |       |        |
+| 1  |   AGGR                    |       |      | 1    | 28006 | 243       |       |        |
+| 2  |     MERGE JOIN            |       |      | 1    | 27763 | 243       |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | T5   | 2000 | 11    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T6   | 2000 | 11    | 0         |       |        |
+---------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T5.C2 = T6.C2                                   
+        filter: T5.C1 = T6.C1                                   
+    4 - filter: T5.C1 = T6.C1                                   
+
+14 rows fetched.
+
+SQL> select count(*) from t5 join t6 on t5.c2 = t6.c2 and t5.c1 = t6.c1;
+
+COUNT(*)            
+--------------------
+2002                
+
+1 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c1 = t6.c1 and t5.c2 = t6.c2;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------
+| Id | Operation                            | Owner | Name      | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                     |       |           | 1    | 27775 | 129       |       |        |
+| 1  |   AGGR                               |       |           | 1    | 27775 | 129       |       |        |
+| 2  |     MERGE JOIN                       |       |           | 1    | 27645 | 129       |       |        |
+| 3  |         TABLE ACCESS BY INDEX ROWID  | SYS   | T5        | 2000 | 9     | 8         |       |        |
+| 4  |           INDEX FULL SCAN            | SYS   | IDX_T5_C1 | 2000 | 9     | 8         |       |        |
+| 5  |         TABLE ACCESS FULL            | SYS   | T6        | 2000 | 11    | 0         |       |        |
+-------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T5.C1 = T6.C1                                   
+        filter: T5.C2 = T6.C2                                   
+    5 - filter: T5.C2 = T6.C2                                   
+
+15 rows fetched.
+
+SQL> select count(*) from t5 join t6 on t5.c1 = t6.c1 and t5.c2 = t6.c2;
+
+COUNT(*)            
+--------------------
+2002                
+
+1 rows fetched.
+
+SQL> 
+SQL> drop index idx_t5_c1 on t5;
+
+Succeed.
+
+SQL> 
+SQL> alter system flush sqlpool;
+
+Succeed.
+
+SQL> 
+SQL> ---  the order of columns in composite index
+SQL> create index idx_t5_c12 on t5(c1,c2);
+
+Succeed.
+
+SQL> analyze table  t5  compute STATISTICS;
+
+Succeed.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c1 = t6.c1 ;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------
+| Id | Operation                           | Owner | Name       | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                    |       |            | 1    | 17785 | 139       |       |        |
+| 1  |   AGGR                              |       |            | 1    | 17785 | 139       |       |        |
+| 2  |     MERGE JOIN                      |       |            | 2001 | 17640 | 129       |       |        |
+| 3  |         TABLE ACCESS BY INDEX ONLY  | SYS   | T5         | 2000 | 8     | 8         |       |        |
+| 4  |           INDEX FULL SCAN           | SYS   | IDX_T5_C12 | 2000 | 8     | 8         |       |        |
+| 5  |         TABLE ACCESS FULL           | SYS   | T6         | 2000 | 11    | 0         |       |        |
+-------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T5.C1 = T6.C1                                   
+
+13 rows fetched.
+
+SQL> select count(*) from t5 join t6 on t5.c1 = t6.c1 ;
+
+COUNT(*)            
+--------------------
+2002                
+
+1 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t6.c1 = t5.c1 ;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------
+| Id | Operation                           | Owner | Name       | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                    |       |            | 1    | 17785 | 139       |       |        |
+| 1  |   AGGR                              |       |            | 1    | 17785 | 139       |       |        |
+| 2  |     MERGE JOIN                      |       |            | 2001 | 17640 | 129       |       |        |
+| 3  |         TABLE ACCESS BY INDEX ONLY  | SYS   | T5         | 2000 | 8     | 8         |       |        |
+| 4  |           INDEX FULL SCAN           | SYS   | IDX_T5_C12 | 2000 | 8     | 8         |       |        |
+| 5  |         TABLE ACCESS FULL           | SYS   | T6         | 2000 | 11    | 0         |       |        |
+-------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T5.C1 = T6.C1                                   
+
+13 rows fetched.
+
+SQL> select count(*) from t5 join t6 on t6.c1 = t5.c1 ;
+
+COUNT(*)            
+--------------------
+2002                
+
+1 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c2 = t6.c2 ;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 1    | 18016 | 253       |       |        |
+| 1  |   AGGR                    |       |      | 1    | 18016 | 253       |       |        |
+| 2  |     MERGE JOIN            |       |      | 2001 | 17758 | 243       |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | T5   | 2000 | 11    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T6   | 2000 | 11    | 0         |       |        |
+---------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T5.C2 = T6.C2                                   
+
+12 rows fetched.
+
+SQL> select count(*) from t5 join t6 on t5.c2 = t6.c2 ;
+
+COUNT(*)            
+--------------------
+2002                
+
+1 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c2 = t6.c2 and t5.c1 = t6.c1 ;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 1    | 28006 | 243       |       |        |
+| 1  |   AGGR                    |       |      | 1    | 28006 | 243       |       |        |
+| 2  |     MERGE JOIN            |       |      | 1    | 27763 | 243       |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | T5   | 2000 | 11    | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T6   | 2000 | 11    | 0         |       |        |
+---------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T5.C2 = T6.C2                                   
+        filter: T5.C1 = T6.C1                                   
+    4 - filter: T5.C1 = T6.C1                                   
+
+14 rows fetched.
+
+SQL> select count(*) from t5 join t6 on t5.c2 = t6.c2 and t5.c1 = t6.c1 ;
+
+COUNT(*)            
+--------------------
+2002                
+
+1 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c1 = t6.c1 and t5.c2 = t6.c2 ;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------
+| Id | Operation                           | Owner | Name       | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                    |       |            | 1    | 27775 | 129       |       |        |
+| 1  |   AGGR                              |       |            | 1    | 27775 | 129       |       |        |
+| 2  |     MERGE JOIN                      |       |            | 1    | 27645 | 129       |       |        |
+| 3  |         TABLE ACCESS BY INDEX ONLY  | SYS   | T5         | 2000 | 8     | 8         |       |        |
+| 4  |           INDEX FULL SCAN           | SYS   | IDX_T5_C12 | 2000 | 8     | 8         |       |        |
+| 5  |         TABLE ACCESS FULL           | SYS   | T6         | 2000 | 11    | 0         |       |        |
+-------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T5.C1 = T6.C1                                   
+        filter: T5.C2 = T6.C2                                   
+    5 - filter: T5.C2 = T6.C2                                   
+
+15 rows fetched.
+
+SQL> select count(*) from t5 join t6 on t5.c1 = t6.c1 and t5.c2 = t6.c2 ;
+
+COUNT(*)            
+--------------------
+2002                
+
+1 rows fetched.
+
+SQL> 
+SQL> drop index idx_t5_c12 on t5;
+
+Succeed.
+
+SQL> 
+SQL> alter system flush sqlpool;
+
+Succeed.
+
+SQL> 
+SQL> --- index scan direction
+SQL> create index idx_t5_c1 on t5(c1);
+
+Succeed.
+
+SQL> create index idx_t6_c1 on t6(c1);
+
+Succeed.
+
+SQL> analyze table  t5  compute STATISTICS;
+
+Succeed.
+
+SQL> analyze table  t6  compute STATISTICS;
+
+Succeed.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c1 < t6.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------
+| Id | Operation                            | Owner | Name      | Rows    | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                     |       |           | 1       | 27554 | 6682      |       |        |
+| 1  |   AGGR                               |       |           | 1       | 27554 | 6682      |       |        |
+| 2  |     MERGE JOIN                       |       |           | 1333333 | 17538 | 16        |       |        |
+| 3  |         TABLE ACCESS BY INDEX ONLY   | SYS   | T5        | 2000    | 16    | 8         |       |        |
+| 4  |           INDEX FULL SCAN DESCENDING | SYS   | IDX_T5_C1 | 2000    | 16    | 8         |       |        |
+| 5  |         TABLE ACCESS BY INDEX ONLY   | SYS   | T6        | 2000    | 16    | 8         |       |        |
+| 6  |           INDEX FULL SCAN DESCENDING | SYS   | IDX_T6_C1 | 2000    | 16    | 8         |       |        |
+----------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T5.C1 < T6.C1                                   
+
+14 rows fetched.
+
+SQL> select count(*) from t5 join t6 on t5.c1 < t6.c1;
+
+COUNT(*)            
+--------------------
+1998999             
+
+1 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c1 = t6.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------
+| Id | Operation                           | Owner | Name      | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                    |       |           | 1    | 17553 | 26        |       |        |
+| 1  |   AGGR                              |       |           | 1    | 17553 | 26        |       |        |
+| 2  |     MERGE JOIN                      |       |           | 2001 | 17522 | 16        |       |        |
+| 3  |         TABLE ACCESS BY INDEX ONLY  | SYS   | T5        | 2000 | 8     | 8         |       |        |
+| 4  |           INDEX FULL SCAN           | SYS   | IDX_T5_C1 | 2000 | 8     | 8         |       |        |
+| 5  |         TABLE ACCESS BY INDEX ONLY  | SYS   | T6        | 2000 | 8     | 8         |       |        |
+| 6  |           INDEX FULL SCAN           | SYS   | IDX_T6_C1 | 2000 | 8     | 8         |       |        |
+------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T5.C1 = T6.C1                                   
+
+14 rows fetched.
+
+SQL> select count(*) from t5 join t6 on t5.c1 = t6.c1;
+
+COUNT(*)            
+--------------------
+2002                
+
+1 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c1 > t6.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------
+| Id | Operation                           | Owner | Name      | Rows    | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                    |       |           | 1       | 27554 | 6682      |       |        |
+| 1  |   AGGR                              |       |           | 1       | 27554 | 6682      |       |        |
+| 2  |     MERGE JOIN                      |       |           | 1333333 | 17538 | 16        |       |        |
+| 3  |         TABLE ACCESS BY INDEX ONLY  | SYS   | T5        | 2000    | 16    | 8         |       |        |
+| 4  |           INDEX FULL SCAN           | SYS   | IDX_T5_C1 | 2000    | 16    | 8         |       |        |
+| 5  |         TABLE ACCESS BY INDEX ONLY  | SYS   | T6        | 2000    | 16    | 8         |       |        |
+| 6  |           INDEX FULL SCAN           | SYS   | IDX_T6_C1 | 2000    | 16    | 8         |       |        |
+---------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T5.C1 > T6.C1                                   
+
+14 rows fetched.
+
+SQL> select count(*) from t5 join t6 on t5.c1 > t6.c1;
+
+COUNT(*)            
+--------------------
+1998999             
+
+1 rows fetched.
+
+SQL> 
+SQL> drop index idx_t5_c1 on t5;
+
+Succeed.
+
+SQL> drop index idx_t6_c1 on t6;
+
+Succeed.
+
+SQL> 
+SQL> alter system flush sqlpool;
+
+Succeed.
+
+SQL> 
+SQL> --- multi join
+SQL> 
+SQL> create index idx_t5_c1 on t5(c1);
+
+Succeed.
+
+SQL> create index idx_t6_c1 on t6(c1);
+
+Succeed.
+
+SQL> create index idx_t7_c1 on t7(c1);
+
+Succeed.
+
+SQL> analyze table  t5  compute STATISTICS;
+
+Succeed.
+
+SQL> analyze table  t6  compute STATISTICS;
+
+Succeed.
+
+SQL> analyze table  t7  compute STATISTICS;
+
+Succeed.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c1 < t6.c1 join t7 on t6.c1 < t7.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------
+| Id | Operation                             | Owner | Name      | Rows      | Cost    | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                      |       |           | 1         | 2517584 | 500024    |       |        |
+| 1  |   AGGR                                |       |           | 1         | 2517584 | 500024    |       |        |
+| 2  |     MERGE JOIN                        |       |           | 100000000 | 1767560 | 24        |       |        |
+| 3  |         TABLE ACCESS BY INDEX ONLY    | SYS   | T7        | 2000      | 16      | 8         |       |        |
+| 4  |           INDEX FULL SCAN             | SYS   | IDX_T7_C1 | 2000      | 16      | 8         |       |        |
+| 5  |       MERGE JOIN                      |       |           | 1333333   | 17538   | 16        |       |        |
+| 6  |           TABLE ACCESS BY INDEX ONLY  | SYS   | T6        | 2000      | 16      | 8         |       |        |
+| 7  |             INDEX FULL SCAN           | SYS   | IDX_T6_C1 | 2000      | 16      | 8         |       |        |
+| 8  |           TABLE ACCESS BY INDEX ONLY  | SYS   | T5        | 2000      | 16      | 8         |       |        |
+| 9  |             INDEX FULL SCAN           | SYS   | IDX_T5_C1 | 2000      | 16      | 8         |       |        |
+---------------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T7.C1 > T6.C1                                   
+    5 - access: T6.C1 > T5.C1                                   
+
+18 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c1 > t6.c1 join t7 on t6.c1 > t7.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------
+| Id | Operation                              | Owner | Name      | Rows      | Cost    | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                       |       |           | 1         | 2517584 | 500024    |       |        |
+| 1  |   AGGR                                 |       |           | 1         | 2517584 | 500024    |       |        |
+| 2  |     MERGE JOIN                         |       |           | 100000000 | 1767560 | 24        |       |        |
+| 3  |         TABLE ACCESS BY INDEX ONLY     | SYS   | T7        | 2000      | 16      | 8         |       |        |
+| 4  |           INDEX FULL SCAN DESCENDING   | SYS   | IDX_T7_C1 | 2000      | 16      | 8         |       |        |
+| 5  |       MERGE JOIN                       |       |           | 1333333   | 17538   | 16        |       |        |
+| 6  |           TABLE ACCESS BY INDEX ONLY   | SYS   | T6        | 2000      | 16      | 8         |       |        |
+| 7  |             INDEX FULL SCAN DESCENDING | SYS   | IDX_T6_C1 | 2000      | 16      | 8         |       |        |
+| 8  |           TABLE ACCESS BY INDEX ONLY   | SYS   | T5        | 2000      | 16      | 8         |       |        |
+| 9  |             INDEX FULL SCAN DESCENDING | SYS   | IDX_T5_C1 | 2000      | 16      | 8         |       |        |
+----------------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T7.C1 < T6.C1                                   
+    5 - access: T6.C1 < T5.C1                                   
+
+18 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c1 = t6.c1 join t7 on t6.c1 = t7.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------
+| Id | Operation                             | Owner | Name      | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                      |       |           | 1    | 35084 | 34        |       |        |
+| 1  |   AGGR                                |       |           | 1    | 35084 | 34        |       |        |
+| 2  |     MERGE JOIN                        |       |           | 2002 | 35045 | 24        |       |        |
+| 3  |         TABLE ACCESS BY INDEX ONLY    | SYS   | T7        | 2000 | 8     | 8         |       |        |
+| 4  |           INDEX FULL SCAN             | SYS   | IDX_T7_C1 | 2000 | 8     | 8         |       |        |
+| 5  |       MERGE JOIN                      |       |           | 2001 | 17522 | 16        |       |        |
+| 6  |           TABLE ACCESS BY INDEX ONLY  | SYS   | T6        | 2000 | 8     | 8         |       |        |
+| 7  |             INDEX FULL SCAN           | SYS   | IDX_T6_C1 | 2000 | 8     | 8         |       |        |
+| 8  |           TABLE ACCESS BY INDEX ONLY  | SYS   | T5        | 2000 | 8     | 8         |       |        |
+| 9  |             INDEX FULL SCAN           | SYS   | IDX_T5_C1 | 2000 | 8     | 8         |       |        |
+--------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T7.C1 = T6.C1                                   
+    5 - access: T6.C1 = T5.C1                                   
+
+18 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c1 < t6.c1 join t7 on t6.c1 > t7.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------
+| Id | Operation                             | Owner | Name      | Rows      | Cost    | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                      |       |           | 1         | 2520912 | 500024    |       |        |
+| 1  |   AGGR                                |       |           | 1         | 2520912 | 500024    |       |        |
+| 2  |     MERGE JOIN                        |       |           | 100000000 | 1770888 | 24        |       |        |
+| 3  |       MERGE JOIN                      |       |           | 1333333   | 17538   | 16        |       |        |
+| 4  |           TABLE ACCESS BY INDEX ONLY  | SYS   | T6        | 2000      | 16      | 8         |       |        |
+| 5  |             INDEX FULL SCAN           | SYS   | IDX_T6_C1 | 2000      | 16      | 8         |       |        |
+| 6  |           TABLE ACCESS BY INDEX ONLY  | SYS   | T5        | 2000      | 16      | 8         |       |        |
+| 7  |             INDEX FULL SCAN           | SYS   | IDX_T5_C1 | 2000      | 16      | 8         |       |        |
+| 8  |         TABLE ACCESS BY INDEX ONLY    | SYS   | T7        | 2000      | 16      | 8         |       |        |
+| 9  |           INDEX FULL SCAN             | SYS   | IDX_T7_C1 | 2000      | 16      | 8         |       |        |
+---------------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T6.C1 > T7.C1                                   
+    3 - access: T6.C1 > T5.C1                                   
+
+18 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join t6 on t5.c1 > t6.c1 join t7 on t6.c1 < t7.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------
+| Id | Operation                              | Owner | Name      | Rows      | Cost    | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                       |       |           | 1         | 2520912 | 500024    |       |        |
+| 1  |   AGGR                                 |       |           | 1         | 2520912 | 500024    |       |        |
+| 2  |     MERGE JOIN                         |       |           | 100000000 | 1770888 | 24        |       |        |
+| 3  |       MERGE JOIN                       |       |           | 1333333   | 17538   | 16        |       |        |
+| 4  |           TABLE ACCESS BY INDEX ONLY   | SYS   | T6        | 2000      | 16      | 8         |       |        |
+| 5  |             INDEX FULL SCAN DESCENDING | SYS   | IDX_T6_C1 | 2000      | 16      | 8         |       |        |
+| 6  |           TABLE ACCESS BY INDEX ONLY   | SYS   | T5        | 2000      | 16      | 8         |       |        |
+| 7  |             INDEX FULL SCAN DESCENDING | SYS   | IDX_T5_C1 | 2000      | 16      | 8         |       |        |
+| 8  |         TABLE ACCESS BY INDEX ONLY     | SYS   | T7        | 2000      | 16      | 8         |       |        |
+| 9  |           INDEX FULL SCAN DESCENDING   | SYS   | IDX_T7_C1 | 2000      | 16      | 8         |       |        |
+----------------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T6.C1 < T7.C1                                   
+    3 - access: T6.C1 < T5.C1                                   
+
+18 rows fetched.
+
+SQL> 
+SQL> explain select count(*) from t5 join ( t6 join t7 on t6.c1  > t7.c1) on t5.c1  > t7.c1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------
+| Id | Operation                              | Owner | Name      | Rows      | Cost    | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                       |       |           | 1         | 2520912 | 500024    |       |        |
+| 1  |   AGGR                                 |       |           | 1         | 2520912 | 500024    |       |        |
+| 2  |     MERGE JOIN                         |       |           | 100000000 | 1770888 | 24        |       |        |
+| 3  |       MERGE JOIN                       |       |           | 1333333   | 17538   | 16        |       |        |
+| 4  |           TABLE ACCESS BY INDEX ONLY   | SYS   | T7        | 2000      | 16      | 8         |       |        |
+| 5  |             INDEX FULL SCAN DESCENDING | SYS   | IDX_T7_C1 | 2000      | 16      | 8         |       |        |
+| 6  |           TABLE ACCESS BY INDEX ONLY   | SYS   | T5        | 2000      | 16      | 8         |       |        |
+| 7  |             INDEX FULL SCAN DESCENDING | SYS   | IDX_T5_C1 | 2000      | 16      | 8         |       |        |
+| 8  |         TABLE ACCESS BY INDEX ONLY     | SYS   | T6        | 2000      | 16      | 8         |       |        |
+| 9  |           INDEX FULL SCAN DESCENDING   | SYS   | IDX_T6_C1 | 2000      | 16      | 8         |       |        |
+----------------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T7.C1 < T6.C1                                   
+    3 - access: T7.C1 < T5.C1                                   
+
+18 rows fetched.
+
+SQL> 
+SQL> --- t8,t9 build enough data to across merge mtrl pages.
+SQL> insert into t8 select * from t8;
+
+3000 rows affected.
+
+SQL> --- make key for the case of no-need sort mtrl rows
+SQL> create index idx_t8_c1 on t8(c1);
+
+Succeed.
+
+SQL> analyze table t8 compute STATISTICS;
+
+Succeed.
+
+SQL> analyze table t9 compute STATISTICS;
+
+Succeed.
+
+SQL> explain select /*+use_merge(t8, t9)*/ count(t8.c1) from t8 inner join t9 on t8.c1 = t9.c3;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------
+| Id | Operation                           | Owner | Name      | Rows | Cost   | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                    |       |           | 1    | 158424 | 454       |       |        |
+| 1  |   AGGR                              |       |           | 1    | 158424 | 454       |       |        |
+| 2  |     MERGE JOIN                      |       |           | 6000 | 157955 | 424       |       |        |
+| 3  |         TABLE ACCESS BY INDEX ONLY  | SYS   | T8        | 6000 | 8      | 8         |       |        |
+| 4  |           INDEX FULL SCAN           | SYS   | IDX_T8_C1 | 6000 | 8      | 8         |       |        |
+| 5  |         TABLE ACCESS FULL           | SYS   | T9        | 6000 | 37     | 0         |       |        |
+-------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - access: T8.C1 = T9.C3                                   
+
+13 rows fetched.
+
+SQL> select /*+use_merge(t8, t9)*/ count(t8.c1) from t8 inner join t9 on t8.c1 = t9.c3;
+
+COUNT(T8.C1)        
+--------------------
+6000                
+
+1 rows fetched.
+
+SQL> 
+SQL> drop index idx_t5_c1 on t5;
+
+Succeed.
+
+SQL> drop index idx_t6_c1 on t6;
+
+Succeed.
+
+SQL> drop index idx_t7_c1 on t7;
+
+Succeed.
+
+SQL> 
+SQL> alter system flush sqlpool;
+
+Succeed.
+
+SQL> 
+SQL> --- clean
+SQL> alter system set ENABLE_NESTLOOP_JOIN=true;
+
+Succeed.
+
+SQL> drop table if exists t1;
+
+Succeed.
+
+SQL> drop table if exists t2;
+
+Succeed.
+
+SQL> drop table if exists t3;
+
+Succeed.
+
+SQL> drop table if exists t4;
+
+Succeed.
+
+SQL> drop table if exists t5;
+
+Succeed.
+
+SQL> drop table if exists t6;
+
+Succeed.
+
+SQL> drop table if exists t7;
+
+Succeed.
+
+SQL> drop table if exists t8;
+
+Succeed.
+
+SQL> drop table if exists t9;
+Succeed.
+
+
+
+

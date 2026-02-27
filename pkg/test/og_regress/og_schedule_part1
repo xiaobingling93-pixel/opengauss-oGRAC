@@ -38,3 +38,4 @@ test: og_3rd_pkg
 test: og_extract_timezone
 test: og_cond_reorganise
 test: og_subslct_erase
+test: og_merge_join

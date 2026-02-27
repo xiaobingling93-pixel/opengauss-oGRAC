@@ -197,6 +197,9 @@ typedef struct st_cond_info {
     bool used;
 } cond_info_t;
 
+status_t sql_initial_cost_merge(sql_join_node_t *join_tree, join_cost_workspace *join_cost_ws,
+    galist_t *outer_sort_keys, galist_t *inner_sort_keys);
+void sql_final_cost_merge(sql_join_node_t *join_tree, join_cost_workspace *join_cost_ws, galist_t *restricts);
 status_t sql_initial_cost_nestloop(join_assist_t *ja, sql_join_node_t* join_tree, join_cost_workspace* join_cost_ws,
     special_join_info_t *sjoininfo);
 status_t sql_final_cost_nestloop(join_assist_t *ja, sql_join_node_t* join_tree, join_cost_workspace* join_cost_ws,

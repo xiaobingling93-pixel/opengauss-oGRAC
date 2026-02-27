@@ -12,27 +12,27 @@ Succeed.
 
 SQL> 
 SQL> CREATE OR REPLACE PROCEDURE insert_test_dy_1_data
-2 AS
-3     v_i INT := 1;
-4 BEGIN
-5     WHILE v_i <= 100 LOOP
-6         INSERT INTO test_dy_1 VALUES(
-7             MOD(v_i, 20),
-8             MOD(v_i, 30),
-9             MOD(v_i, 40)
-10         );
-11         IF MOD(v_i, 25) = 0 THEN
-12             COMMIT;
-13         END IF;
-14         v_i := v_i + 1;
-15     END LOOP;
-16     COMMIT;
-17 EXCEPTION
-18     WHEN OTHERS THEN
-19         ROLLBACK;
-20         RAISE;
-21 END;
-22 /
+  2 AS
+  3     v_i INT := 1;
+  4 BEGIN
+  5     WHILE v_i <= 100 LOOP
+  6         INSERT INTO test_dy_1 VALUES(
+  7             MOD(v_i, 20),
+  8             MOD(v_i, 30),
+  9             MOD(v_i, 40)
+ 10         );
+ 11         IF MOD(v_i, 25) = 0 THEN
+ 12             COMMIT;
+ 13         END IF;
+ 14         v_i := v_i + 1;
+ 15     END LOOP;
+ 16     COMMIT;
+ 17 EXCEPTION
+ 18     WHEN OTHERS THEN
+ 19         ROLLBACK;
+ 20         RAISE;
+ 21 END;
+ 22 /
 
 Succeed.
 
@@ -99,7 +99,7 @@ SQL> CALL dbe_stats.collect_table_stats(schema=>user, name=>'test_dy', sample_ra
 
 PL/SQL procedure successfully completed.
 
-SQL> SELECT table_name, column_name, num_distinct, low_value, high_value, density, num_nulls, sample_size, histogram FROM MY_TAB_COL_STATISTICS WHERE table_name = 'TEST_DY' ORDER BY column_name DESC;
+SQL> SELECT table_name, column_name, num_distinct, low_value, high_value, density, num_nulls, sample_size, histogram FROM MY_TAB_COL_STATISTICS WHERE table_name = 'TEST_DY'ORDER BY column_name DESC;
 
 TABLE_NAME                                                       COLUMN_NAME                                                      NUM_DISTINCT LOW_VALUE                                                        HIGH_VALUE                                                       DENSITY              NUM_NULLS    SAMPLE_SIZE          HISTOGRAM                                                       
 ---------------------------------------------------------------- ---------------------------------------------------------------- ------------ ---------------------------------------------------------------- ---------------------------------------------------------------- -------------------- ------------ -------------------- ----------------------------------------------------------------
@@ -140,37 +140,37 @@ SQL> COMMIT;
 Succeed.
 
 SQL> INSERT INTO DATA_DS_TEST (id, int_f0, int_f1, varchar_f2)
-2 SELECT id + 1, 380, 1500, 'val_380' FROM DATA_DS_TEST;
+  2 SELECT id + 1, 380, 1500, 'val_380' FROM DATA_DS_TEST;
 
 1 rows affected.
 
 SQL> INSERT INTO DATA_DS_TEST (id, int_f0, int_f1, varchar_f2)
-2 SELECT id + 2, 380, 1500, 'val_380' FROM DATA_DS_TEST;
+  2 SELECT id + 2, 380, 1500, 'val_380' FROM DATA_DS_TEST;
 
 2 rows affected.
 
 SQL> INSERT INTO DATA_DS_TEST (id, int_f0, int_f1, varchar_f2)
-2 SELECT id + 4, 380, 1500, 'val_380' FROM DATA_DS_TEST;
+  2 SELECT id + 4, 380, 1500, 'val_380' FROM DATA_DS_TEST;
 
 4 rows affected.
 
 SQL> INSERT INTO DATA_DS_TEST (id, int_f0, int_f1, varchar_f2)
-2 SELECT id + 8, 380, 1500, 'val_380' FROM DATA_DS_TEST;
+  2 SELECT id + 8, 380, 1500, 'val_380' FROM DATA_DS_TEST;
 
 8 rows affected.
 
 SQL> INSERT INTO DATA_DS_TEST (id, int_f0, int_f1, varchar_f2)
-2 SELECT id + 16, 380, 1500, 'val_380' FROM DATA_DS_TEST;
+  2 SELECT id + 16, 380, 1500, 'val_380' FROM DATA_DS_TEST;
 
 16 rows affected.
 
 SQL> INSERT INTO DATA_DS_TEST (id, int_f0, int_f1, varchar_f2)
-2 SELECT id + 32, 250, 1100, 'val_250' FROM DATA_DS_TEST;
+  2 SELECT id + 32, 250, 1100, 'val_250' FROM DATA_DS_TEST;
 
 32 rows affected.
 
 SQL> INSERT INTO DATA_DS_TEST (id, int_f0, int_f1, varchar_f2)
-2 SELECT id + 64, 180, 800, 'val_180' FROM DATA_DS_TEST;
+  2 SELECT id + 64, 180, 800, 'val_180' FROM DATA_DS_TEST;
 
 64 rows affected.
 
@@ -245,21 +245,22 @@ SQL> EXPLAIN SELECT * FROM DATA_DS_TEST t0, DATA_DS_TEST t1 WHERE t0.int_f0 < 20
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
--------------------------------------------------------------------------------------------------------
-| Id | Operation                 | Owner | Name            | Rows | Cost | StartCost | Bytes | Remark |
--------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT          |       |                 | 1    | 222  | 0         |       |        |
-| 1  |   QUERY LIMIT             |       |                 | 1    | 222  | 0         |       |        |
-| 2  |     NESTED LOOPS          |       |                 | 21   | 211  | 0         |       |        |
-| 3  |         TABLE ACCESS FULL | SYS   | DATA_DS_TEST T0 | 65   | 1    | 0         |       |        |
-| 4  |         TABLE ACCESS FULL | SYS   | DATA_DS_TEST T1 | 128  | 1    | 0         |       |        |
--------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------
+| Id | Operation                            | Owner | Name            | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                     |       |                 | 1    | 75   | 7         |       |        |
+| 1  |   QUERY LIMIT                        |       |                 | 1    | 75   | 7         |       |        |
+| 2  |     MERGE JOIN                       |       |                 | 21   | 65   | 7         |       |        |
+| 3  |         TABLE ACCESS BY INDEX ROWID  | SYS   | DATA_DS_TEST T1 | 128  | 4    | 4         |       |        |
+| 4  |           INDEX FULL SCAN            | SYS   | _PK_SYS_1_61    | 128  | 4    | 4         |       |        |
+| 5  |         TABLE ACCESS FULL            | SYS   | DATA_DS_TEST T0 | 65   | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    3 - filter: T0.INT_F0 < 200                                 
-    4 - filter: T0.ID = T1.ID                                   
+    2 - access: T1.ID = T0.ID                                   
+    5 - filter: T0.INT_F0 < 200                                 
 
-13 rows fetched.
+14 rows fetched.
 
 SQL> select table_name, sample_size, CASE WHEN abs(sample_size/num_rows - 10/(CASE WHEN blocks > 10 THEN blocks ELSE 10 END)) < 0.1 THEN true ELSE false END FROM my_tables  WHERE table_name = 'DATA_DS_TEST';
 
@@ -287,3 +288,7 @@ Succeed.
 SQL> 
 SQL> DROP TABLE IF EXISTS DATA_DS_TEST;
 Succeed.
+
+
+
+

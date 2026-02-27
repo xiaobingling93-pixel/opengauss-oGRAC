@@ -155,6 +155,7 @@ typedef struct st_sql_join_table {
     sql_join_path_t* cheapest_total_path;
     sql_join_path_t* cheapest_startup_path;
     bilist_t cheapest_parameterized_paths;
+    galist_t* sorted_paths;
     bool push_down_join;
     galist_t* push_down_refs;
 } sql_join_table_t;
@@ -232,5 +233,9 @@ double sql_adjust_est_row(double rows);
 bool32 check_leftjoin_and_leading_conflict(sql_join_node_t *join_node, join_assist_t *ja);
 bool32 check_depend_json_table_conflict_with_leading(join_assist_t *ja);
 status_t sql_build_join_tree_cost(sql_stmt_t *stmt, plan_assist_t *plan_ass, sql_join_node_t **join_root);
+bool32 match_joininfo_to_indexcol(sql_stmt_t *stmt, sql_table_t *table, tbl_join_info_t *jinfo, uint16 index_col);
+status_t sql_jtable_add_path(sql_stmt_t *stmt, sql_join_table_t *jtable, sql_join_path_t* jpath);
+bool sql_add_path_precheck(sql_join_table_t *jtable, double startup_cost, double total_cost);
+status_t sql_build_join_cond_tree(join_assist_t *ja, galist_t* restricts, sql_join_type_t jointype);
 
 #endif

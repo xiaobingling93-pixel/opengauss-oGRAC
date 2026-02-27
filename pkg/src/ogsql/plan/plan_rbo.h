@@ -67,8 +67,9 @@ extern "c" {
 // all part fields in index and matched from beginning, like: part fields(f1,f2), index fields(f1,f2,f3)
 #define RBO_INDEX_MATCH_PARTFIELD_FLAG 0x10
 #define RBO_NL_PREFETCH_FLAG 0x20
+#define RBO_MERGE_JOIN_SCAN_FLAG 0x40 // for merge join
 #define INDEX_SORT_SCAN_MASK 0x0E
-#define BETTER_INDEX_SCAN_MASK 0x0F
+#define BETTER_INDEX_SCAN_MASK 0x4F
 
 #define INDEX_MATCH_PARTFILED(scan_flag) ((scan_flag) & RBO_INDEX_MATCH_PARTFIELD_FLAG)
 #define INDEX_ONLY_SCAN(scan_flag) ((scan_flag) & RBO_INDEX_ONLY_FLAG)
@@ -120,6 +121,11 @@ status_t sql_get_index_col_node(sql_stmt_t *stmt, knl_column_t *knl_col, expr_no
                                 uint32 table_id, uint32 col_id);
 bool32 chk_part_key_match_index(dc_entity_t *entity, uint32 part_key_count, knl_index_desc_t *index, uint16 equal_to);
 bool32 rbo_find_column_in_func_index(query_field_t *query_field, knl_index_desc_t *index, sql_table_t *table);
+
+static inline bool32 sql_scan_for_merge_join(uint16 scan_flag)
+{
+    return scan_flag & RBO_MERGE_JOIN_SCAN_FLAG;
+}
 
 static inline void sql_init_table_indexable(sql_table_t *table, sql_table_t *parent)
 {

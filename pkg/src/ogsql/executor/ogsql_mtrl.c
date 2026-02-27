@@ -185,6 +185,9 @@ static inline int32 sql_compare_mtrl_row(mtrl_segment_t *seg, mtrl_row_t *row1, 
                 item = (sort_item_t *)cm_galist_get((galist_t *)seg->cmp_items, i);
                 expr = item->expr;
                 sql_calc_pending_datatype(seg, i, expr->root->datatype, &datatype);
+                if (CM_IS_DATABASE_DATATYPE(item->cmp_type)) {
+                    datatype = item->cmp_type;
+                }
                 order_mode = item->sort_mode;
                 break;
 
@@ -810,6 +813,9 @@ status_t sql_make_mtrl_sort_row(sql_stmt_t *stmt, char *pending_buf, galist_t *s
     sort_item_t *item = NULL;
     variant_t value;
     expr_tree_t *expr = NULL;
+    char *buf = NULL;
+    OG_RETURN_IFERR(sql_push(stmt, OG_CONVERT_BUFFER_SIZE, (void **)&buf));
+    text_buf_t buffer;
 
     OGSQL_SAVE_STACK(stmt);
     for (uint32 i = 0; i < sort_items->count; i++) {
@@ -818,11 +824,21 @@ status_t sql_make_mtrl_sort_row(sql_stmt_t *stmt, char *pending_buf, galist_t *s
 
         OG_RETURN_IFERR(sql_exec_expr(stmt, expr, &value));
 
+        og_type_t col_type = expr->root->datatype;
+        // customize the sorting comparison method by decorating sort keys
+        if (CM_IS_DATABASE_DATATYPE(item->cmp_type)) {
+            if (value.type != item->cmp_type) {
+                col_type = item->cmp_type;
+                CM_INIT_TEXTBUF(&buffer, OG_CONVERT_BUFFER_SIZE, buf);
+                OG_RETURN_IFERR(var_convert(SESSION_NLS(stmt), &value, item->cmp_type, &buffer));
+            }
+        }
+
         if (!value.is_null && value.type >= OG_TYPE_OPERAND_CEIL) {
             OG_THROW_ERROR(ERR_INVALID_DATA_TYPE, "unexpected user define type");
             return OG_ERROR;
         }
-        OG_RETURN_IFERR(og_put_select_sort_row(stmt, pending_buf, ra, expr->root->datatype, &value));
+        OG_RETURN_IFERR(og_put_select_sort_row(stmt, pending_buf, ra, col_type, &value));
         OGSQL_RESTORE_STACK(stmt);
     }
     return OG_SUCCESS;
@@ -1124,25 +1140,22 @@ static status_t sql_mtrl_insert_merge_rs_row(sql_stmt_t *stmt, sql_cursor_t *cur
     char *buf = NULL;
     mtrl_rowid_t mtrl_rid;
     sql_table_t *table = NULL;
+    row_assist_t ra;
 
     OG_RETURN_IFERR(sql_push(stmt, OG_MAX_ROW_SIZE + KNL_ROWID_LEN + REMOTE_ROWNODEID_LEN, (void **)&buf));
 
     for (int32 i = (int32)merge_join->rs_tables.count - 1; i >= 0; --i) {
         table = (sql_table_t *)sql_array_get(&merge_join->rs_tables, i);
-        if (table->subslct_tab_usage == SUBSELECT_4_NORMAL_JOIN) {
-            if (sql_make_mtrl_merge_rs_row(stmt, cursor, cursor->tables, table, buf, OG_MAX_ROW_SIZE) != OG_SUCCESS) {
-                OGSQL_POP(stmt);
-                return OG_ERROR;
-            }
-            if (mtrl_insert_row(&stmt->mtrl, cursor->mtrl.rs.sid, buf, &mtrl_rid) != OG_SUCCESS) {
-                OGSQL_POP(stmt);
-                return OG_ERROR;
-            }
-        } else {
-            if (sql_make_mtrl_null_rs_row(&stmt->mtrl, cursor->mtrl.rs.sid, &mtrl_rid) != OG_SUCCESS) {
-                OGSQL_POP(stmt);
-                return OG_ERROR;
-            }
+        if (table->subslct_tab_usage >= SUBSELECT_4_SEMI_JOIN && merge_join->rs_tables.count > 1) {
+            row_init(&ra, buf, OG_MAX_ROW_SIZE, 1);
+        } else if (sql_make_mtrl_merge_rs_row(stmt, cursor, cursor->tables, table, buf,
+            OG_MAX_ROW_SIZE) != OG_SUCCESS) {
+            OGSQL_POP(stmt);
+            return OG_ERROR;
+        }
+        if (mtrl_insert_row(&stmt->mtrl, cursor->mtrl.rs.sid, buf, &mtrl_rid) != OG_SUCCESS) {
+            OGSQL_POP(stmt);
+            return OG_ERROR;
         }
         if (key_ra->head->size + sizeof(mtrl_rowid_t) > OG_MAX_ROW_SIZE) {
             OGSQL_POP(stmt);

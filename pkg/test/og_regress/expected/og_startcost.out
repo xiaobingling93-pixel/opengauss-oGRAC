@@ -1,3 +1,5 @@
+
+
 SQL> create table t_startcost(id serial primary key, b int, c int,d char(1));
 
 Succeed.
@@ -72,20 +74,21 @@ SQL> explain select * from t_startcost as a1 join t_startcost as a2 on (a1.b=a2.
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
------------------------------------------------------------------------------------------------------------------
-| Id | Operation                          | Owner | Name           | Rows  | Cost  | StartCost | Bytes | Remark |
------------------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT                   |       |                | 10000 | 10350 | 8         |       |        |
-| 1  |   NESTED LOOPS                     |       |                | 10000 | 10350 | 8         |       |        |
-| 2  |       TABLE ACCESS FULL            | SYS   | T_STARTCOST A1 | 1000  | 7     | 0         |       |        |
-| 3  |       TABLE ACCESS BY INDEX ROWID  | SYS   | T_STARTCOST A2 | 1000  | 10    | 8         |       |        |
-| 4  |         INDEX RANGE SCAN           | SYS   | IDX_B          | 1000  | 10    | 8         |       |        |
------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------
+| Id | Operation                          | Owner | Name           | Rows  | Cost | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                   |       |                | 10000 | 4398 | 16        |       |        |
+| 1  |   MERGE JOIN                       |       |                | 10000 | 4398 | 16        |       |        |
+| 2  |       TABLE ACCESS BY INDEX ROWID  | SYS   | T_STARTCOST A1 | 1000  | 10   | 8         |       |        |
+| 3  |         INDEX FULL SCAN            | SYS   | IDX_B          | 1000  | 10   | 8         |       |        |
+| 4  |       TABLE ACCESS BY INDEX ROWID  | SYS   | T_STARTCOST A2 | 1000  | 10   | 8         |       |        |
+| 5  |         INDEX FULL SCAN            | SYS   | IDX_B          | 1000  | 10   | 8         |       |        |
+----------------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    4 - access: A1.B = A2.B                                     
+    1 - access: A1.B = A2.B                                     
 
-12 rows fetched.
+13 rows fetched.
 
 SQL> 
 SQL> explain select * from t_startcost limit 100;
@@ -163,6 +166,8 @@ EXPLAIN PLAN OUTPUT
 
 SQL> 
 SQL> drop table if exists t_startcost;
-
 Succeed.
+
+
+
 
