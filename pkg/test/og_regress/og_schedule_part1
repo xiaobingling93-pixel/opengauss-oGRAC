@@ -34,3 +34,4 @@ test: og_hash_mtrl
 test: og_listagg
 test: bison_parser_2
 test: og_ddl_parse
+test: og_extract_timezone

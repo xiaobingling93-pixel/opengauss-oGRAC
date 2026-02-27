@@ -2274,7 +2274,8 @@ status_t static cm_is_time_valid(date_detail_t *detail)
     return OG_SUCCESS;
 }
 
-status_t cm_text2date_fixed(const text_t *text, const text_t *fmt, date_t *date, bool32 is_date_fmt)
+status_t cm_text2date_fixed(const text_t *text, const text_t *fmt, date_t *date,
+                            timezone_info_t *tz_offset, bool32 is_date_fmt)
 {
     date_detail_t detail;
     CM_POINTER2(text, fmt);
@@ -2302,6 +2303,7 @@ status_t cm_text2date_fixed(const text_t *text, const text_t *fmt, date_t *date,
         OG_THROW_ERROR(ERR_TYPE_OVERFLOW, "DATETIME");
         return OG_ERROR;
     }
+    *tz_offset = detail.tz_offset;
 
     return OG_SUCCESS;
 }
