@@ -1,0 +1,60 @@
+
+
+SQL> drop table if exists cast_to_raw_t1;
+
+Succeed.
+
+SQL> create table cast_to_raw_t1(c1 varchar(20), c2 int);
+
+Succeed.
+
+SQL> insert into cast_to_raw_t1 values('a', 1);
+
+1 rows affected.
+
+SQL> select utl_raw.cast_to_raw('a');
+
+UTL_RAW.CAST_TO_RAW('A')                                        
+----------------------------------------------------------------
+61                                                              
+
+1 rows fetched.
+
+SQL> select to_blob(utl_raw.cast_to_raw('a'));
+
+TO_BLOB(UTL_RAW.CAST_TO_RAW('A'))                               
+----------------------------------------------------------------
+61                                                              
+
+1 rows fetched.
+
+SQL> select utl_raw.cast_to_raw(c1), utl_raw.cast_to_raw('a') from cast_to_raw_t1;
+
+UTL_RAW.CAST_TO_RAW(C1)                                          UTL_RAW.CAST_TO_RAW('A')                                        
+---------------------------------------------------------------- ----------------------------------------------------------------
+61                                                               61                                                              
+
+1 rows fetched.
+
+SQL> select to_blob(utl_raw.cast_to_raw(c1)), to_blob(utl_raw.cast_to_raw('a')) from cast_to_raw_t1;
+
+TO_BLOB(UTL_RAW.CAST_TO_RAW(C1))                                 TO_BLOB(UTL_RAW.CAST_TO_RAW('A'))                               
+---------------------------------------------------------------- ----------------------------------------------------------------
+61                                                               61                                                              
+
+1 rows fetched.
+
+SQL> select utl_raw.cast_to_raw(1);
+
+UTL_RAW.CAST_TO_RAW(1)                                          
+----------------------------------------------------------------
+31                                                              
+
+1 rows fetched.
+
+SQL> drop table if exists cast_to_raw_t1;
+Succeed.
+
+
+
+

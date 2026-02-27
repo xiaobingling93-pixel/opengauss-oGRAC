@@ -3440,6 +3440,17 @@ class Installer:
         if re.match(".*OG-\d{5}.*", result) or re.match(".*ZS-\d{5}.*", result):
             raise Exception("Failed to execute sql %s, output:%s" % (sql, output))
 
+    def create_3rd_pkg(self):
+        log("Creating third package ...", True)
+        sql_file_path = "%s/admin/scripts" % self.installPath
+        file_name = "create_3rd_pkg.sql"
+        try:
+            self.execute_sql_file(os.path.join(sql_file_path, file_name))
+        except Exception as err:
+            self.rollBack()
+            logExit(str(err))
+        log("Creating third package succeed.", True)
+
     def createDb(self):
         """
         function:config ograc dn
@@ -3891,6 +3902,7 @@ class Installer:
         log("Successfully Initialize %s instance." % self.instance_name)
         if self.option == self.INS_ALL:
             self.createDb()
+            self.create_3rd_pkg()
         self.securityAudit()
         # Don't set the core_dump_filter with -O option.
         if self.option == self.INS_ALL:
