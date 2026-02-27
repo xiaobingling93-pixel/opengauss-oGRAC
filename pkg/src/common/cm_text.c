@@ -2115,6 +2115,58 @@ status_t cm_replace_regexp_spec_chars(text_t *regexp, char *ret, uint32 ret_size
     return OG_SUCCESS;
 }
 
+void cm_text_trim(text_t *text)
+{
+    uint32 start;
+    uint32 end;
+    CM_POINTER(text);
+    start = cm_find_trim_start(text);
+    end = cm_find_trim_end(text, start);
+    text->str += start;
+    text->len = (start > end) ? 0 : (end - start + 1);
+}
+
+void cm_text_remove_head(text_t *text, uint32 count)
+{
+    CM_POINTER(text);
+    
+    if (count >= text->len) {
+        text->str += text->len;
+        text->len = 0;
+    } else {
+        text->str += count;
+        text->len -= count;
+    }
+}
+
+status_t cm_text_split_on_char(text_t *text, char delimiter, text_t *key, text_t *value)
+{
+    uint32 pos;
+    if (cm_text_find_char(text, delimiter, &pos) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+    
+    key->str = text->str;
+    key->len = pos;
+    cm_text_trim(key);
+    
+    cm_text_remove_head(text, pos + 1);
+    cm_text_skip_spaces(text);
+    
+    if (cm_text_find_char(text, ',', &pos) == OG_SUCCESS) {
+        value->str = text->str;
+        value->len = pos;
+        cm_text_remove_head(text, pos + 1);
+    } else {
+        value->str = text->str;
+        value->len = text->len;
+        text->len = 0;
+    }
+    cm_text_trim(value);
+    
+    return OG_SUCCESS;
+}
+
 void cm_extract_content(text_t *text, text_t *content)
 {
     uint32 i;

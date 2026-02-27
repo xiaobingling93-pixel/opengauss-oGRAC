@@ -1434,6 +1434,59 @@ static inline void cm_text_skip_spaces(text_t *text)
     }
 }
 
+static inline int cm_is_space(int c)
+{
+    return (c == ' '  ||
+            c == '\t' ||
+            c == '\n' ||
+            c == '\r' ||
+            c == '\f' ||
+            c == '\v');
+}
+
+static inline status_t cm_text_find_char(const text_t *text, char ch, uint32 *pos)
+{
+    uint32 i;
+    CM_POINTER2(text, pos);
+
+    for (i = 0; i < text->len; i++) {
+        if (text->str[i] == ch) {
+            *pos = i;
+            return OG_SUCCESS;
+        }
+    }
+
+    return OG_ERROR;
+}
+
+static inline uint32 cm_find_trim_start(const text_t *text)
+{
+    if (text->len == 0) {
+        return 0;
+    }
+    uint32 i = 0;
+    while (i < text->len && cm_is_space(text->str[i])) {
+        i++;
+    }
+    return i;
+}
+
+static inline uint32 cm_find_trim_end(const text_t *text, uint32 start)
+{
+    if (text->len == 0 || start >= text->len) {
+        return start;
+    }
+    uint32 j = text->len - 1;
+    while (j > start && cm_is_space(text->str[j])) {
+        j--;
+    }
+    return j;
+}
+
+void cm_text_trim(text_t *text);
+void cm_text_remove_head(text_t *text, uint32 count);
+status_t cm_text_split_on_char(text_t *text, char delimiter, text_t *key, text_t *value);
+
 /* ignores the comment and get valid content of text */
 void cm_extract_content(text_t *text, text_t *content);
 void cm_delete_text_end_slash(text_t *text);

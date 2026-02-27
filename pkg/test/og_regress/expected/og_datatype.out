@@ -5630,5 +5630,99 @@ SQL> alter database set time_zone='+00:00';
 Succeed.
 
 SQL> 
+SQL> SELECT TO_DATE('January 15, 1989, 11:00 AM', 'Month dd, YYYY, HH:MI AM', 'NLS_DATE_LANGUAGE = American');
+
+TO_DATE('JANUARY 15, 1989, 11:00 AM', 'MONTH DD, YYYY, HH:MI AM'
+----------------------------------------------------------------
+1989-01-15 11:00:00                                             
+
+1 rows fetched.
+
+SQL> SELECT TO_DATE('January 15, 1989, 11:00 PM', 'Month dd, YYYY, HH:MI PM', 'NLS_DATE_LANGUAGE = American');
+
+TO_DATE('JANUARY 15, 1989, 11:00 PM', 'MONTH DD, YYYY, HH:MI PM'
+----------------------------------------------------------------
+1989-01-15 23:00:00                                             
+
+1 rows fetched.
+
+SQL> SELECT TO_DATE('january 15, 1989, 11:00 am', 'Month dd, YYYY, HH:MI AM', 'NLS_DATE_LANGUAGE = American');
+
+TO_DATE('JANUARY 15, 1989, 11:00 AM', 'MONTH DD, YYYY, HH:MI AM'
+----------------------------------------------------------------
+1989-01-15 11:00:00                                             
+
+1 rows fetched.
+
+SQL> SELECT TO_DATE('January 15, 1989, 11:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = American');
+
+TO_DATE('JANUARY 15, 1989, 11:00 A.M.', 'MONTH DD, YYYY, HH:MI A
+----------------------------------------------------------------
+1989-01-15 11:00:00                                             
+
+1 rows fetched.
+
+SQL> SELECT TO_DATE('January 15, 1989, 11:00 P.M.', 'Month dd, YYYY, HH:MI P.M.', 'NLS_DATE_LANGUAGE = American');
+
+TO_DATE('JANUARY 15, 1989, 11:00 P.M.', 'MONTH DD, YYYY, HH:MI P
+----------------------------------------------------------------
+1989-01-15 23:00:00                                             
+
+1 rows fetched.
+
+SQL> SELECT TO_DATE('january 15, 1989, 11:00 a.m.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = American');
+
+TO_DATE('JANUARY 15, 1989, 11:00 A.M.', 'MONTH DD, YYYY, HH:MI A
+----------------------------------------------------------------
+1989-01-15 11:00:00                                             
+
+1 rows fetched.
+
+SQL> SELECT TO_DATE('January 15, 1989, 12:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = American');
+
+TO_DATE('JANUARY 15, 1989, 12:00 A.M.', 'MONTH DD, YYYY, HH:MI A
+----------------------------------------------------------------
+1989-01-15 00:00:00                                             
+
+1 rows fetched.
+
+SQL> SELECT TO_DATE('January 15, 1989, 12:00 P.M.', 'Month dd, YYYY, HH:MI P.M.', 'NLS_DATE_LANGUAGE = American');
+
+TO_DATE('JANUARY 15, 1989, 12:00 P.M.', 'MONTH DD, YYYY, HH:MI P
+----------------------------------------------------------------
+1989-01-15 12:00:00                                             
+
+1 rows fetched.
+
+SQL> SELECT TO_DATE('January 15, 1989, 01:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = American');
+
+TO_DATE('JANUARY 15, 1989, 01:00 A.M.', 'MONTH DD, YYYY, HH:MI A
+----------------------------------------------------------------
+1989-01-15 01:00:00                                             
+
+1 rows fetched.
+
+SQL> SELECT TO_DATE('January 15, 1989, 11:59 P.M.', 'Month dd, YYYY, HH:MI P.M.', 'NLS_DATE_LANGUAGE = American');
+TO_DATE('JANUARY 15, 1989, 11:59 P.M.', 'MONTH DD, YYYY, HH:MI P
+----------------------------------------------------------------
+1989-01-15 23:59:00                                             
+
+1 rows fetched.
+
+SQL> SELECT TO_DATE('january 15, 1989, 11:00 a.m.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = chinese');
+
+OG-00105, [1:16]Invalid format of datetime
+SQL> SELECT TO_DATE('jun 15, 1989, 11:00 a.m.', 'mon dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = American');
+
+TO_DATE('JUN 15, 1989, 11:00 A.M.', 'MON DD, YYYY, HH:MI A.M.', 
+----------------------------------------------------------------
+1989-06-15 11:00:00                                             
+
+1 rows fetched.
+
+SQL> SELECT TO_DATE('aaa 15, 1989, 11:00 a.m.', 'mon dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = American');
+
+OG-00105, [1:16]Invalid format of datetime
+
 
 
