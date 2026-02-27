@@ -792,73 +792,88 @@ static double ineq_frequence_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, 
     return ineq_frequence_hist_factor_var(stmt, entity, col_id, column_stats, const_val, isgt);
 }
 
-static double btw_balanced_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, uint32 col_id,
-    cbo_stats_column_t *column_stats, expr_node_t *node)
+static double btw_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, uint32 col_id,
+    cbo_stats_column_t *column_stats, expr_node_t *node, cbo_hist_type_t hist_type)
 {
-    if (node == NULL ||node->owner == NULL || node->owner->next == NULL || node->owner->next->root == NULL) {
-        return 0.0;
+    if (hist_type == HEIGHT_BALANCED) {
+        double hist_frac_left = NODE_IS_RES_NULL(node) ? 1 :
+            ineq_balanced_hist_factor(stmt, entity, col_id, column_stats, node, false);
+        double hist_frac_right = NODE_IS_RES_NULL(node->owner->next->root) ? 1 :
+            ineq_balanced_hist_factor(stmt, entity, col_id, column_stats, node->owner->next->root, true);
+        double btw_hist = 1 - hist_frac_right - hist_frac_left - is_null_hist_factor(column_stats);
+        if (btw_hist < 0) {
+            btw_hist = 0.0;
+        }
+        return btw_hist;
+    } else {
+        double hist_frac_left = NODE_IS_RES_NULL(node) ? 1 :
+            ineq_frequence_hist_factor(stmt, entity, col_id, column_stats, node, false);
+        double hist_frac_right = NODE_IS_RES_NULL(node->owner->next->root) ? 1 :
+            ineq_frequence_hist_factor(stmt, entity, col_id, column_stats, node->owner->next->root, true);
+        double btw_hist = 1 - hist_frac_right - hist_frac_left - is_null_hist_factor(column_stats);
+        if (btw_hist < 0) {
+            btw_hist = 0.0;
+        }
+        return btw_hist;
     }
-    if (NODE_IS_RES_NULL(node) || NODE_IS_RES_NULL(node->owner->next->root)) {
-        return 0.0;
-    }
-
-    double hist_frac_left =
-        ineq_balanced_hist_factor(stmt, entity, col_id, column_stats, node, false);
-    double hist_frac_right =
-        ineq_balanced_hist_factor(stmt, entity, col_id, column_stats, node->owner->next->root, true);
-    double btw_hist = 1 - hist_frac_right - hist_frac_left - is_null_hist_factor(column_stats);
-    if (btw_hist < 0) {
-        btw_hist = 0.0;
-    }
-    return btw_hist;
 }
 
-static double btw_frequence_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, uint32 col_id,
-    cbo_stats_column_t *column_stats, expr_node_t *node)
+static double not_btw_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, uint32 col_id,
+    cbo_stats_column_t *column_stats, expr_node_t *node, cbo_hist_type_t hist_type)
 {
-    if (node == NULL || node->owner == NULL || node->owner->next == NULL || node->owner->next->root == NULL) {
-        return 0.0;
+    if (hist_type == HEIGHT_BALANCED) {
+        double hist_frac_left = NODE_IS_RES_NULL(node) ? 0 :
+            ineq_balanced_hist_factor(stmt, entity, col_id, column_stats, node, false);
+        double hist_frac_right = NODE_IS_RES_NULL(node->owner->next->root) ? 0 :
+            ineq_balanced_hist_factor(stmt, entity, col_id, column_stats, node->owner->next->root, true);
+        double btw_hist = hist_frac_right + hist_frac_left;
+        if (btw_hist > 1) {
+            btw_hist = 1.0;
+        }
+        return btw_hist;
+    } else {
+        double hist_frac_left = NODE_IS_RES_NULL(node) ? 0 :
+            ineq_frequence_hist_factor(stmt, entity, col_id, column_stats, node, false);
+        double hist_frac_right = NODE_IS_RES_NULL(node->owner->next->root) ? 0 :
+            ineq_frequence_hist_factor(stmt, entity, col_id, column_stats, node->owner->next->root, true);
+        double btw_hist = hist_frac_right + hist_frac_left;
+        if (btw_hist > 1) {
+            btw_hist = 1.0;
+        }
+        return btw_hist;
     }
-    if (NODE_IS_RES_NULL(node) || NODE_IS_RES_NULL(node->owner->next->root)) {
-        return 0.0;
-    }
-    double hist_frac_left =
-        ineq_frequence_hist_factor(stmt, entity, col_id, column_stats, node, false);
-    double hist_frac_right =
-        ineq_frequence_hist_factor(stmt, entity, col_id, column_stats, node->owner->next->root, true);
-    
-    double btw_hist = 1 - hist_frac_right - hist_frac_left - is_null_hist_factor(column_stats);
-    if (btw_hist < 0) {
-        btw_hist = 0.0;
-    }
-    return btw_hist;
 }
 
-static double in_balanced_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, uint32 col_id,
-    cbo_stats_column_t *column_stats, expr_node_t *node)
+static double in_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, uint32 col_id,
+    cbo_stats_column_t *column_stats, expr_node_t *node, cbo_hist_type_t hist_type)
 {
-    if (node == NULL || node->owner == NULL) {
-        return 0.0;
-    }
     double result = 0.0;
     for (expr_tree_t *pos = node->owner; pos != NULL; pos = pos->next) {
         if (pos->root != NULL) {
-            result = result + eq_balanced_hist_factor(stmt, entity, col_id, column_stats, pos->root);
+            if (hist_type == HEIGHT_BALANCED) {
+                result = result + eq_balanced_hist_factor(stmt, entity, col_id, column_stats, pos->root);
+            } else {
+                result = result + eq_frequence_hist_factor(stmt, entity, col_id, column_stats, pos->root);
+            }
         }
     }
     return result;
 }
 
-static double in_frequence_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, uint32 col_id,
-    cbo_stats_column_t *column_stats, expr_node_t *node)
+static double not_in_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, uint32 col_id,
+    cbo_stats_column_t *column_stats, expr_node_t *node, cbo_hist_type_t hist_type)
 {
-    if (node == NULL || node->owner == NULL) {
-        return 0.0;
-    }
-    double result = 0.0;
+    double result = 1.0 - is_null_hist_factor(column_stats);
     for (expr_tree_t *pos = node->owner; pos != NULL; pos = pos->next) {
         if (pos->root != NULL) {
-            result = result + eq_frequence_hist_factor(stmt, entity, col_id, column_stats, pos->root);
+            if (NODE_IS_RES_NULL(pos->root)) {
+                return 0.0;
+            }
+            if (hist_type == HEIGHT_BALANCED) {
+                result = result - eq_balanced_hist_factor(stmt, entity, col_id, column_stats, pos->root);
+            } else {
+                result = result - eq_frequence_hist_factor(stmt, entity, col_id, column_stats, pos->root);
+            }
         }
     }
     return result;
@@ -1308,6 +1323,9 @@ static double compute_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, uint32 
             case CMP_TYPE_EQUAL:
                 return eq_balanced_hist_factor(stmt, entity, col_id, column_stats, node);
             case CMP_TYPE_NOT_EQUAL:
+                if (NODE_IS_RES_NULL(node)) {
+                    return 0.0;
+                }
                 return 1 - eq_balanced_hist_factor(stmt, entity, col_id, column_stats, node) -
                        is_null_hist_factor(column_stats);
             case CMP_TYPE_LESS:
@@ -1321,22 +1339,23 @@ static double compute_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, uint32 
                 return ineq_balanced_hist_factor(stmt, entity, col_id, column_stats, node, true) +
                        eq_balanced_hist_factor(stmt, entity, col_id, column_stats, node);
             case CMP_TYPE_BETWEEN:
-                return btw_balanced_hist_factor(stmt, entity, col_id, column_stats, node);
+                return btw_hist_factor(stmt, entity, col_id, column_stats, node, column_stats->hist_type);
             case CMP_TYPE_NOT_BETWEEN:
-                return 1 - btw_balanced_hist_factor(stmt, entity, col_id, column_stats, node) -
-                       is_null_hist_factor(column_stats);
+                return not_btw_hist_factor(stmt, entity, col_id, column_stats, node, column_stats->hist_type);
             case CMP_TYPE_IS_NULL:
                 return is_null_hist_factor(column_stats);
             case CMP_TYPE_IS_NOT_NULL:
                 return 1 - is_null_hist_factor(column_stats);
             case CMP_TYPE_IN:
-                return in_balanced_hist_factor(stmt, entity, col_id, column_stats, node);
+                return in_hist_factor(stmt, entity, col_id, column_stats, node, column_stats->hist_type);
             case CMP_TYPE_NOT_IN:
-                return 1 - in_balanced_hist_factor(stmt, entity, col_id, column_stats, node) -
-                       is_null_hist_factor(column_stats);
+                return not_in_hist_factor(stmt, entity, col_id, column_stats, node, column_stats->hist_type);
             case CMP_TYPE_LIKE:
                 return like_balanced_hist_factor(stmt, entity, col_id, column_stats, node, cmp);
             case CMP_TYPE_NOT_LIKE:
+                if (NODE_IS_RES_NULL(node)) {
+                    return 0.0;
+                }
                 return 1 - like_balanced_hist_factor(stmt, entity, col_id, column_stats, node, cmp) -
                        is_null_hist_factor(column_stats);
             default:
@@ -1348,6 +1367,9 @@ static double compute_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, uint32 
             case CMP_TYPE_EQUAL:
                 return eq_frequence_hist_factor(stmt, entity, col_id, column_stats, node);
             case CMP_TYPE_NOT_EQUAL:
+                if (NODE_IS_RES_NULL(node)) {
+                    return 0.0;
+                }
                 return 1 - eq_frequence_hist_factor(stmt, entity, col_id, column_stats, node) -
                        is_null_hist_factor(column_stats);
             case CMP_TYPE_LESS:
@@ -1361,22 +1383,23 @@ static double compute_hist_factor(sql_stmt_t *stmt, dc_entity_t *entity, uint32 
                 return ineq_frequence_hist_factor(stmt, entity, col_id, column_stats, node, true) +
                        eq_frequence_hist_factor(stmt, entity, col_id, column_stats, node);
             case CMP_TYPE_BETWEEN:
-                return btw_frequence_hist_factor(stmt, entity, col_id, column_stats, node);
+                return btw_hist_factor(stmt, entity, col_id, column_stats, node, column_stats->hist_type);
             case CMP_TYPE_NOT_BETWEEN:
-                return 1 - btw_frequence_hist_factor(stmt, entity, col_id, column_stats, node) -
-                       is_null_hist_factor(column_stats);
+                return not_btw_hist_factor(stmt, entity, col_id, column_stats, node, column_stats->hist_type);
             case CMP_TYPE_IS_NULL:
                 return is_null_hist_factor(column_stats);
             case CMP_TYPE_IS_NOT_NULL:
                 return 1 - is_null_hist_factor(column_stats);
             case CMP_TYPE_IN:
-                return in_frequence_hist_factor(stmt, entity, col_id, column_stats, node);
+                return in_hist_factor(stmt, entity, col_id, column_stats, node, column_stats->hist_type);
             case CMP_TYPE_NOT_IN:
-                return 1 - in_frequence_hist_factor(stmt, entity, col_id, column_stats, node) -
-                       is_null_hist_factor(column_stats);
+                return not_in_hist_factor(stmt, entity, col_id, column_stats, node, column_stats->hist_type);
             case CMP_TYPE_LIKE:
                 return like_frequence_hist_factor(stmt, entity, col_id, column_stats, node, cmp);
             case CMP_TYPE_NOT_LIKE:
+                if (NODE_IS_RES_NULL(node)) {
+                    return 0.0;
+                }
                 return 1 - like_frequence_hist_factor(stmt, entity, col_id, column_stats, node, cmp) -
                        is_null_hist_factor(column_stats);
             default:
