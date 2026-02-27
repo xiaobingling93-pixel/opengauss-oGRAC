@@ -47,7 +47,7 @@ static void init_conn_info(connection_class *conn, environment_class *environmen
 
 SQLRETURN ograc_AllocConnect(SQLHENV henv, SQLHDBC *phdbc)
 {
-    ogconn_conn_t ctconn_conn;
+    ogconn_conn_t ogconn;
     environment_class *environment = (environment_class *)henv;
     connection_class *conn = NULL;
     conn = (connection_class *)malloc(sizeof(connection_class));
@@ -63,7 +63,7 @@ SQLRETURN ograc_AllocConnect(SQLHENV henv, SQLHDBC *phdbc)
         return SQL_ERROR;
     }
 
-    status = ogconn_alloc_conn(&ctconn_conn);
+    status = ogconn_alloc_conn(&ogconn);
     if (status != OG_SUCCESS) {
         char *msg = "alloc connection handle error.";
         return handle_conn_error(phdbc, environment, conn, msg);
@@ -71,20 +71,20 @@ SQLRETURN ograc_AllocConnect(SQLHENV henv, SQLHDBC *phdbc)
 
     if (memset_s(&conn->connInfo, sizeof(ConnInfo), 0, sizeof(ConnInfo)) != 0) {
         char *msg = "clean up database info failed.";
-        ogconn_free_conn(ctconn_conn);
+        ogconn_free_conn(ogconn);
         return handle_conn_error(phdbc, environment, conn, msg);
     }
 
     int is_autocommit = AUTO_COMMIT;
-    status = ogconn_set_conn_attr(ctconn_conn, OGCONN_ATTR_AUTO_COMMIT, &is_autocommit, sizeof(int));
+    status = ogconn_set_conn_attr(ogconn, OGCONN_ATTR_AUTO_COMMIT, &is_autocommit, sizeof(int));
     if (status != OG_SUCCESS) {
         char *msg = "set autoCommit attribute failed.";
-        ogconn_free_conn(ctconn_conn);
+        ogconn_free_conn(ogconn);
         return handle_conn_error(phdbc, environment, conn, msg);
     }
 
     init_conn_info(conn, environment);
-    conn->ctconn_conn = ctconn_conn;
+    conn->ogconn = ogconn;
     *phdbc = conn;
     return SQL_SUCCESS;
 }
@@ -157,7 +157,11 @@ SQLRETURN ograc_connect(SQLHDBC ConnectionHandle,
 
     retcode = og_db_connect(conn, info);
     if (NULL != info->password) {
-        memset_s(info->password, strlen(info->password), 0, strlen(info->password));
+        memset_s(info->password, sizeof(info->password), 0, sizeof(info->password));
+    }
+
+    if (NULL != info->sslpassword) {
+        memset_s(info->sslpassword, sizeof(info->sslpassword), 0, sizeof(info->sslpassword));
     }
     return retcode;
 }
@@ -181,7 +185,7 @@ SQLRETURN ograc_disconnect(connection_class *conn)
         conn->error_msg = "Connection handle is invalid";
         return SQL_INVALID_HANDLE;
     }
-    pconn = conn->ctconn_conn;
+    pconn = conn->ogconn;
     ogconn_disconnect(pconn);
     conn->flag = 1;
     return clean_up_info(conn, sizeof(ConnInfo));

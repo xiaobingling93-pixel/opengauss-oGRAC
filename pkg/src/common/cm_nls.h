@@ -62,6 +62,7 @@ typedef enum en_nlsparam_id {
     NLS_TERRITORY,
     NLS_TIMESTAMP_FORMAT,
     NLS_TIMESTAMP_TZ_FORMAT,
+    NLS_TIMESTAMP_TZ_FORMAT2,
     NLS_TIME_FORMAT,
     NLS_TIME_TZ_FORMAT,
     NLS__MAX_PARAM_NUM /* do not use it as parameter id */

@@ -49,7 +49,7 @@ static void init_column(list_t *list, uint32 item_size)
 SQLRETURN ograc_AllocStmt(SQLHDBC hdbc, SQLHSTMT *phstmt)
 {
     connection_class *conn = (connection_class *)hdbc;
-    ogconn_conn_t ctconn_conn = conn->ctconn_conn;
+    ogconn_conn_t ogconn = conn->ogconn;
     uint32 col_size = sizeof(column_param);
     uint32 generate_result_size = sizeof(og_generate_result);
     bilist_t *param_list = NULL;
@@ -68,7 +68,7 @@ SQLRETURN ograc_AllocStmt(SQLHDBC hdbc, SQLHSTMT *phstmt)
         return SQL_ERROR;
     }
 
-    status_t alloc_stmt_ret = ogconn_alloc_stmt(ctconn_conn, &ctconn_stmt);
+    status_t alloc_stmt_ret = ogconn_alloc_stmt(ogconn, &ctconn_stmt);
     stmt->ctconn_stmt = ctconn_stmt;
     if (alloc_stmt_ret != OG_SUCCESS) {
         *phstmt = SQL_NULL_HSTMT;
@@ -120,7 +120,7 @@ SQLRETURN ograc_set_stmt_attr(statement *stmt,
                 newvalue = -1;
             }
             connection_class *conn = stmt->conn;
-            return ogconn_set_conn_attr(conn->ctconn_conn, OGCONN_ATTR_SOCKET_TIMEOUT, &newvalue, strlen);
+            return ogconn_set_conn_attr(conn->ogconn, OGCONN_ATTR_SOCKET_TIMEOUT, &newvalue, strlen);
         case SQL_ATTR_PARAMSET_SIZE:
             return ogconn_set_stmt_attr(stmt->ctconn_stmt,
                                         OGCONN_ATTR_PARAMSET_SIZE,

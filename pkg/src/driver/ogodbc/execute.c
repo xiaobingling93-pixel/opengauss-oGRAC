@@ -59,7 +59,7 @@ status_t set_conn_attr(connection_class *conn, SQLPOINTER Value, SQLINTEGER Stri
     } else if (newValue == 0) {
         newValue = -1;
     }
-    return ogconn_set_conn_attr(conn->ctconn_conn, attr, &newValue, StringLength);
+    return ogconn_set_conn_attr(conn->ogconn, attr, &newValue, StringLength);
 }
 
 SQLRETURN ograc_prepare(statement *stmt, const SQLCHAR *text)
@@ -616,7 +616,7 @@ static SQLRETURN convert_param_to_timestamp(statement *stmt, sql_input_data *inp
     date_detail_t value_detail = {0};
     ogconn_datetime_t datetime;
 
-    status_t attr = ogconn_get_conn_attr(stmt->conn->ctconn_conn,
+    status_t attr = ogconn_get_conn_attr(stmt->conn->ogconn,
                                          OGCONN_ATTR_TIMESTAMP_SIZE,
                                          &data_len,
                                          sizeof(data_len),

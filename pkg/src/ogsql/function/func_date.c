@@ -216,8 +216,9 @@ status_t sql_func_current_timestamp(sql_stmt_t *stmt, expr_node_t *func, variant
     return cm_adjust_timestamp_tz(&res->v_tstamp_tz, prec);
 }
 
-static status_t sql_func_extract_date(interval_unit_t unit, date_t v_date, variant_t *res)
+static status_t sql_func_extract_date(interval_unit_t unit, variant_t date_var, variant_t *res)
 {
+    date_t v_date = date_var.v_date;
     dec8_t dec;
     date_detail_t dt;
     cm_decode_date(v_date, &dt);
@@ -251,6 +252,14 @@ static status_t sql_func_extract_date(interval_unit_t unit, date_t v_date, varia
             cm_int64_to_dec(res->v_bigint, &dec);
             (void)cm_dec_div_int64(&dec, MICROSECS_PER_SECOND, &res->v_dec);
             res->type = OG_TYPE_NUMBER;
+            break;
+
+        case IU_TZ_HOUR:
+            res->v_int = TIMEZONE_GET_HOUR(date_var.v_tstamp_tz.tz_offset);
+            break;
+
+        case IU_TZ_MINUTE:
+            res->v_int = TIMEZONE_GET_SIGN_MINUTE(date_var.v_tstamp_tz.tz_offset);
             break;
 
         default:
@@ -334,7 +343,7 @@ status_t sql_func_extract(sql_stmt_t *stmt, expr_node_t *func, variant_t *res)
     if (sql_match_interval_type(date_var.type)) {
         return sql_func_extract_interval(unit_var.v_itvl_unit_id, &date_var, res);
     } else if (var_as_timestamp_flex(&date_var) == OG_SUCCESS) {
-        return sql_func_extract_date(unit_var.v_itvl_unit_id, date_var.v_date, res);
+        return sql_func_extract_date(unit_var.v_itvl_unit_id, date_var, res);
     } else {
         cm_set_error_loc(arg_date->loc);
         return OG_ERROR;
@@ -998,6 +1007,27 @@ status_t sql_verify_to_date(sql_verifier_t *verf, expr_node_t *func)
     return OG_SUCCESS;
 }
 
+static status_t sql_text2timestamp(sql_stmt_t *stmt, text_t *text, variant_t *result, bool32 is_to_date)
+{
+    result->is_null = OG_FALSE;
+    result->type = OG_TYPE_DATE;
+    timezone_info_t tz_offset = 0;
+    text_t fmt;
+    sql_session_nlsparam_geter(stmt, NLS_TIMESTAMP_TZ_FORMAT, &fmt);
+
+    if (cm_text2date_fixed(text, &fmt, &result->v_date, &tz_offset, is_to_date) == OG_SUCCESS) {
+        result->v_tstamp_tz.tz_offset = tz_offset;
+        return OG_SUCCESS;
+    }
+    cm_reset_error();
+    sql_session_nlsparam_geter(stmt, NLS_TIMESTAMP_TZ_FORMAT2, &fmt);
+    if (cm_text2date_fixed(text, &fmt, &result->v_date, &tz_offset, is_to_date) == OG_SUCCESS) {
+        result->v_tstamp_tz.tz_offset = tz_offset;
+        return OG_SUCCESS;
+    }
+    return OG_ERROR;
+}
+
 static status_t sql_func_to_date_core(sql_stmt_t *stmt, expr_node_t *func, variant_t *result, bool32 is_to_date)
 {
     variant_t var1;
@@ -1035,17 +1065,22 @@ static status_t sql_func_to_date_core(sql_stmt_t *stmt, expr_node_t *func, varia
             OG_SRC_THROW_ERROR(arg2->loc, ERR_INVALID_FUNC_PARAMS, "string argument expected");
             return OG_ERROR;
         }
+    } else if (!is_to_date) {
+        OG_RETURN_IFSUC(sql_text2timestamp(stmt, &var1.v_text, result, is_to_date));
+        cm_set_error_loc(arg1->loc);
+        return OG_ERROR;
     } else {
-        sql_session_nlsparam_geter(stmt, is_to_date ? NLS_DATE_FORMAT : NLS_TIMESTAMP_FORMAT, &fmt_var.v_text);
+        sql_session_nlsparam_geter(stmt, NLS_DATE_FORMAT, &fmt_var.v_text);
     }
 
     result->is_null = OG_FALSE;
     result->type = OG_TYPE_DATE;
-
-    if (cm_text2date_fixed(&var1.v_text, &fmt_var.v_text, &result->v_date, is_to_date) != OG_SUCCESS) {
+    timezone_info_t tz_offset = 0;
+    if (cm_text2date_fixed(&var1.v_text, &fmt_var.v_text, &result->v_date, &tz_offset, is_to_date) != OG_SUCCESS) {
         cm_set_error_loc(arg1->loc);
         return OG_ERROR;
     }
+    result->v_tstamp_tz.tz_offset = tz_offset;
 
     return OG_SUCCESS;
 }

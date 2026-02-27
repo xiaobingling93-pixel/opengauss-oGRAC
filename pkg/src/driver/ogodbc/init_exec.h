@@ -42,6 +42,19 @@
 #define CHARSET   "Charset"    /* character set */
 #define TENANTNAME   "Tenantname"    /* tenantname */
 #define LOGDIR   "logdir"    /* log directory */
+#define SSL_MODE   "sslmode"    /* ssl mode */
+#define SSL_KEY   "sslkey"    /* ssl key */
+#define SSL_PASSWORD   "sslpassword"    /* ssl key password */
+#define SSL_CA   "sslca"    /* ssl ca */
+#define SSL_CERT   "sslcert"    /* ssl cert */
+#define SSL_CRL   "sslcrl"    /* ssl crl */
+#define SSL_FACTORY   "sslfactory"    /* ssl factory */
+#define SSL_ENCRYPTION   "sslencryption"    /* ssl encryption */
+#define SSL_KEY_NATIVE   "sslkeynative"    /* ssl native key */
+#define UDS_PATH   "udspath"    /* uds server path */
+
+#define ODBC_INI           ".odbc.ini"
+#define ODBCINST_INI       "odbcinst.ini"
 
 #define LARGE_PARAM_LEN          256
 #define SMALL_PARAM_LEN          10
@@ -49,13 +62,20 @@
 #define MAX_VALUE_BUFF_LEN       4096
 #define MAX_CONN_HOST_LEN        512
 #define AUTO_COMMIT              1
-#define ODBC_INI           ".odbc.ini"
-#define ODBCINST_INI       "odbcinst.ini"
+#define MAX_MODE_LEN             12
+#define AES256_SIZE              32
+#define MAX_SSL_KEY_LEN          24
+#define AES_READ_LEN             16
+#define KEYPWD_BUF_LEN           512
+#define DECIMAL_SIZE             16
+#define OG_BUFF_SIZE             256
+#define CALC_PREC_SINGAL         10000000
+#define DECIMAL_MOD              256
+#define SSL_MAX_PARAM_LEN        256
+#define SSL_MAX_CIPHER_LEN       4096
+#define SSL_MAX_KEY_LEN          92
+#define SSL_ENCRYPTION_KEY_LEN   28
 
-#define DECIMAL_SIZE   16
-#define OG_BUFF_SIZE    256
-#define CALC_PREC_SINGAL    10000000
-#define DECIMAL_MOD     256
 #define INIT_STMT       1
 #define DEL_STMT        2
 #define NOT_EXEC_STMT   3
@@ -133,6 +153,16 @@ typedef struct {
     char          drivername[LARGE_PARAM_LEN];
     char          username[LARGE_PARAM_LEN];
     char          charset[LARGE_PARAM_LEN];
+    char          ssl_ca[SSL_MAX_PARAM_LEN];
+    char          sslpassword[SSL_MAX_PARAM_LEN];
+    char          ssl_encryption[SSL_MAX_CIPHER_LEN];
+    char          ssl_cert[SSL_MAX_PARAM_LEN];
+    char          ssl_factory[SSL_MAX_PARAM_LEN];
+    char          ssl_key_native[SSL_MAX_KEY_LEN];
+    char          uds_path[SSL_MAX_PARAM_LEN];
+    char          ssl_key[SSL_MAX_PARAM_LEN];
+    char          ssl_crl[SSL_MAX_PARAM_LEN];
+    ogconn_ssl_mode_t ssl_mode;
 } ConnInfo;
 
 typedef int(INSTAPI * SQLGetPrivateProfileStringFunc) (
@@ -150,7 +180,7 @@ typedef struct ConnectionHandle {
     int              error_code;
     ConnInfo           connInfo;
     char               *error_msg;
-    ogconn_conn_t      ctconn_conn;
+    ogconn_conn_t      ogconn;
     unsigned char      flag;
     int              err_sign;
 } connection_class;
