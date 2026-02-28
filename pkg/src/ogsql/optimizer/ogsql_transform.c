@@ -33,6 +33,7 @@
 #include "ogsql_plan.h"
 #include "ogsql_subquery_rewrite.h"
 #include "ogsql_hash_mtrl_rewrite.h"
+#include "ogsql_orderby_erase.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -171,6 +172,9 @@ status_t ogsql_transform_one_rule(sql_stmt_t *statement, sql_query_t *query, con
 
 static status_t ogsql_apply_rule_set_1(sql_stmt_t *statement, sql_query_t *qry)
 {
+    // 1. transform to delete unusable orderby.
+    OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_eliminate_orderby);
+
     return OG_SUCCESS;
 }
 
