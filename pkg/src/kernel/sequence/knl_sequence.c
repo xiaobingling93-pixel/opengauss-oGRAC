@@ -39,6 +39,7 @@
 #define SEQ_CHG_SCN_COLUMN_ID    10
 #define SEQ_LASTVAL_COLUMN_ID    11
 #define SEQ_COLUMN_COUNTS 12
+
 /*
  * create sequence
  * @param[in]  session - knl_session_t
@@ -799,6 +800,9 @@ static void db_alter_seq_update_row(knl_session_t *session, knl_sequence_def_t *
 {
     row_assist_t ra;
     bool32 lastnum_changed = OG_FALSE;
+    bool32 lastnum_set = OG_FALSE;
+    int64 old_step = sequence->step;
+    int64 new_lastval = sequence->lastval;
     uint16 update_cols = 0;
     uint16 size;
     row_init(&ra, cursor->update_info.data, HEAP_MAX_ROW_SIZE(session), SEQ_COLUMN_COUNTS);
@@ -846,13 +850,25 @@ static void db_alter_seq_update_row(knl_session_t *session, knl_sequence_def_t *
 
     /* regenerate lastnumber when step or cache size changed */
     if (lastnum_changed) {
-        sequence->lastval += def->step - sequence->step;
+        new_lastval += def->step - old_step;
         sequence->step = def->step;
-        cursor->update_info.columns[update_cols++] = SEQ_LASTVAL_COLUMN_ID;
-        (void)row_put_int64(&ra, sequence->lastval);
+        lastnum_set = OG_TRUE;
 
         /* regenerate last_number when nextval */
         sequence->cache_pos = sequence->cache_size;
+    }
+
+    if (def->is_restart_set) {
+        new_lastval = def->start;
+        sequence->rsv_nextval = def->start;
+        sequence->cache_pos = sequence->cache_size;
+        lastnum_set = OG_TRUE;
+    }
+
+    if (lastnum_set) {
+        cursor->update_info.columns[update_cols++] = SEQ_LASTVAL_COLUMN_ID;
+        (void)row_put_int64(&ra, new_lastval);
+        sequence->lastval = new_lastval;
     }
 
     cursor->update_info.count = update_cols;

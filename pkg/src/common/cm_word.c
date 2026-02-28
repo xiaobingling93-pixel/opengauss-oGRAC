@@ -322,6 +322,7 @@ static key_word_t g_key_words[] = {
     { (uint32)KEY_WORD_REPLICATION, OG_TRUE, { (char *)"replication" } },
     { (uint32)KEY_WORD_RESET, OG_TRUE, { (char *)"reset" } },
     { (uint32)KEY_WORD_RESIZE, OG_TRUE, { (char *)"resize" } },
+    { (uint32)KEY_WORD_RESTART, OG_TRUE, { (char *)"restart" } },
     { (uint32)KEY_WORD_RESTORE, OG_TRUE, { (char *)"restore" } },
     { (uint32)KEY_WORD_RESTRICT, OG_TRUE, { (char *)"restrict" } },
     { (uint32)KEY_WORD_RETURN, OG_TRUE, { (char *)"return" } },

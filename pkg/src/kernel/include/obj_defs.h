@@ -168,7 +168,8 @@ typedef struct st_knl_sequence_def {
             bool32 is_nominval_set : 1;
             bool32 is_nomaxval_set : 1;
             bool32 is_groupid_set : 1;
-            bool32 unused : 21;
+            bool32 is_restart_set : 1;
+            bool32 unused : 20;
         };
         bool32 is_option_set;
     };
