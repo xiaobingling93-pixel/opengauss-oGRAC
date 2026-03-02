@@ -1306,6 +1306,7 @@ static inline void sql_try_optmz_select_type(sql_verifier_t *verif, sql_select_t
 static status_t sql_verify_withas_ctx(sql_stmt_t *stmt, galist_t *withas_ctx)
 {
     sql_verifier_t verif = { 0 };
+    sql_withas_factor_t *factor = NULL;
     sql_select_t *select_ctx = NULL;
     uint32 i;
 
@@ -1313,7 +1314,8 @@ static status_t sql_verify_withas_ctx(sql_stmt_t *stmt, galist_t *withas_ctx)
     verif.context = stmt->context;
 
     for (i = 0; i < withas_ctx->count; i++) {
-        select_ctx = (sql_select_t *)cm_galist_get(withas_ctx, i);
+        factor = (sql_withas_factor_t *)cm_galist_get(withas_ctx, i);
+        select_ctx = (sql_select_t *)factor->subquery_ctx;
         verif.select_ctx = select_ctx;
         verif.for_update = select_ctx->for_update;
         verif.excl_flags = SQL_EXCL_DEFAULT;

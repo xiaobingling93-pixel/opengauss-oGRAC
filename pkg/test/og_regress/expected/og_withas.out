@@ -84,7 +84,35 @@ F_INT1       F_INT2                                   F_INT3
 
 8 rows fetched.
 
-SQL> 
+SQL> with tmp as (select * from t_withas1) (select * from tmp);
+
+F_INT1       F_INT2                                   F_INT3
+------------ ---------------------------------------- ------------
+1            11
+
+1 rows fetched.
+
+SQL> with tmp as (select * from t_withas1) select * from tmp union all (
+  2   with tmp2 as (select * from t_withas2) select * from tmp
+  3 );
+
+F_INT1       F_INT2                                   F_INT3
+------------ ---------------------------------------- ------------
+1            11
+1            11
+
+2 rows fetched.
+
+SQL> with t1 as (select f_int1 from t_withas1) select 1 from (
+  2   with t1 as (select f_int2 from t_withas1), t2 as (select f_int2 from t1) select f_int2 from t2);
+
+1
+------------
+1
+
+1 rows fetched.
+
+SQL>
 SQL> CREATE TABLE "HOUSEHOLD_DEMOGRAPHICS"
   2 (
   3 "HD_DEMO_SK" BINARY_INTEGER NOT NULL,

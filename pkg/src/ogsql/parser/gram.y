@@ -1380,7 +1380,11 @@ cte_list:
             | cte_list ',' common_table_expr
                 {
                     galist_t* cte_list = $1;
-                    if (cm_galist_insert(cte_list, $3) != OG_SUCCESS) {
+                    sql_withas_factor_t *factor = $3;
+                    if (cte_list->count > 0) {
+                        factor->prev_factor = (sql_withas_factor_t *)cm_galist_get(cte_list, cte_list->count - 1);
+                    }
+                    if (cm_galist_insert(cte_list, factor) != OG_SUCCESS) {
                         parser_yyerror("insert cte list failed.");
                     }
                     $$ = cte_list;
@@ -1405,6 +1409,9 @@ common_table_expr:
                     if (cm_galist_new(withas->withas_factors, sizeof(sql_withas_factor_t), (void **)&factor) != OG_SUCCESS) {
                         parser_yyerror("new factor failed");
                     }
+                    factor->id = withas->withas_factors->count - 1;
+                    factor->prev_factor = NULL;
+                    factor->owner = NULL;
                     withas->cur_match_idx = withas->withas_factors->count;
 
                     text_t user_name = { stmt->session->curr_schema, (uint32)strlen(stmt->session->curr_schema) };
@@ -1442,7 +1449,8 @@ select_no_parens:
 
                     for (uint32 i = 0; i < $1->count; i++) {
                         factor = (sql_withas_factor_t*)cm_galist_get($1, i);
-                        cm_galist_insert(select_ctx->withass, factor->subquery_ctx);
+                        factor->owner = select_ctx;
+                        cm_galist_insert(select_ctx->withass, factor);
                     }
                     (void)obj_stack_pop(&og_yyget_extra(yyscanner)->core_yy_extra.withas_stack);
                     $$ = select_ctx;
@@ -1515,7 +1523,8 @@ select_no_parens:
 
                     for (uint32 i = 0; i < $1->count; i++) {
                         factor = (sql_withas_factor_t*)cm_galist_get($1, i);
-                        cm_galist_insert(select_ctx->withass, factor->subquery_ctx);
+                        factor->owner = select_ctx;
+                        cm_galist_insert(select_ctx->withass, factor);
                     }
                     (void)obj_stack_pop(&og_yyget_extra(yyscanner)->core_yy_extra.withas_stack);
 
@@ -1541,7 +1550,8 @@ select_no_parens:
 
                     for (uint32 i = 0; i < $1->count; i++) {
                         factor = (sql_withas_factor_t*)cm_galist_get($1, i);
-                        cm_galist_insert(select_ctx->withass, factor->subquery_ctx);
+                        factor->owner = select_ctx;
+                        cm_galist_insert(select_ctx->withass, factor);
                     }
                     (void)obj_stack_pop(&og_yyget_extra(yyscanner)->core_yy_extra.withas_stack);
 
@@ -1577,7 +1587,8 @@ select_no_parens:
 
                     for (uint32 i = 0; i < $1->count; i++) {
                         factor = (sql_withas_factor_t*)cm_galist_get($1, i);
-                        cm_galist_insert(select_ctx->withass, factor->subquery_ctx);
+                        factor->owner = select_ctx;
+                        cm_galist_insert(select_ctx->withass, factor);
                     }
                     (void)obj_stack_pop(&og_yyget_extra(yyscanner)->core_yy_extra.withas_stack);
 

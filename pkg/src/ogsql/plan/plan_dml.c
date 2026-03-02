@@ -473,20 +473,6 @@ status_t sql_create_subselect_expr_plan(sql_stmt_t *stmt, sql_array_t *ssa, plan
     return OG_SUCCESS;
 }
 
-static inline sql_withas_factor_t *get_withas_factor(sql_stmt_t *stmt, sql_select_t *select_ctx, uint32 *match_id)
-{
-    sql_withas_factor_t *factor = NULL;
-    sql_withas_t *withas = (sql_withas_t *)stmt->context->withas_entry;
-    for (uint32 i = 0; i < withas->withas_factors->count; ++i) {
-        factor = (sql_withas_factor_t *)cm_galist_get(withas->withas_factors, i);
-        if (factor->subquery_ctx == select_ctx) {
-            *match_id = i;
-            return factor;
-        }
-    }
-    return NULL;
-}
-
 #define MATCH_LOCAL_WITHAS(t, v) ((t)->session->withas_subquery == (v))
 #define MATCH_GLOBAL_WITHAS(t, v) \
     ((t)->session->withas_subquery == WITHAS_UNSET && g_instance->sql.withas_subquery == (v))
@@ -517,8 +503,10 @@ static status_t sql_create_withas_mtrl_plan(sql_stmt_t *stmt, sql_table_t *sql_t
     if (sql_tab->type != WITH_AS_TABLE) {
         return OG_SUCCESS;
     }
-    uint32 match_idx;
-    sql_withas_factor_t *factor = get_withas_factor(stmt, sql_tab->select_ctx, &match_idx);
+    uint32 match_idx = sql_tab->select_ctx->withas_id;
+    sql_withas_t *withas = (sql_withas_t *)stmt->context->withas_entry;
+    sql_withas_factor_t *factor = (sql_withas_factor_t *)cm_galist_get(withas->withas_factors, match_idx);
+    
     if (!if_create_withas_mtrl_plan(stmt, factor)) {
         return OG_SUCCESS;
     }

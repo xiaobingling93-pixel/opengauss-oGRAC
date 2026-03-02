@@ -1147,7 +1147,7 @@ status_t sql_alloc_select_context(sql_stmt_t *stmt, select_type_t type, sql_sele
     (*select_ctx)->plan = NULL;
     (*select_ctx)->for_update_cols = NULL;
     (*select_ctx)->withass = NULL;
-    (*select_ctx)->is_withas = OG_FALSE;
+    (*select_ctx)->withas_id = OG_INVALID_ID32;
     (*select_ctx)->can_sub_opt = OG_TRUE;
     return OG_SUCCESS;
 }
@@ -1374,9 +1374,11 @@ static status_t sql_parse_select_wrapped(sql_stmt_t *stmt, sql_select_t *select_
     sql_select_t *sub_ctx = NULL;
     lex_t *lex = stmt->session->lex;
 
+    select_ctx->in_parse_set_select = OG_TRUE;
     if (sql_create_select_context(stmt, &word->text, SELECT_AS_SET, &sub_ctx) != OG_SUCCESS) {
         return OG_ERROR;
     }
+    select_ctx->in_parse_set_select = OG_FALSE;
 
     if (select_ctx->first_query == NULL) {
         select_ctx->first_query = sub_ctx->first_query;
@@ -1393,8 +1395,8 @@ static status_t sql_parse_select_wrapped(sql_stmt_t *stmt, sql_select_t *select_
             select_ctx->withass = sub_ctx->withass;
         } else {
             for (uint32 i = 0; i < sub_ctx->withass->count; i++) {
-                sql_select_t *withas_ctx = (sql_select_t *)cm_galist_get(sub_ctx->withass, i);
-                OG_RETURN_IFERR(cm_galist_insert(select_ctx->withass, withas_ctx));
+                sql_withas_factor_t *factor = (sql_withas_factor_t *)cm_galist_get(sub_ctx->withass, i);
+                OG_RETURN_IFERR(cm_galist_insert(select_ctx->withass, factor));
             }
         }
     }
@@ -1477,7 +1479,7 @@ static status_t sql_parse_withas_factor(sql_stmt_t *stmt, lex_t *lex, word_t *wo
     factor->subquery_sql = word->text;
     OG_RETURN_IFERR(sql_create_select_context(stmt, &factor->subquery_sql, SELECT_AS_TABLE,
         (sql_select_t **)&factor->subquery_ctx));
-    OG_RETURN_IFERR(cm_galist_insert(select_ctx->withass, factor->subquery_ctx));
+    OG_RETURN_IFERR(cm_galist_insert(select_ctx->withass, factor));
     return OG_SUCCESS;
 }
 
@@ -1485,13 +1487,13 @@ static status_t sql_parse_withas_context(sql_stmt_t *stmt, select_type_t type, w
 {
     lex_t *lex = stmt->session->lex;
     sql_withas_factor_t *factor = NULL;
+    sql_withas_factor_t *prev_factor = NULL;
     sql_withas_t *withas = (sql_withas_t *)stmt->context->withas_entry;
 
     if (withas == NULL) {
         OG_RETURN_IFERR(sql_alloc_mem(stmt->context, sizeof(sql_withas_t), &stmt->context->withas_entry));
         withas = (sql_withas_t *)stmt->context->withas_entry;
         OG_RETURN_IFERR(sql_create_list(stmt, &withas->withas_factors));
-        withas->cur_level = 0;
     }
     withas->cur_match_idx = withas->withas_factors->count;
 
@@ -1502,10 +1504,12 @@ static status_t sql_parse_withas_context(sql_stmt_t *stmt, select_type_t type, w
     // syntax: with t_tmp1 as (select ...),t_tmp2 as (select ...) select * from t_tmp1,t_tmp2
     while (1) {
         OG_RETURN_IFERR(cm_galist_new(withas->withas_factors, sizeof(sql_withas_factor_t), (void **)&factor));
-        factor->depth = stmt->node_stack.depth;
-        factor->level = withas->cur_level;
+        factor->id = withas->withas_factors->count - 1;
+        factor->owner = select_ctx;
+        factor->prev_factor = prev_factor;
 
         OG_RETURN_IFERR(sql_parse_withas_factor(stmt, lex, word, select_ctx, factor));
+        prev_factor = factor;
 
         OG_RETURN_IFERR(lex_expected_fetch(lex, word));
 
@@ -1521,7 +1525,6 @@ static status_t sql_parse_withas_context(sql_stmt_t *stmt, select_type_t type, w
             return OG_ERROR;
         }
     }
-    withas->cur_level++;
     return OG_SUCCESS;
 }
 
