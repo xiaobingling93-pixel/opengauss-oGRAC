@@ -30,6 +30,7 @@
 #include "ogsql_func.h"
 #include "srv_instance.h"
 #include "ogsql_cond_rewrite.h"
+#include "ogsql_subslct_erase.h"
 #include "ogsql_plan.h"
 #include "ogsql_subquery_rewrite.h"
 #include "ogsql_hash_mtrl_rewrite.h"
@@ -203,6 +204,7 @@ static status_t ogsql_tranf_table_type(sql_stmt_t *statement, sql_query_t *query
 status_t ogsql_apply_rule_set_2(sql_stmt_t *statement, sql_query_t *qry)
 {
     OG_RETURN_IFERR(ogsql_tranf_table_type(statement, qry));
+    OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_select_erase);
     // transform sub-select to table
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_subquery_rewrite);
     // transform sub_select by hash mtrl.
