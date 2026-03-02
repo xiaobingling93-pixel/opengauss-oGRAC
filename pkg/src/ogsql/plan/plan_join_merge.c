@@ -124,9 +124,13 @@ status_t og_create_merge_join_sort_item(galist_t *sort_lst, expr_tree_t *exprtr,
 }
 
 // Construct pathkeys based on given column
-static status_t sql_make_path_keys(sql_stmt_t *stmt, tbl_join_info_t *jinfo, sql_table_t *table,
-    galist_t *path_keys, uint32 col_id, bool32 idx_dsc)
+static status_t sql_create_path_keys(sql_stmt_t *stmt, tbl_join_info_t *jinfo,
+    galist_t *path_keys, merge_path_key_input_t *input)
 {
+    sql_table_t *table = input->table;
+    uint32 col_id = input->col_id;
+    bool32 idx_dsc = input->idx_dsc;
+
     expr_tree_t *left = jinfo->cond->cmp->left;
     expr_tree_t *right = jinfo->cond->cmp->right;
     if (left == NULL || right == NULL) {
@@ -154,22 +158,53 @@ static status_t sql_make_path_keys(sql_stmt_t *stmt, tbl_join_info_t *jinfo, sql
     return OG_SUCCESS;
 }
 
-// index scan paths produce ordered output
-static status_t og_create_index_scan_paths(join_assist_t *j_ast, sql_table_t *tbl, tbl_join_info_t *jinfo,
-    index_t *index, galist_t **idx_cond_array, cond_tree_t *condtr, uint8 idx_dsc)
+static void og_set_merge_table_scan(sql_table_t *tbl, cbo_index_choose_assist_t *ca, double cost,
+    index_t *index, cond_tree_t *condtr)
 {
+    tbl->startup_cost = ca->startup_cost;
+    tbl->cost = cost;
+    tbl->index = &index->desc;
+    tbl->scan_flag = ca->scan_flag;
+    tbl->scan_mode = SCAN_MODE_INDEX;
+    tbl->index_full_scan = ca->index_full_scan;
+    tbl->idx_equal_to = ca->strict_equal_cnt;
+    tbl->index_dsc = ca->index_dsc;
+    tbl->cond = condtr;
+}
+
+static void og_init_merge_table_scan_ca(cbo_index_choose_assist_t *ca, index_t *index, uint8 idx_dsc)
+{
+    ca->index = &index->desc;
+    ca->strict_equal_cnt = 0;
+    ca->index_dsc = idx_dsc;
+    ca->index_full_scan = true;
+    ca->scan_flag = RBO_MERGE_JOIN_SCAN_FLAG;
+    ca->startup_cost = 0.0;
+}
+
+static void og_reset_merge_jnode(sql_join_node_t *jnode, int64 card, double startup_cost,
+    double cost, join_tbl_bitmap_t outer_rels)
+{
+    jnode->cost.card = card;
+    jnode->cost.cost = cost;
+    jnode->cost.startup_cost = startup_cost;
+    jnode->outer_rels = outer_rels;
+    jnode->path_keys = NULL;
+}
+
+// index scan paths produce ordered output
+static status_t og_create_index_scan_paths(join_assist_t *j_ast, tbl_join_info_t *jinfo,
+    galist_t **idx_cond_array, cond_tree_t *condtr, merge_index_scan_input_t *idx_scan_input)
+{
+    sql_table_t *tbl = idx_scan_input->tbl;
+    index_t *index = idx_scan_input->index;
+    uint8 idx_dsc = idx_scan_input->idx_dsc;
     sql_stmt_t *statement = j_ast->stmt;
     uint32 idx_1st_col_id = index->desc.columns[0];
     sql_join_table_t *jtbl = j_ast->base_jtables[tbl->id];
     dc_entity_t *entity = DC_ENTITY(&tbl->entry->dc);
-    cbo_index_choose_assist_t ca = {
-        .index = &index->desc,
-        .strict_equal_cnt = 0,
-        .index_dsc = idx_dsc,
-        .index_full_scan = true,
-        .scan_flag = RBO_MERGE_JOIN_SCAN_FLAG,
-        .startup_cost = 0.0
-    };
+    cbo_index_choose_assist_t ca = { 0 };
+    og_init_merge_table_scan_ca(&ca, index, idx_dsc);
 
     int64 card;
     sql_table_t *tmp_tbl = NULL;
@@ -180,16 +215,7 @@ static status_t og_create_index_scan_paths(join_assist_t *j_ast, sql_table_t *tb
     }
 
     double cost = sql_estimate_index_scan_cost(statement, &ca, entity, index, idx_cond_array, &card, tbl);
-    double startup_cost = ca.startup_cost;
-    tmp_tbl->startup_cost = startup_cost;
-    tmp_tbl->cost = cost;
-    tmp_tbl->index = &index->desc;
-    tmp_tbl->scan_flag = ca.scan_flag;
-    tmp_tbl->scan_mode = SCAN_MODE_INDEX;
-    tmp_tbl->index_full_scan = ca.index_full_scan;
-    tmp_tbl->idx_equal_to = ca.strict_equal_cnt;
-    tmp_tbl->index_dsc = ca.index_dsc;
-    tmp_tbl->cond = condtr;
+    og_set_merge_table_scan(tmp_tbl, &ca, cost, index, condtr);
     if (INDEX_ONLY_SCAN(tmp_tbl->scan_flag)) {
         OG_RETURN_IFERR(sql_make_index_col_map(j_ast->pa, statement, tmp_tbl));
     }
@@ -198,27 +224,25 @@ static status_t og_create_index_scan_paths(join_assist_t *j_ast, sql_table_t *tb
     sql_bitmap_init(&outer_rels);
     sql_join_node_t *jnode = NULL;
     OG_RETURN_IFERR(sql_create_join_node(statement, JOIN_TYPE_NONE, tmp_tbl, NULL, NULL, NULL, &jnode));
-    jnode->cost.card = tmp_tbl->card;
-    jnode->cost.cost = cost;
-    jnode->cost.startup_cost = startup_cost;
-    jnode->outer_rels = outer_rels;
-    jnode->path_keys = NULL;
+    og_reset_merge_jnode(jnode, tmp_tbl->card, ca.startup_cost, cost, outer_rels);
+
+    merge_path_key_input_t input = {
+        .table = tbl,
+        .col_id = idx_1st_col_id,
+        .idx_dsc = idx_dsc
+    };
     OG_RETURN_IFERR(sql_create_list(j_ast->stmt, &jnode->path_keys));
     // Create pathkey using the first column of the index
-    OG_RETURN_IFERR(sql_make_path_keys(statement, jinfo, tbl, jnode->path_keys, idx_1st_col_id, idx_dsc));
+    OG_RETURN_IFERR(sql_create_path_keys(statement, jinfo, jnode->path_keys, &input));
 
     OG_RETURN_IFERR(sql_jtable_add_path(j_ast->stmt, jtbl, jnode));
     return OG_SUCCESS;
 }
 
-void match_conds_to_index(plan_assist_t *pa, sql_table_t *table, index_t *index, const cond_node_t *cond,
-    galist_t **idx_cond_array, bool32 *has_matched);
-
 // generate scan paths that produce ordered results
 status_t og_gen_sorted_paths(join_assist_t *ja, sql_join_table_t *jtable, sql_table_t *table)
 {
-    OG_RETSUC_IFTRUE(table->type != NORMAL_TABLE);
-    OG_RETSUC_IFTRUE(jtable->join_info == NULL);
+    OG_RETSUC_IFTRUE(table->type != NORMAL_TABLE || jtable->join_info == NULL);
     tbl_join_info_t *jinfo = NULL;
     dc_entity_t *entity = DC_ENTITY(&table->entry->dc);
     sql_stmt_t *stmt = ja->stmt;
@@ -234,7 +258,6 @@ status_t og_gen_sorted_paths(join_assist_t *ja, sql_join_table_t *jtable, sql_ta
     for (uint32 idx_id = 0; idx_id < entity->table.desc.index_count; idx_id++) {
         index_t *index = DC_TABLE_INDEX(&entity->table, idx_id);
         OG_CONTINUE_IFTRUE(index->desc.is_invalid);
-        uint32 idx_1st_col_id = index->desc.columns[0];
         galist_t *idx_cond_array[OG_MAX_INDEX_COLUMNS];
         status = init_idx_cond_array(stmt, idx_cond_array);
         OG_BREAK_IF_ERROR(status);
@@ -251,7 +274,7 @@ status_t og_gen_sorted_paths(join_assist_t *ja, sql_join_table_t *jtable, sql_ta
                 continue;
             }
             // For a composite index, scanning follows the leading column's order
-            if (match_joininfo_to_indexcol(stmt, table, jinfo, idx_1st_col_id)) {
+            if (match_joininfo_to_indexcol(stmt, table, jinfo, index->desc.columns[0])) {
                 sql_add_cond_node(cond, jinfo->cond);
                 RET_AND_RESTORE_STACK_IFERR(cm_galist_insert(idx_cond_array[0], cmp), stmt);
                 matched = true;
@@ -260,10 +283,17 @@ status_t og_gen_sorted_paths(join_assist_t *ja, sql_join_table_t *jtable, sql_ta
         }
         OG_CONTINUE_IFTRUE(!matched);
 
+        merge_index_scan_input_t input = {
+            .idx_dsc = true,
+            .index = index,
+            .tbl = table
+        };
+
         // The sort direction (ascending/descending) cannot be determined in advance
-        status = og_create_index_scan_paths(ja, table, jinfo, index, idx_cond_array, cond, true);
+        status = og_create_index_scan_paths(ja, jinfo, idx_cond_array, cond, &input);
         OG_BREAK_IF_ERROR(status);
-        status = og_create_index_scan_paths(ja, table, jinfo, index, idx_cond_array, cond, false);
+        input.idx_dsc = false;
+        status = og_create_index_scan_paths(ja, jinfo, idx_cond_array, cond, &input);
         OG_BREAK_IF_ERROR(status);
     }
 
@@ -366,15 +396,12 @@ static bool32 sql_path_keys_contained_in(sql_stmt_t *statement, galist_t *path_k
     return OG_TRUE;
 }
 
-static status_t sql_init_merge_path(join_assist_t *ja, sql_join_type_t jointype, join_oper_t oper,
-    sql_join_table_t *jtable, sql_join_node_t *outerpath, sql_join_node_t *innerpath,
-    sql_join_node_t *path)
+static status_t sql_init_merge_path(join_assist_t *ja, sql_join_table_t *jtable,
+    sql_join_node_t *outerpath, sql_join_node_t *innerpath, sql_join_node_t *path)
 {
-    path->type = jointype;
     path->left = outerpath;
     path->right = innerpath;
     path->cost.card = CBO_CARD_SAFETY_SET(jtable->rows);
-    path->oper = oper;
     path->join_cond = ja->join_cond;
     path->filter = ja->filter;
     OG_RETURN_IFERR(sql_array_concat(&path->tables, &outerpath->tables));
@@ -396,13 +423,14 @@ static status_t sql_add_merge_path_single(join_assist_t *ja, sql_join_table_t *j
     return OG_SUCCESS;
 }
 
-static void sql_init_tmp_path(sql_join_node_t* temp_path_p, sql_join_type_t jointype, join_oper_t oper,
+static void sql_init_tmp_path(sql_join_node_t* temp_path_p, sql_join_type_t jointype,
     sql_join_node_t *outerpath, sql_join_node_t *innerpath, sql_join_table_t *jtable)
 {
     temp_path_p->type = jointype;
     temp_path_p->left = outerpath;
     temp_path_p->right = innerpath;
     temp_path_p->cost.card = CBO_CARD_SAFETY_SET(jtable->rows);
+    join_oper_t oper = get_oper_type_4_merge_join(jointype);
     temp_path_p->oper = oper;
 }
 
@@ -448,7 +476,7 @@ static status_t sql_build_merge_path(join_assist_t *ja, sql_join_type_t jointype
     MEMS_RETURN_IFERR(memset_s(&temp_path, sizeof(sql_join_node_t), 0, sizeof(sql_join_node_t)));
     MEMS_RETURN_IFERR(memset_s(&join_cost_ws, sizeof(join_cost_ws), 0, sizeof(join_cost_ws)));
 
-    sql_init_tmp_path(temp_path_p, jointype, oper, outerpath, innerpath, jtable);
+    sql_init_tmp_path(temp_path_p, jointype, outerpath, innerpath, jtable);
 
     OG_RETURN_IFERR(sql_initial_cost_merge(temp_path_p, &join_cost_ws, outer_sort_keys, inner_sort_keys));
     
@@ -460,8 +488,10 @@ static status_t sql_build_merge_path(join_assist_t *ja, sql_join_type_t jointype
     OG_RETURN_IFERR(sql_alloc_mem(ja->stmt->context, sizeof(sql_join_node_t), (pointer_t *)&path));
     uint32 count = outerpath->tables.count + innerpath->tables.count;
     OG_RETURN_IFERR(sql_create_array(ja->stmt->context, &path->tables, "JOIN TABLES", count));
-    OG_RETURN_IFERR(sql_init_merge_path(ja, jointype, oper, jtable, outerpath, innerpath, path));
+    OG_RETURN_IFERR(sql_init_merge_path(ja, jtable, outerpath, innerpath, path));
     path->path_keys = path_keys;
+    path->type = jointype;
+    path->oper = oper;
 
     /* if outer rel provides some but not all of the inner rel's paramterization, build ok. */
     if (!sql_bitmap_empty(&path->outer_rels) && !sql_bitmap_overlap(&path->outer_rels, param_source_rels) &&
@@ -552,10 +582,17 @@ static bool32 sql_is_func_idx_scan(sql_join_node_t *path)
  * Both outer and inner tables require sorting
  * therefore attempting cheapest_total_path for both outer and inner tables
  */
-status_t og_gen_sort_inner_and_outer_merge_paths(join_assist_t *ja, sql_join_type_t jointype,
-    sql_join_table_t *jtable, sql_join_table_t *jtbl1, sql_join_table_t *jtbl2,
-    special_join_info_t *sjoininfo, galist_t* restricts, join_tbl_bitmap_t *param_source_rels)
+status_t og_gen_sort_inner_and_outer_merge_paths(merge_path_input_t *input)
 {
+    join_assist_t *ja = input->ja;
+    sql_join_type_t jointype = input->jointype;
+    sql_join_table_t *jtable = input->jtable;
+    sql_join_table_t *jtbl1 = input->jtbl1;
+    sql_join_table_t *jtbl2 = input->jtbl2;
+    special_join_info_t *sjoininfo = input->sjoininfo;
+    galist_t* restricts = input->restricts;
+    join_tbl_bitmap_t *param_source_rels = input->param_source_rels;
+
     if (ja->pa->type == SQL_MERGE_NODE) {
         return OG_SUCCESS;
     }
@@ -591,15 +628,17 @@ status_t og_gen_sort_inner_and_outer_merge_paths(join_assist_t *ja, sql_join_typ
 }
 
 // select pre-sorted paths to construct the merge join path
-status_t og_gen_unsorted_merge_paths(join_assist_t *ja, sql_join_type_t jointype,
-    sql_join_table_t *jtable, sql_join_table_t *jtbl1, sql_join_table_t *jtbl2,
-    special_join_info_t *sjoininfo, galist_t *restricts, join_tbl_bitmap_t *param_source_rels)
+status_t og_gen_unsorted_merge_paths(merge_path_input_t *input)
 {
-    if (ja->pa->type == SQL_MERGE_NODE) {
-        return OG_SUCCESS;
-    }
+    join_assist_t *ja = input->ja;
+    sql_join_type_t jointype = input->jointype;
+    sql_join_table_t *jtable = input->jtable;
+    sql_join_table_t *jtbl1 = input->jtbl1;
+    sql_join_table_t *jtbl2 = input->jtbl2;
+    special_join_info_t *sjoininfo = input->sjoininfo;
+    galist_t* restricts = input->restricts;
 
-    if (!og_check_can_merge_join(jtbl1, jtbl2, jointype, restricts)) {
+    if (ja->pa->type == SQL_MERGE_NODE || !og_check_can_merge_join(jtbl1, jtbl2, jointype, restricts)) {
         return OG_SUCCESS;
     }
 
@@ -610,7 +649,6 @@ status_t og_gen_unsorted_merge_paths(join_assist_t *ja, sql_join_type_t jointype
         if (HAS_SPEC_TYPE_HINT(ja->pa->query->hint_info, JOIN_HINT, HINT_KEY_WORD_LEADING)) {
             return OG_SUCCESS;
         } else {
-            OG_LOG_RUN_ERR("path is NULL");
             return OG_ERROR;
         }
     }
@@ -634,7 +672,7 @@ status_t og_gen_unsorted_merge_paths(join_assist_t *ja, sql_join_type_t jointype
             continue;
         }
         RET_AND_RESTORE_STACK_IFERR(sql_build_merge_path(ja, jointype, jtable, outer_path, inner_path, sjoininfo,
-            restricts, param_source_rels, false, true), ja->stmt);
+            restricts, input->param_source_rels, false, true), ja->stmt);
     }
 
     // sorted_path join sorted_path
@@ -647,7 +685,7 @@ status_t og_gen_unsorted_merge_paths(join_assist_t *ja, sql_join_type_t jointype
                     continue;
             }
             RET_AND_RESTORE_STACK_IFERR(sql_build_merge_path(ja, jointype, jtable, outer_path, inner_path, sjoininfo,
-                restricts, param_source_rels, false, false), ja->stmt);
+                restricts, input->param_source_rels, false, false), ja->stmt);
         }
     }
     OGSQL_RESTORE_STACK(ja->stmt);

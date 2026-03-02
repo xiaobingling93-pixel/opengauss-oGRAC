@@ -34,15 +34,34 @@
 extern "C" {
 #endif
 
+typedef struct st_merge_path_input {
+    join_assist_t *ja;
+    sql_join_type_t jointype;
+    sql_join_table_t *jtable;
+    sql_join_table_t *jtbl1;
+    sql_join_table_t *jtbl2;
+    special_join_info_t *sjoininfo;
+    galist_t *restricts;
+    join_tbl_bitmap_t *param_source_rels;
+} merge_path_input_t;
+
+typedef struct st_merge_path_key_input {
+    sql_table_t *table;
+    uint32 col_id;
+    bool32 idx_dsc;
+} merge_path_key_input_t;
+
+typedef struct st_merge_index_scan_input {
+    sql_table_t *tbl;
+    index_t *index;
+    uint8 idx_dsc;
+} merge_index_scan_input_t;
+
 bool32 og_check_can_merge_join(sql_join_table_t *jtbl1, sql_join_table_t *jtbl2,
     sql_join_type_t jointype, galist_t *restricts);
 bool32 og_check_cmp_is_mergeable(cmp_node_t *cmp_node);
-status_t og_gen_sort_inner_and_outer_merge_paths(join_assist_t *ja, sql_join_type_t jointype,
-    sql_join_table_t *jtable, sql_join_table_t *jtbl1, sql_join_table_t *jtbl2,
-    special_join_info_t *sjoininfo, galist_t* restricts, join_tbl_bitmap_t *param_source_rels);
-status_t og_gen_unsorted_merge_paths(join_assist_t *ja, sql_join_type_t jointype,
-    sql_join_table_t *jtable, sql_join_table_t *jtbl1, sql_join_table_t *jtbl2,
-    special_join_info_t *sjoininfo, galist_t *restricts, join_tbl_bitmap_t *param_source_rels);
+status_t og_gen_sort_inner_and_outer_merge_paths(merge_path_input_t *input);
+status_t og_gen_unsorted_merge_paths(merge_path_input_t *input);
 status_t og_create_merge_join_sort_item(galist_t *sort_lst, expr_tree_t *exprtr, sort_direction_t direction,
     og_type_t cmp_type);
 status_t og_gen_sorted_paths(join_assist_t *ja, sql_join_table_t *jtable, sql_table_t *table);
