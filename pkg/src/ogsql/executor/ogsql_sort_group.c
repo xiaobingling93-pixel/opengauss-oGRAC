@@ -245,24 +245,21 @@ static status_t sql_mtrl_merge_sort_group(sql_stmt_t *stmt, sql_cursor_t *cursor
     return status;
 }
 
-static status_t sql_init_merge_sort_group(sql_stmt_t *statement,
-                                          sql_cursor_t *cursor, plan_node_t *plan, sql_cursor_t **query_cursor)
+static void sql_cleanup_merge_sort_group(sql_stmt_t *statement, sql_cursor_t *cursor)
 {
-    OG_RETURN_IFERR(sql_init_group_exec_data(statement, cursor, &plan->group));
-    OG_RETURN_IFERR(sql_alloc_cursor(statement, query_cursor));
-    OG_RETURN_IFERR(sql_open_cursors(statement, *query_cursor, cursor->query, CURSOR_ACTION_SELECT, OG_TRUE));
-    (*query_cursor)->ancestor_ref = cursor->ancestor_ref;
-    OG_RETURN_IFERR(SQL_CURSOR_PUSH(statement, *query_cursor));
-    return OG_SUCCESS;
+    mtrl_close_segment(&statement->mtrl, cursor->mtrl.aggr);
+    mtrl_release_segment(&statement->mtrl, cursor->mtrl.aggr);
+    cursor->mtrl.aggr = OG_INVALID_ID32;
 }
 
-static status_t sql_execute_merge_sort_group(sql_stmt_t *stmt, sql_cursor_t *cursor, plan_node_t *plan)
+status_t sql_execute_merge_sort_group(sql_stmt_t *stmt, sql_cursor_t *cursor, plan_node_t *plan)
 {
     status_t status = OG_ERROR;
     sql_cursor_t *query_cursor = NULL;
     OG_RETURN_IFERR(sql_init_group_exec_data(stmt, cursor, &plan->group));
     OG_RETURN_IFERR(sql_alloc_cursor(stmt, &query_cursor));
     OG_RETURN_IFERR(sql_open_cursors(stmt, query_cursor, cursor->query, CURSOR_ACTION_SELECT, OG_TRUE));
+    query_cursor->ancestor_ref = cursor->ancestor_ref;
     OG_RETURN_IFERR(SQL_CURSOR_PUSH(stmt, query_cursor));
 
     do {
@@ -272,6 +269,7 @@ static status_t sql_execute_merge_sort_group(sql_stmt_t *stmt, sql_cursor_t *cur
             status = OG_SUCCESS;
             break;
         }
+
         OG_BREAK_IF_ERROR(mtrl_create_segment(&stmt->mtrl, MTRL_SEGMENT_AGGR, NULL, &cursor->mtrl.aggr));
 
         OG_BREAK_IF_ERROR(
@@ -285,16 +283,12 @@ static status_t sql_execute_merge_sort_group(sql_stmt_t *stmt, sql_cursor_t *cur
         OG_BREAK_IF_ERROR(sql_init_aggr_page(stmt, cursor, plan->group.aggrs));
 
         if (mtrl_open_segment(&stmt->mtrl, cursor->mtrl.group.sid) != OG_SUCCESS) {
-            mtrl_close_segment(&stmt->mtrl, cursor->mtrl.aggr);
-            mtrl_release_segment(&stmt->mtrl, cursor->mtrl.aggr);
-            cursor->mtrl.aggr = OG_INVALID_ID32;
+            sql_cleanup_merge_sort_group(stmt, cursor);
             break;
         }
 
         if (sql_mtrl_merge_sort_group(stmt, cursor, query_cursor, plan) != OG_SUCCESS) {
-            mtrl_close_segment(&stmt->mtrl, cursor->mtrl.aggr);
-            mtrl_release_segment(&stmt->mtrl, cursor->mtrl.aggr);
-            cursor->mtrl.aggr = OG_INVALID_ID32;
+            sql_cleanup_merge_sort_group(stmt, cursor);
             mtrl_close_segment(&stmt->mtrl, cursor->mtrl.group.sid);
             break;
         }
@@ -304,9 +298,7 @@ static status_t sql_execute_merge_sort_group(sql_stmt_t *stmt, sql_cursor_t *cur
         OG_RETURN_IFERR(mtrl_sort_segment(&stmt->mtrl, cursor->mtrl.group.sid));
 
         if (mtrl_open_cursor(&stmt->mtrl, cursor->mtrl.group.sid, &cursor->mtrl.cursor) != OG_SUCCESS) {
-            mtrl_close_segment(&stmt->mtrl, cursor->mtrl.aggr);
-            mtrl_release_segment(&stmt->mtrl, cursor->mtrl.aggr);
-            cursor->mtrl.aggr = OG_INVALID_ID32;
+            sql_cleanup_merge_sort_group(stmt, cursor);
             break;
         }
         status = OG_SUCCESS;
@@ -315,23 +307,6 @@ static status_t sql_execute_merge_sort_group(sql_stmt_t *stmt, sql_cursor_t *cur
     SQL_CURSOR_POP(stmt);
     sql_free_cursor(stmt, query_cursor);
     cursor->last_table = OG_INVALID_ID32;
-    return status;
-}
-
-static status_t sql_cleanup_merge_sort_group(sql_stmt_t *statement, sql_cursor_t *cursor, plan_node_t *plan)
-{
-    return sql_free_query_mtrl(statement, cursor, plan->group.next);
-}
-
-status_t ogsql_merge_sort_with_group(sql_stmt_t *statement, sql_cursor_t *cursor, plan_node_t *plan)
-{
-    status_t status = OG_ERROR;
-    sql_cursor_t *queryCursor = NULL;
-
-    OG_RETURN_IFERR(sql_init_merge_sort_group(statement, cursor, plan, &queryCursor));
-    status = sql_execute_merge_sort_group(statement, cursor, plan);
-    OG_RETURN_IFERR(sql_cleanup_merge_sort_group(statement, cursor, plan));
-
     return status;
 }
 

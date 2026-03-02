@@ -33,7 +33,7 @@ SQL> CREATE TABLE users_name (
 
 OG-01323, [3:51]procedure, function, package, or type not supported here
 SQL> 
-SQL> -- alter default
+SQL> -- alter default 
 SQL> CREATE TABLE users_status (id int, status int);
 
 Succeed.
@@ -163,8 +163,9 @@ Predicate Information (identified by id):
 
 SQL> 
 SQL> DROP TABLE IF EXISTS T_RG_HS_01;
+
 Succeed.
 
-
+SQL> 
 
 
