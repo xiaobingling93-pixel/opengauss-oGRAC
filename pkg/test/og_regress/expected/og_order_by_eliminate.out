@@ -220,21 +220,20 @@ SQL> EXPLAIN SELECT t1.id, t1.quantity, t1.price, t2.discount FROM (SELECT * FRO
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
------------------------------------------------------------------------------------------------------------
-| Id | Operation                   | Owner | Name             | Rows | Cost  | StartCost | Bytes | Remark |
------------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT            |       |                  | 1    | 20000 | 0         |       |        |
-| 1  |   NESTED LOOPS              |       |                  | 1    | 20000 | 0         |       |        |
-| 2  |       SUBSELECT             | SYS   | T1               | 0    | 10000 | 0         |       |        |
-| 3  |           TABLE ACCESS FULL | SYS   | TEST_ORDER_T1    | 0    | 10000 | 0         |       |        |
-| 4  |       TABLE ACCESS FULL     | SYS   | TEST_ORDER_T2 T2 | 0    | 10000 | 0         |       |        |
------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name             | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |                  | 1    | 20000 | 0         |       |        |
+| 1  |   NESTED LOOPS          |       |                  | 1    | 20000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | TEST_ORDER_T1    | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | TEST_ORDER_T2 T2 | 0    | 10000 | 0         |       |        |
+-------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    3 - filter: PRICE > 100                                     
-    4 - filter: T1.ID = T2.ID                                   
+    2 - filter: PRICE > 100                                     
+    3 - filter: TEST_ORDER_T1.ID = T2.ID                        
 
-13 rows fetched.
+12 rows fetched.
 
 SQL> SELECT t1.id, t1.quantity, t1.price, t2.discount FROM (SELECT * FROM test_order_t1 WHERE price > 100 ORDER BY id) t1 JOIN test_order_t2 t2 ON t1.id = t2.id;
 
@@ -251,19 +250,18 @@ SQL> EXPLAIN SELECT SUM(quantity) total_qty, AVG(price) avg_price FROM (SELECT *
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
---------------------------------------------------------------------------------------------------------
-| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
---------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT            |       |               | 1    | 10000 | 0         |       |        |
-| 1  |   AGGR                      |       |               | 1    | 10000 | 0         |       |        |
-| 2  |       SUBSELECT             | SYS   | T             | 0    | 10000 | 0         |       |        |
-| 3  |           TABLE ACCESS FULL | SYS   | TEST_ORDER_T1 | 0    | 10000 | 0         |       |        |
---------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |               | 1    | 10000 | 0         |       |        |
+| 1  |   AGGR                  |       |               | 1    | 10000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | TEST_ORDER_T1 | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    3 - filter: PRICE > 100                                     
+    2 - filter: PRICE > 100                                     
 
-11 rows fetched.
+10 rows fetched.
 
 SQL> SELECT SUM(quantity) total_qty, AVG(price) avg_price FROM (SELECT * FROM test_order_t1 WHERE price > 100 ORDER BY id) t;
 
@@ -278,19 +276,18 @@ SQL> EXPLAIN SELECT discount, COUNT(*) cnt, SUM(quantity) total_qty FROM (SELECT
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
---------------------------------------------------------------------------------------------------------
-| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
---------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT            |       |               | 0    | 10000 | 0         |       |        |
-| 1  |   HASH GROUP BY             |       |               | 0    | 10000 | 0         |       |        |
-| 2  |       SUBSELECT             | SYS   | T             | 0    | 10000 | 0         |       |        |
-| 3  |           TABLE ACCESS FULL | SYS   | TEST_ORDER_T1 | 0    | 10000 | 0         |       |        |
---------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |               | 0    | 10000 | 0         |       |        |
+| 1  |   HASH GROUP BY         |       |               | 0    | 10000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | TEST_ORDER_T1 | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    3 - filter: PRICE > 50                                      
+    2 - filter: PRICE > 50                                      
 
-11 rows fetched.
+10 rows fetched.
 
 SQL> SELECT discount, COUNT(*) cnt, SUM(quantity) total_qty FROM (SELECT * FROM test_order_t1 WHERE price > 50 ORDER BY id) t GROUP BY discount;
 
@@ -336,19 +333,18 @@ SQL> EXPLAIN SELECT * FROM (SELECT * FROM test_order_t1 WHERE price > 100 ORDER 
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
---------------------------------------------------------------------------------------------------------
-| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
---------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT            |       |               | 0    | 10000 | 0         |       |        |
-| 1  |   QUERY SORT ORDER BY       |       |               | 0    | 10000 | 0         |       |        |
-| 2  |       SUBSELECT             | SYS   | T             | 0    | 10000 | 0         |       |        |
-| 3  |           TABLE ACCESS FULL | SYS   | TEST_ORDER_T1 | 0    | 10000 | 0         |       |        |
---------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |               | 0    | 10000 | 0         |       |        |
+| 1  |   QUERY SORT ORDER BY   |       |               | 0    | 10000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | TEST_ORDER_T1 | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    3 - filter: PRICE > 100                                     
+    2 - filter: PRICE > 100                                     
 
-11 rows fetched.
+10 rows fetched.
 
 SQL> SELECT * FROM (SELECT * FROM test_order_t1 WHERE price > 100 ORDER BY id) t ORDER BY id;
 
@@ -365,19 +361,18 @@ SQL> EXPLAIN SELECT * FROM (SELECT * FROM test_order_t1 WHERE price > 100 ORDER 
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
---------------------------------------------------------------------------------------------------------
-| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
---------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT            |       |               | 0    | 10000 | 0         |       |        |
-| 1  |   QUERY SORT ORDER BY       |       |               | 0    | 10000 | 0         |       |        |
-| 2  |       SUBSELECT             | SYS   | T             | 0    | 10000 | 0         |       |        |
-| 3  |           TABLE ACCESS FULL | SYS   | TEST_ORDER_T1 | 0    | 10000 | 0         |       |        |
---------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |               | 0    | 10000 | 0         |       |        |
+| 1  |   QUERY SORT ORDER BY   |       |               | 0    | 10000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | TEST_ORDER_T1 | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    3 - filter: PRICE > 100                                     
+    2 - filter: PRICE > 100                                     
 
-11 rows fetched.
+10 rows fetched.
 
 SQL> SELECT * FROM (SELECT * FROM test_order_t1 WHERE price > 100 ORDER BY id) t ORDER BY id DESC;
 
@@ -394,19 +389,18 @@ SQL> EXPLAIN SELECT * FROM (SELECT * FROM test_order_t1 WHERE quantity IS NOT NU
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
---------------------------------------------------------------------------------------------------------
-| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
---------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT            |       |               | 0    | 10000 | 0         |       |        |
-| 1  |   QUERY SORT ORDER BY       |       |               | 0    | 10000 | 0         |       |        |
-| 2  |       SUBSELECT             | SYS   | T             | 0    | 10000 | 0         |       |        |
-| 3  |           TABLE ACCESS FULL | SYS   | TEST_ORDER_T1 | 0    | 10000 | 0         |       |        |
---------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |               | 0    | 10000 | 0         |       |        |
+| 1  |   QUERY SORT ORDER BY   |       |               | 0    | 10000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | TEST_ORDER_T1 | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    3 - filter: QUANTITY IS NOT NULL                            
+    2 - filter: QUANTITY IS NOT NULL                            
 
-11 rows fetched.
+10 rows fetched.
 
 SQL> SELECT * FROM (SELECT * FROM test_order_t1 WHERE quantity IS NOT NULL ORDER BY price) t ORDER BY id;
 

@@ -1,0 +1,450 @@
+
+
+SQL> drop table if exists sse_t1;
+
+Succeed.
+
+SQL> drop table if exists sse_t2;
+
+Succeed.
+
+SQL> create table sse_t1(a int, b int, c int);
+
+Succeed.
+
+SQL> create table sse_t2(a int, b int, c int);
+
+Succeed.
+
+SQL> 
+SQL> insert into sse_t1 values(1, 1, 1);
+
+1 rows affected.
+
+SQL> insert into sse_t1 values(2, 2, 2);
+
+1 rows affected.
+
+SQL> insert into sse_t1 values(3, 3, 3);
+
+1 rows affected.
+
+SQL> insert into sse_t2 values(1, 1, 1);
+
+1 rows affected.
+
+SQL> insert into sse_t2 values(2, 2, 2);
+
+1 rows affected.
+
+SQL> insert into sse_t2 values(3, 3, 3);
+
+1 rows affected.
+
+SQL> COMMIT;
+
+Succeed.
+
+SQL> 
+SQL> explain select t0.*,t1.* from (select a, b from sse_t1) t0 left join (select a, b from sse_t2) t1 on t0.a = t1.a where t0.b=2;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |        | 1    | 2    | 0         |       |        |
+| 1  |   NESTED LOOPS OUTER    |       |        | 1    | 2    | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | SSE_T1 | 1    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | SSE_T2 | 3    | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: SSE_T1.B = 2                                    
+    3 - filter: SSE_T1.B = 2 AND SSE_T1.A = SSE_T2.A            
+
+12 rows fetched.
+
+SQL> 
+SQL> select t0.*,t1.* from (select a, b from sse_t1) t0 left join (select a, b from sse_t2) t1 on t0.a = t1.a where t0.b=2;
+
+A            B            A            B           
+------------ ------------ ------------ ------------
+2            2            2            2           
+
+1 rows fetched.
+
+SQL> 
+SQL> explain select c1,c2 from (select t1.a c1, t2.b c2 from sse_t1 t1 join sse_t2 t2 on t1.a = t2.a where t1.b < 20 group by t1.a, t2.b) where c2 < 20 order by 1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name      | Rows | Cost | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |           | 1    | 24   | 8         |       |        |
+| 1  |   QUERY SORT ORDER BY       |       |           | 1    | 24   | 8         |       |        |
+| 2  |     HASH GROUP BY           |       |           | 1    | 24   | 8         |       |        |
+| 3  |       NESTED LOOPS          |       |           | 1    | 4    | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | SSE_T1 T1 | 3    | 1    | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | SSE_T2 T2 | 3    | 1    | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: T1.B < 20                                       
+    5 - filter: T2.B < 20 AND T1.A = T2.A                       
+
+14 rows fetched.
+
+SQL> 
+SQL> explain select * from (select count(a), b from sse_t1 group by b) sub_qry join sse_t2 t2 on sub_qry.b = t2.b;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name      | Rows | Cost | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |           | 1    | 4    | 0         |       |        |
+| 1  |   NESTED LOOPS                |       |           | 1    | 4    | 0         |       |        |
+| 2  |       SUBSELECT               | SYS   | SUB_QRY   | 3    | 1    | 0         |       |        |
+| 3  |         HASH GROUP BY         |       |           | 3    | 18   | 8         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | SSE_T1    | 3    | 1    | 0         |       |        |
+| 5  |       TABLE ACCESS FULL       | SYS   | SSE_T2 T2 | 3    | 1    | 0         |       |        |
+-----------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: SUB_QRY.B = T2.B                                
+
+13 rows fetched.
+
+SQL> 
+SQL> explain select count(a) over() from (select a, b from sse_t1);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |        | 3    | 1    | 0         |       |        |
+| 1  |   WINDOW SORT               |       |        | 3    | 1    | 0         |       |        |
+| 2  |       SUBSELECT             | SYS   |        | 3    | 1    | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | SSE_T1 | 3    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------------
+
+8 rows fetched.
+
+SQL> 
+SQL> explain select count(a), b from (select a, b from sse_t1) group by cube(b);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |        | 1    | 18   | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |        | 1    | 18   | 8         |       |        |
+| 2  |       SUBSELECT             | SYS   |        | 3    | 1    | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | SSE_T1 | 3    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------------
+
+8 rows fetched.
+
+SQL> 
+SQL> explain select * from (select a , b from sse_t1) pivot(max(a) for b in ('1'));
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name          | Rows | Cost | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |               | 3    | 1    | 0         |       |        |
+| 1  |     SUBSELECT                   | SYS   | $FROM_PIVOT_0 | 3    | 1    | 0         |       |        |
+| 2  |       HASH GROUP PIVOT          |       |               | 3    | 1    | 0         |       |        |
+| 3  |           SUBSELECT             | SYS   |               | 3    | 1    | 0         |       |        |
+| 4  |               TABLE ACCESS FULL | SYS   | SSE_T1        | 3    | 1    | 0         |       |        |
+-----------------------------------------------------------------------------------------------------------
+
+9 rows fetched.
+
+SQL> 
+SQL> explain select a, b from (select a, b from sse_t1 ) sub_qry where a in (select b from sse_t2 t2 where b = sub_qry.b);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name      | Rows | Cost | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |           | 3    | 1    | 0         |       |        |
+| 1  |   KERNEL FILTER           |       |           | 3    | 1    | 0         |       |        |
+| 2  |     SUBSELECT             | SYS   | SUB_QRY   | 3    | 1    | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | SSE_T1    | 3    | 1    | 0         |       |        |
+| 4  |       TABLE ACCESS FULL   | SYS   | SSE_T2 T2 | 1    | 1    | 0         |       |        |
+-------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: A IN ((SELECT B FROM SSE_T2 T2 WHERE B = SUB_QRY.B))
+    4 - filter: B = SUB_QRY.B                                   
+
+13 rows fetched.
+
+SQL> 
+SQL> explain select * from (select a, b from sse_t1 union all select a , b from sse_t2);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |        | 6    | 2    | 0         |       |        |
+| 1  |     SUBSELECT               | SYS   |        | 6    | 2    | 0         |       |        |
+| 2  |       UNION ALL             |       |        | 6    | 2    | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | SSE_T1 | 3    | 1    | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | SSE_T2 | 3    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------------
+
+9 rows fetched.
+
+SQL> 
+SQL> explain select * from (select * from dual);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-----------------------------------------------------------------------------------------
+| Id | Operation             | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT      |       |      | 0    | 10000 | 0         |       |        |
+| 1  |     TABLE ACCESS FULL | SYS   | DUAL | 0    | 10000 | 0         |       |        |
+-----------------------------------------------------------------------------------------
+
+6 rows fetched.
+
+SQL> 
+SQL> explain select * from (select t1.a , t2.b from sse_t1 t1 inner join sse_t2 t2 on t1.a = t2.a);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-----------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name      | Rows | Cost | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |           | 3    | 4    | 0         |       |        |
+| 1  |   NESTED LOOPS          |       |           | 3    | 4    | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | SSE_T1 T1 | 3    | 1    | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | SSE_T2 T2 | 3    | 1    | 0         |       |        |
+-----------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: T1.A = T2.A                                     
+
+11 rows fetched.
+
+SQL> 
+SQL> explain select * from (select distinct a, b from sse_t1);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |        | 3    | 9    | 0         |       |        |
+| 1  |     SUBSELECT               | SYS   |        | 3    | 9    | 0         |       |        |
+| 2  |       HASH DISTINCT         |       |        | 3    | 9    | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | SSE_T1 | 3    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------------
+
+8 rows fetched.
+
+SQL> 
+SQL> explain select * from (select count(a) from sse_t1);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |        | 1    | 1    | 0         |       |        |
+| 1  |     SUBSELECT               | SYS   |        | 1    | 1    | 0         |       |        |
+| 2  |       AGGR                  |       |        | 1    | 1    | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | SSE_T1 | 3    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------------
+
+8 rows fetched.
+
+SQL> 
+SQL> explain select * from (select a,b from sse_t1 group by a,b);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |        | 3    | 18   | 8         |       |        |
+| 1  |   HASH GROUP BY         |       |        | 3    | 18   | 8         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | SSE_T1 | 3    | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------
+
+7 rows fetched.
+
+SQL> 
+SQL> explain select * from (select a, b from sse_t1 connect by a < b);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |        | 0    | 0    | 0         |       |        |
+| 1  |     SUBSELECT               | SYS   |        | 0    | 0    | 0         |       |        |
+| 2  |       START WITH            |       |        | 0    | 0    | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | SSE_T1 | 3    | 1    | 0         |       |        |
+| 4  |       CONNECT BY            |       |        | 0    | 0    | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | SSE_T1 | 3    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: A < B                                           
+
+13 rows fetched.
+
+SQL> 
+SQL> explain select * from (select a, max(b) over() from sse_t1 );
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |        | 3    | 1    | 0         |       |        |
+| 1  |     SUBSELECT               | SYS   |        | 3    | 1    | 0         |       |        |
+| 2  |       WINDOW SORT           |       |        | 3    | 1    | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | SSE_T1 | 3    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------------
+
+8 rows fetched.
+
+SQL> 
+SQL> explain select * from (select a, b from sse_t1 order by a);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |        | 3    | 2    | 0         |       |        |
+| 1  |   QUERY SORT ORDER BY   |       |        | 3    | 2    | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | SSE_T1 | 3    | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------
+
+7 rows fetched.
+
+SQL> 
+SQL> explain select * from (select a, b from sse_t1) pivot(max(a) for b in ('1'));
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name          | Rows | Cost | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |               | 3    | 1    | 0         |       |        |
+| 1  |     SUBSELECT                   | SYS   | $FROM_PIVOT_0 | 3    | 1    | 0         |       |        |
+| 2  |       HASH GROUP PIVOT          |       |               | 3    | 1    | 0         |       |        |
+| 3  |           SUBSELECT             | SYS   |               | 3    | 1    | 0         |       |        |
+| 4  |               TABLE ACCESS FULL | SYS   | SSE_T1        | 3    | 1    | 0         |       |        |
+-----------------------------------------------------------------------------------------------------------
+
+9 rows fetched.
+
+SQL> 
+SQL> explain select * from (select a, b from sse_t1 limit 10);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |        | 3    | 2    | 0         |       |        |
+| 1  |     SUBSELECT               | SYS   |        | 3    | 2    | 0         |       |        |
+| 2  |       QUERY LIMIT           |       |        | 3    | 2    | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | SSE_T1 | 3    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------------
+
+8 rows fetched.
+
+SQL> 
+SQL> explain select * from (select a, b from sse_t1 where rownum < 10);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |        | 3    | 1    | 0         |       |        |
+| 1  |     SUBSELECT               | SYS   |        | 3    | 1    | 0         |       |        |
+| 2  |       ROWNUM FILTER         |       |        | 3    | 1    | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | SSE_T1 | 3    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: ROWNUM < 10                                     
+
+11 rows fetched.
+
+SQL> 
+SQL> explain select * from (select a, b from sse_t1 where b < 20) sub_qry connect by sub_qry.a < sub_qry.b;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name    | Rows | Cost | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |         | 0    | 0    | 0         |       |        |
+| 1  |   START WITH                |       |         | 0    | 0    | 0         |       |        |
+| 2  |       SUBSELECT             | SYS   | SUB_QRY | 0    | 0    | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | SSE_T1  | 3    | 1    | 0         |       |        |
+| 4  |   CONNECT BY                |       |         | 0    | 0    | 0         |       |        |
+| 5  |       SUBSELECT             | SYS   | SUB_QRY | 0    | 0    | 0         |       |        |
+| 6  |           TABLE ACCESS FULL | SYS   | SSE_T1  | 3    | 1    | 0         |       |        |
+-------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: B < 20                                          
+    4 - filter: SUB_QRY.A < SUB_QRY.B                           
+    6 - filter: B < 20                                          
+
+16 rows fetched.
+
+SQL> 
+SQL> explain select * from sse_t2 left join (select a, b from sse_t1 where b < 20) sub_qry on 1=1;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name    | Rows | Cost | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |         | 3    | 4    | 0         |       |        |
+| 1  |   NESTED LOOPS OUTER        |       |         | 3    | 4    | 0         |       |        |
+| 2  |       TABLE ACCESS FULL     | SYS   | SSE_T2  | 3    | 1    | 0         |       |        |
+| 3  |       SUBSELECT             | SYS   | SUB_QRY | 3    | 1    | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | SSE_T1  | 3    | 1    | 0         |       |        |
+-------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: B < 20                                          
+
+12 rows fetched.
+
+SQL> 
+SQL> explain select * from (select a+b from sse_t1);
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------
+| Id | Operation             | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT      |       |        | 3    | 1    | 0         |       |        |
+| 1  |     TABLE ACCESS FULL | SYS   | SSE_T1 | 3    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------
+
+6 rows fetched.
+
+
+
+
