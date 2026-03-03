@@ -945,6 +945,12 @@ status_t sql_notify_als_filter_pushdown(void *se, void *item, char *value)
     return sql_notify_als_bool(se, item, value);
 }
 
+status_t sql_notify_als_pred_pushdown(void *knl_se, void *cfg_item, char *val)
+{
+    g_instance->sql.enable_pred_pushdown = (bool32)val[0];
+    return sql_notify_als_bool(knl_se, cfg_item, val);
+}
+
 status_t sql_notify_als_multi_parts_scan(void *se, void *item, char *value)
 {
     return cm_str2uint32(value, &g_instance->sql.optim_index_scan_max_parts);

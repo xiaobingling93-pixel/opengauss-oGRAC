@@ -317,7 +317,7 @@ static bool32 chk_slct_qry_priv_access(select_node_t *slct_node, text_t *user)
     return OG_TRUE;
 }
 
-static bool32 chk_slct_node_for_subqry_pushdown(sql_stmt_t *statement, select_node_t *slct_node, sql_table_t *tbl)
+bool32 chk_slct_node_for_subqry_pushdown(sql_stmt_t *statement, select_node_t *slct_node, sql_table_t *tbl)
 {
     CM_POINTER(statement);
     text_t owner_name = { 0 };

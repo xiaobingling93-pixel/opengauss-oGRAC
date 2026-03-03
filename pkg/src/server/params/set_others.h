@@ -156,6 +156,7 @@ status_t sql_notify_als_optim_all_transform(void *se, void *item, char *value);
 status_t sql_notify_als_multi_index_scan(void *se, void *item, char *value);
 status_t sql_notify_als_join_pred_pushdown(void *se, void *item, char *value);
 status_t sql_notify_als_filter_pushdown(void *se, void *item, char *value);
+status_t sql_notify_als_pred_pushdown(void *se, void *item, char *value);
 status_t sql_notify_als_multi_parts_scan(void *se, void *item, char *value);
 status_t sql_notify_als_order_by_elimination(void *se, void *item, char *value);
 status_t sql_notify_als_unnest_set_subquery(void *se, void *item, char *value);

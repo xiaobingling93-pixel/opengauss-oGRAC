@@ -44,24 +44,24 @@ typedef struct st_dlvr_pair {
     galist_t values;
 } dlvr_pair_t;
 
-typedef struct st_push_assist {
+typedef struct st_pred_pushdown_helper {
     sql_query_t *p_query;
     uint32 ssa_count;
     select_node_type_t subslct_type;
     expr_node_t *ssa_nodes[OG_MAX_SUBSELECT_EXPRS];
     bool8 is_del[OG_MAX_SUBSELECT_EXPRS];
-} push_assist_t;
+} pred_pushdown_helper_t;
 
 #define DLVR_MAX_IN_COUNT 5
 status_t sql_predicate_push_down(sql_stmt_t *stmt, sql_query_t *query);
 status_t sql_process_predicate_dlvr(sql_stmt_t *stmt, sql_query_t *query, cond_tree_t *cond);
 status_t sql_process_dlvr_join_tree_on(sql_stmt_t *stmt, sql_query_t *query, sql_join_node_t *join_tree);
 status_t push_down_predicate(sql_stmt_t *stmt, cond_tree_t *cond, sql_table_t *table, select_node_t *slct,
-    push_assist_t *push_assist);
+    pred_pushdown_helper_t *pred_pushdown_helper);
 status_t cond_rewrite_4_chg_order(sql_stmt_t *stmt, sql_query_t *query);
 status_t replace_group_expr_node(sql_stmt_t *stmt, expr_node_t **node);
 bool32 get_specified_level_query(sql_query_t *curr_query, uint32 level, sql_query_t **query, sql_select_t **subslct);
-status_t sql_update_query_ssa(sql_query_t *query);
+status_t sql_update_query_ssa(sql_stmt_t *statement, sql_query_t *query);
 bool32 sql_can_expr_node_optm_by_hash(expr_node_t *node);
 #ifdef __cplusplus
 }

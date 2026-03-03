@@ -3424,6 +3424,13 @@ void sql_init_visit_assist(visit_assist_t *visit_ass, sql_stmt_t *stmt, sql_quer
     visit_ass->time = 0;
 }
 
+void sql_set_vst_param(visit_assist_t *v_ast, void *p0, void *p1, void *p2)
+{
+    v_ast->param0 = p0;
+    v_ast->param1 = p1;
+    v_ast->param2 = p2;
+}
+
 status_t visit_func_node(visit_assist_t *visit_ass, expr_node_t *node, visit_func_t visit_func)
 {
     OG_RETURN_IFERR(visit_expr_tree(visit_ass, node->argument, visit_func));

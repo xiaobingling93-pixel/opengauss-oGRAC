@@ -185,10 +185,7 @@ DROP TABLE T_JSON_TEST_1;
 create view V_JSON_TEST_1 as select json_value('{"Aa":123}', '$.Aa' returning varchar2(1024) error on error) C1 from dual;
 desc V_JSON_TEST_1
 select * from V_JSON_TEST_1;
--- cbo issue: wrong choice of merge join
-alter system set ENABLE_MERGE_JOIN=FALSE;
 SELECT 'CREATE OR REPLACE VIEW ' || U.NAME || '.' || V.NAME || ' ( '|| VC.COLUMNS || ' ) AS ', V.TEXT || ';' AS VIEWDEF FROM SYS.VIEW$ V, (SELECT USER#, VIEW#, GROUP_CONCAT(NAME ORDER BY ID) COLUMNS FROM SYS.VIEWCOL$ GROUP BY USER#, VIEW#) VC, SYS.USER$ U WHERE V.USER# = VC.USER# AND V.ID = VC.VIEW# AND V.USER# = U.ID AND V.NAME = 'V_JSON_TEST_1'; 
-alter system set ENABLE_MERGE_JOIN=TRUE;
 drop view V_JSON_TEST_1;
 --2020021009659
 select json_array('true' format json, '1234' format json, 'null' format json) from dual;

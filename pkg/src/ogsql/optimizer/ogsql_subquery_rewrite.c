@@ -26,6 +26,8 @@
 #include "ogsql_transform.h"
 #include "ogsql_optim_common.h"
 #include "ogsql_expr_def.h"
+#include "ogsql_predicate_pushdown.h"
+#include "ogsql_cond_rewrite.h"
 
 static void optim_subqry_rewrite_support(rewrite_helper_t *helper)
 {
@@ -2163,7 +2165,7 @@ status_t delete_select_node_from_query_ssa(sql_stmt_t *statement, sql_query_t *q
 {
     OG_RETURN_IFERR(sql_array_delete(&qry->ssa, id));
     if (qry->ssa.count) {
-        OG_RETURN_IFERR(sql_update_query_ssa(qry));
+        OG_RETURN_IFERR(sql_update_query_ssa(statement, qry));
     }
     return OG_SUCCESS;
 }
@@ -2319,6 +2321,11 @@ status_t og_transf_subquery_rewrite(sql_stmt_t *statement, sql_query_t *qry)
     bool32 rewrite_success = (qry->tables.count > origin_table_count);
     if (rewrite_success) {
         OG_LOG_DEBUG_INF("[SUBQUERY_REWRITE] step 4. modify query block name after rewrite subquery");
+    }
+
+    if (helper.pullup_cond) {
+        OG_LOG_DEBUG_INF("[SUBQUERY_REWRITE] step 5. predicate delivery if has pulled up cond");
+        OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_predicate_pushdown);
     }
 
     if (rewrite_success) {
