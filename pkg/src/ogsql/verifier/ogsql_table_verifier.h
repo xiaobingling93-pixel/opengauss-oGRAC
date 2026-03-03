@@ -45,6 +45,8 @@ status_t sql_init_normal_table_dc(sql_stmt_t *stmt, sql_table_t *sql_table, sql_
 status_t sql_verify_view_insteadof_trig(sql_stmt_t *stmt, sql_table_t *table, trig_dml_type_t dml_type);
 void sql_extract_subslct_projcols(sql_table_t *subslct_tab);
 status_t sql_create_project_columns(sql_stmt_t *stmt, sql_table_t *table);
+status_t sql_table_cache_query_field_impl(sql_stmt_t *stmt, sql_table_t *table, query_field_t *src_query_fld,
+    bool8 is_cond_col);
 
 #ifdef __cplusplus
 }

@@ -382,7 +382,7 @@ static inline status_t sql_append_rowid_rs_column(sql_verifier_t *verif, sql_que
     return OG_SUCCESS;
 }
 
-static inline void sql_make_rowid_column_node(expr_node_t *node, uint32 col_id, uint32 tab_id, uint32 ancestor)
+void sql_make_rowid_column_node(expr_node_t *node, uint32 col_id, uint32 tab_id, uint32 ancestor)
 {
     node->type = EXPR_NODE_COLUMN;
     node->value.v_col.col = col_id;

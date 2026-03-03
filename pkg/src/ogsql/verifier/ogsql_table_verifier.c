@@ -276,7 +276,7 @@ status_t sql_search_table(sql_verifier_t *verif, expr_node_t *node, text_t *user
     return OG_SUCCESS;
 }
 
-static status_t sql_table_cache_query_field_impl(sql_stmt_t *stmt, sql_table_t *table, query_field_t *src_query_fld,
+status_t sql_table_cache_query_field_impl(sql_stmt_t *stmt, sql_table_t *table, query_field_t *src_query_fld,
     bool8 is_cond_col)
 {
     query_field_t *query_field = NULL;

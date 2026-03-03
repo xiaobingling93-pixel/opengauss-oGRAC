@@ -1436,6 +1436,54 @@ status_t sql_make_hash_key(sql_stmt_t *stmt, row_assist_t *ra, char *buf, galist
     return OG_SUCCESS;
 }
 
+static inline bool32 og_validate_mtrl_col_count(galist_t *col_lst)
+{
+    return col_lst->count <= OG_MAX_COLUMNS;
+}
+
+static status_t og_get_mtrl_rs_col(sql_stmt_t *statement, rs_column_t *rs_col, variant_t *val)
+{
+    if (rs_col->type == RS_COL_CALC) {
+        return sql_exec_expr(statement, rs_col->expr, val);
+    }
+    return sql_get_table_value(statement, &rs_col->v_col, val);
+}
+
+status_t ogsql_make_mtrl_row_for_hash_union(sql_stmt_t *statement, char *pending_buffer, galist_t *col_lst, char* row_buffer)
+{
+    if (!og_validate_mtrl_col_count(col_lst)) {
+        OG_THROW_ERROR(ERR_SQL_TOO_COMPLEX);
+        return OG_ERROR;
+    }
+
+    row_assist_t row_ast = { 0 };
+    row_init(&row_ast, row_buffer, OG_MAX_ROW_SIZE, col_lst->count);
+
+    uint32 idx = 0;
+    while (idx < col_lst->count) {
+        variant_t val = { 0 };
+        rs_column_t *rs_col = (rs_column_t *)cm_galist_get(col_lst, idx++);
+        if (og_get_mtrl_rs_col(statement, rs_col, &val) != OG_SUCCESS) {
+            OG_LOG_RUN_ERR("[HASH UNION]: getting rs col %s value failed.", T2S(&rs_col->name));
+            return OG_ERROR;
+        }
+
+        if (OG_IS_LOB_TYPE(val.type)) {
+            if (sql_get_lob_value(statement, &val) != OG_SUCCESS) {
+                OG_LOG_RUN_ERR("[HASH UNION]: value is lob type, get lob value failed.");
+                return OG_ERROR;
+            }
+        }
+
+        if (sql_put_row_value(statement, pending_buffer, &row_ast, rs_col->datatype, &val) != OG_SUCCESS) {
+            OG_LOG_RUN_ERR("[HASH UNION]: put mtrl row value failed.");
+            return OG_ERROR;
+        }
+    }
+
+    return OG_SUCCESS;
+}
+
 #ifdef __cplusplus
 }
 #endif

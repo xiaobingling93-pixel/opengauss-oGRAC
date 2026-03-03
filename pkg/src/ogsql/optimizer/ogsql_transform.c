@@ -39,6 +39,7 @@
 #include "ogsql_predicate_pushdown.h"
 #include "ogsql_proj_rewrite.h"
 #include "ogsql_predicate_deliver.h"
+#include "ogsql_or2union.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -180,8 +181,12 @@ static status_t ogsql_apply_rule_set_1(sql_stmt_t *statement, sql_query_t *qry)
     // 1. transform to delete unusable orderby.
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_eliminate_orderby);
 
+    // 2. transform or condition.
+    OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_or2union_rewrite);
+
     // 3. transform predicate delivery.
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_predicate_delivery);
+
     return OG_SUCCESS;
 }
 

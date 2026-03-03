@@ -340,11 +340,13 @@ status_t sql_fetch_hash_union(sql_stmt_t *stmt, sql_cursor_t *cursor, plan_node_
 
         if (!cursor->right_cursor->eof) {
             OG_RETURN_IFERR(SQL_CURSOR_PUSH(stmt, cursor->right_cursor));
-            OG_RETURN_IFERR(sql_make_mtrl_rs_row(stmt, cursor->mtrl.rs.buf, cursor->right_cursor->columns, buf));
+            OG_RETURN_IFERR(ogsql_make_mtrl_row_for_hash_union(stmt, cursor->mtrl.rs.buf,
+                cursor->right_cursor->columns, buf));
             SQL_CURSOR_POP(stmt);
         } else {
             OG_RETURN_IFERR(SQL_CURSOR_PUSH(stmt, cursor->left_cursor));
-            OG_RETURN_IFERR(sql_make_mtrl_rs_row(stmt, cursor->mtrl.rs.buf, cursor->left_cursor->columns, buf));
+            OG_RETURN_IFERR(ogsql_make_mtrl_row_for_hash_union(stmt, cursor->mtrl.rs.buf,
+                cursor->left_cursor->columns, buf));
             SQL_CURSOR_POP(stmt);
         }
 
