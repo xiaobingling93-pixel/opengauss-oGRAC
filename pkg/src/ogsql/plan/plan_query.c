@@ -1261,6 +1261,7 @@ status_t sql_clone_join_root(sql_stmt_t *stmt, void *ogx, sql_join_node_t *src_j
     (*dst_root)->outer_rels = src_join_root->outer_rels;
     (*dst_root)->is_cartesian_join = src_join_root->is_cartesian_join;
     (*dst_root)->parent = src_join_root->parent;
+    (*dst_root)->path_keys = src_join_root->path_keys;
 
     if (tables == NULL) {
         OG_RETURN_IFERR(sql_clone_join_root_table(ogx, stmt, src_join_root, &tables, alloc_mem_func));

@@ -39,5 +39,9 @@ bool32 sql_get_cmp_join_column(cmp_node_t *cmp_node, expr_node_t **left_column, 
 bool32 sql_check_hash_join(cmp_node_t *cmp_node, double base, double *rate);
 bool32 check_and_get_join_column(cmp_node_t *cmp_node, cols_used_t *l_cols_used, cols_used_t *r_cols_used);
 bool32 sql_get_cmp_join_tab_id(cmp_node_t *cmp_node, uint16 *l_tab_id, uint16 *r_tab_id, join_oper_t oper);
+status_t sql_create_base_join_plan(sql_stmt_t *stmt, plan_assist_t *plan_ass, sql_join_node_t *join_node,
+    plan_node_t **l_plan, plan_node_t **r_plan);
+status_t sql_fill_join_info(sql_stmt_t *stmt, join_plan_t *join_plan, sql_join_node_t *join_node);
+status_t sql_plan_extract_cond(sql_stmt_t *stmt, join_plan_t *join_plan, sql_join_node_t *join_node);
 
 #endif

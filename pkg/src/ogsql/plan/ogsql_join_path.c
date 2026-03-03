@@ -32,6 +32,7 @@
 #include "ogsql_bitmap.h"
 #include "ogsql_cbo_cost.h"
 #include "ogsql_join_path.h"
+#include "plan_join_merge.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -281,6 +282,8 @@ static status_t sql_create_base_jtable(join_assist_t *ja, sql_table_t *table, sq
     cm_bilist_init(&jtable->paths);
     jtable->cheapest_total_path = NULL;
     jtable->cheapest_startup_path = NULL;
+    OG_RETURN_IFERR(sql_alloc_mem(ja->stmt->context, sizeof(galist_t), (void **)&jtable->sorted_paths));
+    cm_galist_init(jtable->sorted_paths, ja->stmt->context, sql_alloc_mem);
     jtable->join_info = NULL;
     jtable->push_down_join = TABLE_CBO_HAS_FLAG(table, SELTION_PUSH_DOWN_JOIN) ? true : false;
     jtable->push_down_refs = NULL;
@@ -335,81 +338,15 @@ static status_t sql_create_join_info(join_assist_t* ja, cond_node_t* cond, bool 
     return OG_SUCCESS;
 }
 
-/*
- * add a path into jtable
- */
-static status_t sql_jtable_add_path(sql_stmt_t *stmt, sql_join_table_t *jtable, sql_join_path_t* jpath)
+static void sql_jtable_remove_path(sql_join_table_t *jtable, bilist_node_t *node)
 {
-    const double fuzzy_factor = 1.01;
-    const double small_fuzzy_factor = 1.0000000001;
-    bool accept_new = true;
-    jpath->parent = NULL;
-    bilist_node_t *node;
+    bilist_node_t* next = node->next;
+    cm_bilist_del(node, &jtable->paths);
+    node->next = next;
+}
 
-    BILIST_FOREACH(node, jtable->paths) {
-        sql_join_path_t* old_jpath = BILIST_NODE_OF(sql_join_path_t, node, bilist_node);
-
-        /* COSTS OLD BETTER */
-        if (jpath->cost.cost > old_jpath->cost.cost * fuzzy_factor) {
-            /* old_path which has better costs also requires no outer rels not required by the new path. */
-            if ((sql_bitmap_same(&jpath->outer_rels, &old_jpath->outer_rels) ||
-                sql_bitmap_subset(&old_jpath->outer_rels, &jpath->outer_rels)) &&
-                jpath->cost.card >= old_jpath->cost.card) {
-                accept_new = false;
-                break;
-            }
-            continue;
-        }
-
-        /* COSTS NEW BETTER */
-        if (old_jpath->cost.cost > jpath->cost.cost * fuzzy_factor) {
-            /* new_path which has better costs also requires no outer rels not required by the old path. */
-            if ((sql_bitmap_same(&jpath->outer_rels, &old_jpath->outer_rels) ||
-                sql_bitmap_subset(&jpath->outer_rels, &old_jpath->outer_rels)) &&
-                jpath->cost.card <= old_jpath->cost.card) {
-                bilist_node_t* next = node->next;
-                cm_bilist_del(node, &jtable->paths);
-                node->next = next;
-            }
-            continue;
-        }
-
-        /* COSTS EQUAL */
-        if (sql_bitmap_same(&jpath->outer_rels, &old_jpath->outer_rels)) {
-            if (jpath->cost.card < old_jpath->cost.card) {
-                bilist_node_t* next = node->next;
-                cm_bilist_del(node, &jtable->paths);
-                node->next = next;
-            } else if (jpath->cost.card > old_jpath->cost.card) {
-                accept_new = false;
-                break;
-            } else {
-                if (jpath->cost.cost < old_jpath->cost.cost * small_fuzzy_factor) {
-                    bilist_node_t* next = node->next;
-                    cm_bilist_del(node, &jtable->paths);
-                    node->next = next;
-                } else {
-                    accept_new = false;
-                    break;
-                }
-            }
-        } else if (sql_bitmap_subset(&jpath->outer_rels, &old_jpath->outer_rels) &&
-                   jpath->cost.card <= old_jpath->cost.card) {
-            bilist_node_t* next = node->next;
-            cm_bilist_del(node, &jtable->paths);
-            node->next = next;
-        } else if (sql_bitmap_subset(&old_jpath->outer_rels, &jpath->outer_rels) &&
-                   jpath->cost.card >= old_jpath->cost.card) {
-            accept_new = false;
-            break;
-        }
-    }
-
-    if (!accept_new) {
-        return OG_SUCCESS;
-    }
-    
-    // accept, update cheapest pointer
+static void sql_jtable_accept_jpath(sql_stmt_t *stmt, sql_join_table_t *jtable, sql_join_path_t* jpath)
+{
     cm_bilist_add_tail(&jpath->bilist_node, &jtable->paths);
     jpath->parent = jtable;
     sql_join_path_t* best_path = jtable->cheapest_total_path;
@@ -420,6 +357,79 @@ static status_t sql_jtable_add_path(sql_stmt_t *stmt, sql_join_table_t *jtable, 
     } else if (best_path == NULL || best_path->cost.cost > jpath->cost.cost) {
         jtable->cheapest_total_path = jpath;
     }
+}
+
+static bool32 sql_jtable_validate_jpath(sql_join_path_t* old_jpath, sql_join_path_t* jpath)
+{
+    return (sql_bitmap_same(&jpath->outer_rels, &old_jpath->outer_rels) ||
+            sql_bitmap_subset(&old_jpath->outer_rels, &jpath->outer_rels)) &&
+            jpath->cost.card >= old_jpath->cost.card;
+}
+
+/*
+ * add a path into jtable
+ */
+status_t sql_jtable_add_path(sql_stmt_t *stmt, sql_join_table_t *jtable, sql_join_path_t* jpath)
+{
+    const double fuzzy_factor = 1.01;
+    const double small_fuzzy_factor = 1.0000000001;
+    jpath->parent = NULL;
+    bilist_node_t *node;
+
+    // Ordered paths may be beneficial for upper-level execution plans
+    if (jpath->path_keys != NULL && jpath->path_keys->count > 0) {
+        jpath->parent = jtable;
+        OG_RETURN_IFERR(cm_galist_insert(jtable->sorted_paths, jpath));
+        // Base table ordered path is generated exclusively for Merge Join operations
+        // hence omitted from jtable->path
+        if (jtable->is_base_table) {
+            return OG_SUCCESS;
+        }
+    }
+
+    BILIST_FOREACH(node, jtable->paths) {
+        sql_join_path_t* old_jpath = BILIST_NODE_OF(sql_join_path_t, node, bilist_node);
+
+        /* COSTS OLD BETTER */
+        if (jpath->cost.cost > old_jpath->cost.cost * fuzzy_factor) {
+            /* old_path which has better costs also requires no outer rels not required by the new path. */
+            if (sql_jtable_validate_jpath(old_jpath, jpath)) {
+                return OG_SUCCESS;
+            }
+            continue;
+        }
+
+        /* COSTS NEW BETTER */
+        if (old_jpath->cost.cost > jpath->cost.cost * fuzzy_factor) {
+            /* new_path which has better costs also requires no outer rels not required by the old path. */
+            if (sql_jtable_validate_jpath(jpath, old_jpath)) {
+                sql_jtable_remove_path(jtable, node);
+            }
+            continue;
+        }
+
+        /* COSTS EQUAL */
+        if (sql_bitmap_same(&jpath->outer_rels, &old_jpath->outer_rels)) {
+            if (jpath->cost.card < old_jpath->cost.card) {
+                sql_jtable_remove_path(jtable, node);
+            } else if (jpath->cost.card > old_jpath->cost.card) {
+                return OG_SUCCESS;
+            }
+            if (jpath->cost.cost < old_jpath->cost.cost * small_fuzzy_factor) {
+                sql_jtable_remove_path(jtable, node);
+            } else {
+                return OG_SUCCESS;
+            }
+        } else if (sql_bitmap_subset(&jpath->outer_rels, &old_jpath->outer_rels) &&
+                   jpath->cost.card <= old_jpath->cost.card) {
+            sql_jtable_remove_path(jtable, node);
+        } else if (sql_bitmap_subset(&old_jpath->outer_rels, &jpath->outer_rels) &&
+                   jpath->cost.card >= old_jpath->cost.card) {
+            return OG_SUCCESS;
+        }
+    }
+
+    sql_jtable_accept_jpath(stmt, jtable, jpath);
     return OG_SUCCESS;
 }
 
@@ -1254,7 +1264,7 @@ static void sql_pre_init_jtable_cost(sql_table_t *table)
     }
 }
 
-static bool32 match_joininfo_to_indexcol(sql_stmt_t *stmt, sql_table_t *table, tbl_join_info_t *jinfo, uint16 index_col)
+bool32 match_joininfo_to_indexcol(sql_stmt_t *stmt, sql_table_t *table, tbl_join_info_t *jinfo, uint16 index_col)
 {
     knl_column_t *knl_col = knl_get_column(table->entry->dc.handle, index_col);
     expr_node_t col_node;
@@ -1575,6 +1585,11 @@ static status_t sql_build_base_jtable_path(join_assist_t *ja, sql_table_t *table
 
     /* generate parameterized path from jtable->join_info which contains join conditions */
     OG_RETURN_IFERR(generate_parameterized_paths(ja, jtable, table));
+
+    // Pre-sorted input paths are likely to be more efficient for merge join
+    if (g_instance->sql.enable_merge_join) {
+        OG_RETURN_IFERR(og_gen_sorted_paths(ja, jtable, table));
+    }
     return OG_SUCCESS;
 }
 
@@ -1970,7 +1985,7 @@ static status_t sql_build_join_info(join_assist_t *ja,
     return OG_SUCCESS;
 }
 
-static status_t sql_build_join_cond_tree(join_assist_t *ja, galist_t* restricts, sql_join_type_t jointype)
+status_t sql_build_join_cond_tree(join_assist_t *ja, galist_t* restricts, sql_join_type_t jointype)
 {
     ja->filter = NULL;
     ja->join_cond = NULL;
@@ -2042,10 +2057,12 @@ static status_t sql_create_join_jtable(join_assist_t *ja, join_tbl_bitmap_t *tab
 
     /* init join path list */
     cm_bilist_init(&jtable->paths);
+    OG_RETURN_IFERR(sql_alloc_mem(ja->stmt->context, sizeof(galist_t), (void **)&jtable->sorted_paths));
+    cm_galist_init(jtable->sorted_paths, ja->stmt->context, sql_alloc_mem);
     return OG_SUCCESS;
 }
 
-static bool sql_add_path_precheck(sql_join_table_t *jtable, double startup_cost, double total_cost)
+bool sql_add_path_precheck(sql_join_table_t *jtable, double startup_cost, double total_cost)
 {
     sql_join_path_t* best_path = jtable->cheapest_total_path;
     if (best_path == NULL) {
@@ -2460,8 +2477,21 @@ static status_t sql_jtable_create_paths(join_assist_t *ja, sql_join_type_t joint
         }
     }
 
+    merge_path_input_t input = {
+        .ja = ja,
+        .jointype = jointype,
+        .jtable = jtable,
+        .jtbl1 = jtbl1,
+        .jtbl2 = jtbl2,
+        .sjoininfo = sjoininfo,
+        .restricts = restricts,
+        .param_source_rels = &param_source_rels
+    };
+
     sql_gen_unsorted_outer_nestloop_paths(ja, jointype, jtable, jtbl1, jtbl2, sjoininfo, restricts,
         &param_source_rels);
+    og_gen_sort_inner_and_outer_merge_paths(&input);
+    og_gen_unsorted_merge_paths(&input);
     sql_hashjoin_inner_outer(ja, jointype, jtable, jtbl1, jtbl2, sjoininfo, restricts, &param_source_rels);
     return OG_SUCCESS;
 }

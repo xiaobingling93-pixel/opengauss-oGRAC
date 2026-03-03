@@ -176,6 +176,7 @@ typedef struct st_sql_instance {
     bool32 strict_case_datatype;
     bool32 enable_nestloop_join;
     bool32 enable_hash_join;
+    bool32 enable_merge_join;
     bool8 coverage_enable;
     uint8 res[7];
     sql_json_mem_pool_t json_mpool;

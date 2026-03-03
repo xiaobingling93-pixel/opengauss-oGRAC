@@ -851,8 +851,20 @@ status_t sql_create_part_scan_ranges(sql_stmt_t *stmt, plan_assist_t *plan_ass, 
     return sql_create_partition_range_list(stmt, plan_ass, table, array, OG_FALSE);
 }
 
+/*
+ * If set multi_parts_scan=true, may use sql_execute_multi_parts_index_scan instead of sql_execute_index_scan.
+ * sql_execute_multi_parts_index_scan will sort multi_parts_table by plan->scan_p.sort_items(ORDER BY clause)
+ * For mergejoin, the sorting method of the base table should not be affected by the ORDER BY clause that
+ * appears later in the query.
+ *
+ */
 static void check_multi_parts_index_scan(sql_table_t *table, sql_query_t *query)
 {
+    if (sql_scan_for_merge_join(table->scan_flag)) {
+        table->multi_parts_scan = OG_FALSE;
+        return;
+    }
+
     if (!(table->scan_flag & RBO_INDEX_SORT_FLAG) || query->sort_items->count == 0 || !table->index->parted) {
         table->multi_parts_scan = OG_FALSE;
         return;

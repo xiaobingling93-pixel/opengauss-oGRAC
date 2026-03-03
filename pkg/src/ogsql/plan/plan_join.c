@@ -30,6 +30,7 @@
 #include "plan_rbo.h"
 #include "ogsql_join_path.h"
 #include "plan_hint.h"
+#include "plan_join_merge.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -679,14 +680,12 @@ bool32 sql_get_cmp_join_tab_id(cmp_node_t *cmp_node, uint16 *l_tab_id, uint16 *r
     cols_used_t l_cols_used;
     cols_used_t r_cols_used;
 
-    if (cmp_node->type != CMP_TYPE_EQUAL) {
-        if (oper != JOIN_OPER_MERGE) {
-            return OG_FALSE;
-        }
-        if (cmp_node->type != CMP_TYPE_GREAT && cmp_node->type != CMP_TYPE_LESS &&
-            cmp_node->type != CMP_TYPE_GREAT_EQUAL && cmp_node->type != CMP_TYPE_LESS_EQUAL) {
-            return OG_FALSE;
-        }
+    if ((cmp_node->type != CMP_TYPE_EQUAL) && (oper != JOIN_OPER_MERGE)) {
+        return OG_FALSE;
+    }
+
+    if ((oper == JOIN_OPER_MERGE) && !og_check_cmp_is_mergeable(cmp_node)) {
+        return OG_FALSE;
     }
 
     if (!check_and_get_join_column(cmp_node, &l_cols_used, &r_cols_used)) {
@@ -1260,7 +1259,7 @@ status_t sql_build_join_tree(sql_stmt_t *stmt, plan_assist_t *plan_ass, sql_join
     return ret;
 }
 
-static status_t sql_create_base_join_plan(sql_stmt_t *stmt, plan_assist_t *plan_ass, sql_join_node_t *join_node,
+status_t sql_create_base_join_plan(sql_stmt_t *stmt, plan_assist_t *plan_ass, sql_join_node_t *join_node,
     plan_node_t **l_plan, plan_node_t **r_plan)
 {
     cond_tree_t *temp_cond = NULL;
@@ -1524,6 +1523,13 @@ static status_t sql_fill_join_cond(sql_stmt_t *stmt, join_plan_t *join_plan, exp
     if (join_plan->oper != JOIN_OPER_MERGE) {
         OG_RETURN_IFERR(cm_galist_insert(join_plan->left_hash.key_items, left_node));
         OG_RETURN_IFERR(cm_galist_insert(join_plan->right_hash.key_items, right_node));
+    } else {
+        cmp_rule_t *rule = get_cmp_rule(left_node->root->datatype, right_node->root->datatype);
+        sort_direction_t dir = (type == CMP_TYPE_LESS || type == CMP_TYPE_LESS_EQUAL ? SORT_MODE_DESC : SORT_MODE_ASC);
+        OG_RETURN_IFERR(
+            og_create_merge_join_sort_item(join_plan->left_merge.key_items, left_node, dir, rule->cmp_type));
+        OG_RETURN_IFERR(
+            og_create_merge_join_sort_item(join_plan->right_merge.key_items, right_node, dir, rule->cmp_type));
     }
 
     cmp_node_t *tmp_cmp = NULL;
@@ -1588,7 +1594,7 @@ static status_t sql_plan_extract_join_filter(sql_stmt_t *stmt, join_plan_t *join
         cond_node);
 }
 
-static status_t sql_plan_extract_cond(sql_stmt_t *stmt, join_plan_t *join_plan, sql_join_node_t *join_node)
+status_t sql_plan_extract_cond(sql_stmt_t *stmt, join_plan_t *join_plan, sql_join_node_t *join_node)
 {
     if (join_node->oper == JOIN_OPER_HASH_LEFT || join_node->oper == JOIN_OPER_HASH_FULL) {
         // use join_cond as cond
@@ -1605,7 +1611,7 @@ static status_t sql_plan_extract_cond(sql_stmt_t *stmt, join_plan_t *join_plan, 
     return OG_SUCCESS;
 }
 
-static status_t sql_fill_join_info(sql_stmt_t *stmt, join_plan_t *join_plan, sql_join_node_t *join_node)
+status_t sql_fill_join_info(sql_stmt_t *stmt, join_plan_t *join_plan, sql_join_node_t *join_node)
 {
     sql_array_t *left_rs_tables = &(join_plan->left_hash.rs_tables);
     sql_array_t *right_rs_tables = &(join_plan->right_hash.rs_tables);
@@ -1852,8 +1858,8 @@ status_t sql_create_join_plan(sql_stmt_t *stmt, plan_assist_t *pa, sql_join_node
                 break;
 
             case JOIN_OPER_MERGE:
-                OG_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "merge join not support");
-                return OG_ERROR;
+                OG_RETURN_IFERR(og_create_merge_join_plan(stmt, pa, join_node, plan_node));
+                break;
 
             case JOIN_OPER_HASH:
             case JOIN_OPER_HASH_LEFT:

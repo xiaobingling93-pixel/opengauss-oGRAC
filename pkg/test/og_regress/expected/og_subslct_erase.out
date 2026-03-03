@@ -82,19 +82,20 @@ EXPLAIN PLAN OUTPUT
 ---------------------------------------------------------------------------------------------------
 | Id | Operation                   | Owner | Name      | Rows | Cost | StartCost | Bytes | Remark |
 ---------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT            |       |           | 1    | 24   | 8         |       |        |
-| 1  |   QUERY SORT ORDER BY       |       |           | 1    | 24   | 8         |       |        |
-| 2  |     HASH GROUP BY           |       |           | 1    | 24   | 8         |       |        |
-| 3  |       NESTED LOOPS          |       |           | 1    | 4    | 0         |       |        |
+| 0  | SELECT STATEMENT            |       |           | 1    | 20   | 10        |       |        |
+| 1  |   QUERY SORT ORDER BY       |       |           | 1    | 20   | 10        |       |        |
+| 2  |     HASH GROUP BY           |       |           | 1    | 20   | 10        |       |        |
+| 3  |       MERGE JOIN            |       |           | 1    | 2    | 2         |       |        |
 | 4  |           TABLE ACCESS FULL | SYS   | SSE_T1 T1 | 3    | 1    | 0         |       |        |
 | 5  |           TABLE ACCESS FULL | SYS   | SSE_T2 T2 | 3    | 1    | 0         |       |        |
 ---------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
+    3 - access: T1.A = T2.A                                     
     4 - filter: T1.B < 20                                       
-    5 - filter: T2.B < 20 AND T1.A = T2.A                       
+    5 - filter: T2.B < 20                                       
 
-14 rows fetched.
+15 rows fetched.
 
 SQL> 
 SQL> explain select * from (select count(a), b from sse_t1 group by b) sub_qry join sse_t2 t2 on sub_qry.b = t2.b;
@@ -104,8 +105,8 @@ EXPLAIN PLAN OUTPUT
 -----------------------------------------------------------------------------------------------------
 | Id | Operation                     | Owner | Name      | Rows | Cost | StartCost | Bytes | Remark |
 -----------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT              |       |           | 1    | 4    | 0         |       |        |
-| 1  |   NESTED LOOPS                |       |           | 1    | 4    | 0         |       |        |
+| 0  | SELECT STATEMENT              |       |           | 1    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN                  |       |           | 1    | 2    | 2         |       |        |
 | 2  |       SUBSELECT               | SYS   | SUB_QRY   | 3    | 1    | 0         |       |        |
 | 3  |         HASH GROUP BY         |       |           | 3    | 18   | 8         |       |        |
 | 4  |             TABLE ACCESS FULL | SYS   | SSE_T1    | 3    | 1    | 0         |       |        |
@@ -113,7 +114,7 @@ EXPLAIN PLAN OUTPUT
 -----------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    5 - filter: SUB_QRY.B = T2.B                                
+    1 - access: SUB_QRY.B = T2.B                                
 
 13 rows fetched.
 
@@ -226,14 +227,14 @@ EXPLAIN PLAN OUTPUT
 -----------------------------------------------------------------------------------------------
 | Id | Operation               | Owner | Name      | Rows | Cost | StartCost | Bytes | Remark |
 -----------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT        |       |           | 3    | 4    | 0         |       |        |
-| 1  |   NESTED LOOPS          |       |           | 3    | 4    | 0         |       |        |
+| 0  | SELECT STATEMENT        |       |           | 3    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN            |       |           | 3    | 2    | 2         |       |        |
 | 2  |       TABLE ACCESS FULL | SYS   | SSE_T1 T1 | 3    | 1    | 0         |       |        |
 | 3  |       TABLE ACCESS FULL | SYS   | SSE_T2 T2 | 3    | 1    | 0         |       |        |
 -----------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    3 - filter: T1.A = T2.A                                     
+    1 - access: T1.A = T2.A                                     
 
 11 rows fetched.
 

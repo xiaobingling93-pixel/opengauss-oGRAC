@@ -16,7 +16,7 @@ CREATE TABLE users_name (
     id int, age int, birth int,
     CONSTRAINT age_check CHECK (birth < 100 and age < func1(1))); -- error
 
--- alter default
+-- alter default 
 CREATE TABLE users_status (id int, status int);
 alter table users_status modify (status int default  func1(1)); -- error
 alter table users_status add CONSTRAINT check_status check (id < func1(1)); -- error

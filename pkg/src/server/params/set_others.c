@@ -672,6 +672,12 @@ status_t sql_notify_als_enable_hash_join(void *se, void *item, char *value)
     return sql_notify_als_bool(se, item, value);
 }
 
+status_t sql_notify_als_enable_merge_join(void *se, void *item, char *value)
+{
+    g_instance->sql.enable_merge_join = (bool32)value[0];
+    return sql_notify_als_bool(se, item, value);
+}
+
 status_t sql_notify_als_use_bison_parser(void *se, void *item, char *value)
 {
     g_instance->sql.use_bison_parser = (bool32)value[0];

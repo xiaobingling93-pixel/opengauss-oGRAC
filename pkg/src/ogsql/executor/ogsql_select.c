@@ -51,6 +51,7 @@
 #include "ogsql_vm_view_mtrl.h"
 #include "gdv_context.h"
 #include "ogsql_hash_join.h"
+#include "ogsql_merge_join.h"
 
 static inline status_t sql_check_node_pending(sql_cursor_t *parent_cursor, uint32 tab, bool32 *pending)
 {
@@ -198,10 +199,13 @@ status_t sql_fetch_join(sql_stmt_t *stmt, sql_cursor_t *cursor, plan_node_t *pla
         case JOIN_OPER_HASH_RIGHT_ANTI:
         case JOIN_OPER_HASH_RIGHT_ANTI_NA:
         case JOIN_OPER_HASH_FULL:
+            OG_RETURN_IFERR(g_hash_join_funcs[plan_node->join_p.oper].fetch(stmt, cursor, plan_node, eof));
+            break;
+
         case JOIN_OPER_MERGE:
         case JOIN_OPER_MERGE_LEFT:
         case JOIN_OPER_MERGE_FULL:
-            OG_RETURN_IFERR(g_hash_join_funcs[plan_node->join_p.oper].fetch(stmt, cursor, plan_node, eof));
+            OG_RETURN_IFERR(og_merge_join_fetch(stmt, cursor, plan_node, eof));
             break;
 
         default:
@@ -896,7 +900,7 @@ status_t sql_execute_join(sql_stmt_t *stmt, sql_cursor_t *cursor, plan_node_t *p
         case JOIN_OPER_MERGE:
         case JOIN_OPER_MERGE_LEFT:
         case JOIN_OPER_MERGE_FULL:
-	    knl_panic(0);
+            OG_RETURN_IFERR(og_merge_join_execute(stmt, cursor, plan, eof));
             break;
 
         default:
@@ -1171,7 +1175,7 @@ status_t sql_execute_query_plan(sql_stmt_t *stmt, sql_cursor_t *cur, plan_node_t
             break;
 
         case PLAN_NODE_MERGE_SORT_GROUP:
-            status = ogsql_merge_sort_with_group(stmt, cur, plan);
+            status = sql_execute_merge_sort_group(stmt, cur, plan);
             break;
 
         case PLAN_NODE_HASH_GROUP:
@@ -1528,8 +1532,8 @@ static status_t sql_free_join(sql_stmt_t *stmt, sql_cursor_t *cursor, plan_node_
         case JOIN_OPER_MERGE:
         case JOIN_OPER_MERGE_LEFT:
         case JOIN_OPER_MERGE_FULL:
-            knl_panic(0);
-        /* fall-through */
+            og_merge_join_free(stmt, cursor, plan);
+            break;
         default:
             break;
     }

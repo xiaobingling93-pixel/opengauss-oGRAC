@@ -619,6 +619,7 @@ typedef struct st_sql_join_node {
     };
     nl_full_opt_info_t nl_full_opt_info;
     struct st_sql_join_table* parent;
+    galist_t *path_keys; // sorting key for the current path's output.
     int32 left_group_id;
     int32 right_group_id;
 } sql_join_node_t;
@@ -1243,6 +1244,7 @@ typedef struct st_sql_table {
     bool32 no_join_push : 1;
     bool32 enable_nestloop_join : 1;
     bool32 enable_hash_join : 1;
+    bool32 enable_merge_join : 1;
     bool32 reserved : 14;
 
     bilist_t join_info;

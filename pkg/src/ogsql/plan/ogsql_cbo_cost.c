@@ -1891,6 +1891,173 @@ void sql_init_sql_join_node_cost(sql_join_node_t* join_tree)
         join_tree->cost.startup_cost = CBO_COST_SAFETY_RET(TABLE_OF_JOIN_LEAF(join_tree)->startup_cost);
     }
 }
+/*
+ * In an external merge sort, if there are x pages to sort and memory holds y pages
+ * the algorithm requires 2 * x * ceil(log_y(ceil(x/y))) page transfers to complete.
+ */
+static double compute_sort_disk_cost(double total_bytes)
+{
+    double input_pages = total_bytes / OG_VMEM_PAGE_SIZE;
+    double total_mem_pages = (double)g_instance->kernel.attr.temp_buf_size / OG_VMEM_PAGE_SIZE;
+    double mem_pages_per_sort = MAX((total_mem_pages / g_instance->attr.max_worker_count), 6.0);
+    double initial_runs  = ceil(input_pages / mem_pages_per_sort);
+    double merge_passes = 0;
+    if (input_pages <= mem_pages_per_sort) {
+        merge_passes = 1;
+    } else {
+        merge_passes = ceil(log(initial_runs) / log(mem_pages_per_sort));
+    }
+    double total_page_accesses = 2.0 * input_pages * merge_passes;
+    double mixed_io_cost = CBO_DEFAULT_SEQ_PAGE_COST * 0.75 + CBO_DEFAULT_RANDOM_PAGE_COST * 0.25;
+    return total_page_accesses * mixed_io_cost;
+}
+
+static void cost_mj_sort(sql_join_node_t* sort_path, galist_t *sort_keys, cbo_cost_t* cost_sort)
+{
+    if (sort_keys == NULL || sort_keys->count == 0) {
+        return;
+    }
+    double startup_cost = sort_path->cost.cost;
+    double run_cost = CBO_DEFAULT_CPU_OPERATOR_COST * sort_path->cost.card;
+    double comparison_cost = 2.0 * CBO_DEFAULT_CPU_OPERATOR_COST;
+    int64 rows = sort_path->cost.card;
+    if (rows > 0) {
+        startup_cost += comparison_cost * sort_path->cost.card * log2(rows);
+        uint32 row_size = 0;
+        sort_item_t *item = NULL;
+        for (uint32 i = 0; i < sort_keys->count; i++) {
+            item = (sort_item_t *)cm_galist_get(sort_keys, i);
+            row_size += cm_get_datatype_strlen(item->cmp_type, OG_MAX_COLUMN_SIZE) + sizeof(mtrl_rowid_t);
+        }
+        double total_bytes = (double)row_size * (double)sort_path->cost.card;
+        startup_cost += compute_sort_disk_cost(total_bytes);
+    }
+    cost_sort->card = sort_path->cost.card;
+    cost_sort->startup_cost = startup_cost;
+    cost_sort->cost = startup_cost + run_cost;
+}
+
+status_t sql_initial_cost_merge(sql_join_node_t *join_tree, join_cost_workspace *join_cost_ws,
+    galist_t *outer_sort_keys, galist_t *inner_sort_keys)
+{
+    double startup_cost = 0;
+    double run_cost = 0;
+    double inner_run_cost = 0;
+    cbo_cost_t cost_sort;
+
+    OG_RETURN_IFERR(sql_cost_pre_check(join_tree));
+
+    if (!g_instance->sql.enable_merge_join) {
+        startup_cost += CBO_DEFAULT_DISABLE_COST;
+    }
+
+    sql_join_node_t *outer_path = join_tree->left;
+    sql_join_node_t *inner_path = join_tree->right;
+
+    int64 outer_path_rows = outer_path->cost.card;
+    int64 inner_path_rows = inner_path->cost.card;
+
+    // Estimating selection rate by using histogram
+    double outer_start_sel = 0.0;
+    double outer_end_sel = 1.0;
+    double inner_start_sel = 0.0;
+    double inner_end_sel = 1.0;
+
+    cost_sort = outer_path->cost;
+    cost_mj_sort(outer_path, outer_sort_keys, &cost_sort);
+    startup_cost += cost_sort.startup_cost;
+    startup_cost += (cost_sort.cost - cost_sort.startup_cost) * outer_start_sel;
+    run_cost += (cost_sort.cost - cost_sort.startup_cost) * (outer_end_sel - outer_start_sel);
+
+    cost_sort = inner_path->cost;
+    cost_mj_sort(inner_path, inner_sort_keys, &cost_sort);
+    startup_cost += cost_sort.startup_cost;
+    startup_cost += (cost_sort.cost - cost_sort.startup_cost) * inner_start_sel;
+    inner_run_cost += (cost_sort.cost - cost_sort.startup_cost) * (inner_end_sel - inner_start_sel);
+
+    join_tree->cost.startup_cost = CBO_COST_SAFETY_RET(startup_cost);
+    join_tree->cost.cost = CBO_COST_SAFETY_RET(startup_cost + run_cost);
+
+    join_cost_ws->startup_cost = CBO_COST_SAFETY_RET(startup_cost);
+    join_cost_ws->run_cost = CBO_COST_SAFETY_RET(run_cost);
+    join_cost_ws->inner_run_cost = CBO_COST_SAFETY_RET(inner_run_cost);
+    join_cost_ws->total_cost = CBO_COST_SAFETY_RET(startup_cost + run_cost);
+    
+    join_cost_ws->outer_skip_rows = rint(outer_path_rows * outer_start_sel);
+    join_cost_ws->inner_skip_rows = rint(inner_path_rows * inner_start_sel);
+
+    join_cost_ws->outer_rows = outer_path_rows;
+    join_cost_ws->inner_rows = inner_path_rows;
+    
+    return OG_SUCCESS;
+}
+
+/*
+* mergejoin_tuples = outerpath->cost.card * innerpath->cost.card * selectivity
+* General Rule: mergejointuples ≥ inner_path_rows
+* In rare cases, mergejointuples may be fewer than the inner table's row count (inner_path_rows).
+* If the outer table’s join keys do not cover all inner keys, some inner rows may never be scanned
+*/
+void sql_final_cost_merge(sql_join_node_t *join_tree, join_cost_workspace *join_cost_ws, galist_t *restricts)
+{
+    sql_join_node_t *outer_path = join_tree->left;
+    sql_join_node_t *inner_path = join_tree->right;
+
+    int64 outer_path_rows = outer_path->cost.card;
+    int64 inner_path_rows = inner_path->cost.card;
+
+    if (outer_path_rows == 0 && inner_path_rows == 0) {
+        return;
+    }
+    
+    double outer_skip_rows = join_cost_ws->outer_skip_rows;
+    double inner_skip_rows = join_cost_ws->inner_skip_rows;
+
+    // Non-unique join keys in the outer table force multiple rescans of the inner table
+    int64 mergejoin_tuples = CBO_CARD_SAFETY_SET(
+        join_tree->left->cost.card * join_tree->right->cost.card * CBO_JOIN_SELTY_FACTOR);
+    double rescanned_tuples = mergejoin_tuples - inner_path_rows;
+    if (rescanned_tuples < 0) {
+        rescanned_tuples = 0;
+    }
+    double rescanratio = 1.0;
+    if (inner_path_rows != 0) {
+        rescanratio += rescanned_tuples / inner_path_rows;
+    }
+
+    double startup_cost = join_cost_ws->startup_cost;
+    double run_cost = join_cost_ws->run_cost;
+    // the cost of materializing the inner table
+    double mat_inner_cost = join_cost_ws->inner_run_cost +
+                            CBO_DEFAULT_CPU_OPERATOR_COST * inner_path_rows * rescanratio;
+   
+    double qual_startup_cost = 0;
+    double qual_cost = 0;
+    double cpu_per_tuple;
+
+    // must process and assess all rows to be skipped before locating the first qualifying match.
+    (void)sql_cost_qual_eval_walker(&qual_startup_cost, &qual_cost, restricts);
+    double merge_qual_cost = qual_cost;
+    double qp_qual_cost = qual_cost * restricts->count;
+    startup_cost += qual_startup_cost;
+    startup_cost += merge_qual_cost * (outer_skip_rows + inner_skip_rows * rescanratio);
+
+    // the qual cost for the remaining rows after accounting for skipped rows
+    cpu_per_tuple = CBO_DEFAULT_CPU_SCAN_TUPLE_COST + qp_qual_cost;
+    run_cost += merge_qual_cost * ((outer_path_rows - outer_skip_rows) +
+                (inner_path_rows - inner_skip_rows) * rescanratio);
+
+    // base cost for handling each tuple
+    run_cost += cpu_per_tuple * mergejoin_tuples;
+    run_cost += mat_inner_cost;
+
+    join_tree->cost.startup_cost = CBO_COST_SAFETY_RET(startup_cost);
+    join_tree->cost.cost = CBO_COST_SAFETY_RET(startup_cost + run_cost);
+
+    join_cost_ws->startup_cost = CBO_COST_SAFETY_RET(startup_cost);
+    join_cost_ws->run_cost = CBO_COST_SAFETY_RET(run_cost);
+    join_cost_ws->total_cost = CBO_COST_SAFETY_RET(startup_cost + run_cost);
+}
 
 status_t sql_initial_cost_nestloop(join_assist_t *ja, sql_join_node_t* join_tree, join_cost_workspace* join_cost_ws,
     special_join_info_t *sjoininfo)
