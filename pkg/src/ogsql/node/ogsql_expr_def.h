@@ -593,12 +593,13 @@ static inline bool32 chk_if_reserved_word_constant(reserved_wid_t type)
     }
 }
 
-#define VA_EXCL_NONE 0x00000000
-#define VA_EXCL_PRIOR 0x00000001
+#define VA_EXCL_NONE     0x00000000
+#define VA_EXCL_PRIOR    0x00000001
 #define VA_EXCL_WIN_SORT 0x00000002
-#define VA_EXCL_FUNC 0x00000004
-#define VA_EXCL_PROC 0x00000008
-#define VA_EXCL_CASE 0x00000010
+#define VA_EXCL_FUNC     0x00000004
+#define VA_EXCL_PROC     0x00000008
+#define VA_EXCL_CASE     0x00000010
+#define VA_EXCL_ARRAY    0x00000020
 
 #define ANCESTOR_IDX 0
 #define PARENT_IDX 1

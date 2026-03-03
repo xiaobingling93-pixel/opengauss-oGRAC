@@ -1,0 +1,578 @@
+
+
+SQL> -- Test for IN2EXISTS optimization
+SQL> DROP TABLE IF EXISTS IN2EXISTS_T1;
+
+Succeed.
+
+SQL> DROP TABLE IF EXISTS IN2EXISTS_T2;
+
+Succeed.
+
+SQL> CREATE TABLE IN2EXISTS_T1 (
+  2     nullable INT NOT NULL,
+  3     not_nullable INT
+  4 );
+
+Succeed.
+
+SQL> 
+SQL> CREATE TABLE IN2EXISTS_T2 (
+  2     nullable INT NOT NULL,
+  3     not_nullable INT
+  4 );
+
+Succeed.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM IN2EXISTS_T1 WHERE nullable IN (SELECT nullable FROM IN2EXISTS_T2 WHERE nullable > 1);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |              | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER         |       |              | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL   | SYS   | IN2EXISTS_T1 | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | IN2EXISTS_T2 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: EXISTS(SELECT 1 FROM IN2EXISTS_T2 WHERE NULLABLE > 1 AND NULLABLE = IN2EXISTS_T2.NULLABLE)
+    3 - filter: NULLABLE > 1 AND NULLABLE = IN2EXISTS_T2.NULLABLE
+
+12 rows fetched.
+
+SQL> EXPLAIN SELECT * FROM IN2EXISTS_T1 WHERE not_nullable IN (SELECT not_nullable FROM IN2EXISTS_T2 where not_nullable > 1);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |              | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER         |       |              | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL   | SYS   | IN2EXISTS_T1 | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | IN2EXISTS_T2 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: EXISTS(SELECT 1 FROM IN2EXISTS_T2 WHERE NOT_NULLABLE > 1 AND NOT_NULLABLE = IN2EXISTS_T2.NOT_NULLABLE)
+    3 - filter: NOT_NULLABLE > 1 AND NOT_NULLABLE = IN2EXISTS_T2.NOT_NULLABLE
+
+12 rows fetched.
+
+SQL> EXPLAIN SELECT * FROM IN2EXISTS_T1 WHERE nullable NOT IN (SELECT nullable FROM IN2EXISTS_T2 WHERE nullable > 1);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |              | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER         |       |              | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL   | SYS   | IN2EXISTS_T1 | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | IN2EXISTS_T2 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: NOT EXISTS(SELECT 1 FROM IN2EXISTS_T2 WHERE NULLABLE > 1 AND NULLABLE = IN2EXISTS_T2.NULLABLE)
+    3 - filter: NULLABLE > 1 AND NULLABLE = IN2EXISTS_T2.NULLABLE
+
+12 rows fetched.
+
+SQL> EXPLAIN SELECT * FROM IN2EXISTS_T1 WHERE not_nullable NOT IN (SELECT not_nullable FROM IN2EXISTS_T2 WHERE not_nullable > 1);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |              | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER         |       |              | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL   | SYS   | IN2EXISTS_T1 | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | IN2EXISTS_T2 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: NOT_NULLABLE NOT IN ((SELECT NOT_NULLABLE FROM IN2EXISTS_T2 WHERE NOT_NULLABLE > 1))
+    3 - filter: NOT_NULLABLE > 1                                
+
+12 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM IN2EXISTS_T1 WHERE nullable*10 + 1  IN (SELECT nullable FROM IN2EXISTS_T2 WHERE nullable > 1);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |              | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER         |       |              | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL   | SYS   | IN2EXISTS_T1 | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | IN2EXISTS_T2 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: NULLABLE * 10 + 1 IN ((SELECT NULLABLE FROM IN2EXISTS_T2 WHERE NULLABLE > 1))
+    3 - filter: NULLABLE > 1                                    
+
+12 rows fetched.
+
+SQL> EXPLAIN SELECT * FROM IN2EXISTS_T1 WHERE nullable*10 + 1  NOT IN (SELECT nullable FROM IN2EXISTS_T2 WHERE nullable > 1);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |              | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER         |       |              | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL   | SYS   | IN2EXISTS_T1 | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | IN2EXISTS_T2 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: NULLABLE * 10 + 1 NOT IN ((SELECT NULLABLE FROM IN2EXISTS_T2 WHERE NULLABLE > 1))
+    3 - filter: NULLABLE > 1                                    
+
+12 rows fetched.
+
+SQL> 
+SQL> 
+SQL> EXPLAIN SELECT * FROM IN2EXISTS_T1 WHERE (nullable, not_nullable) IN (SELECT nullable, not_nullable FROM IN2EXISTS_T2 WHERE nullable > 1);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |              | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER         |       |              | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL   | SYS   | IN2EXISTS_T1 | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | IN2EXISTS_T2 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: EXISTS(SELECT 1 FROM IN2EXISTS_T2 WHERE NULLABLE > 1 AND NOT_NULLABLE = IN2EXISTS_T2.NOT_NULLABLE AND
+                NULLABLE = IN2EXISTS_T2.NULLABLE)               
+    3 - filter: NULLABLE > 1 AND NULLABLE = IN2EXISTS_T2.NULLABLE AND NOT_NULLABLE = IN2EXISTS_T2.NOT_NULLABLE
+
+13 rows fetched.
+
+SQL> EXPLAIN SELECT * FROM IN2EXISTS_T1 WHERE (nullable, not_nullable) NOT IN (SELECT nullable, not_nullable FROM IN2EXISTS_T2 WHERE nullable > 1);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |              | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER         |       |              | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL   | SYS   | IN2EXISTS_T1 | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | IN2EXISTS_T2 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: (NULLABLE,NOT_NULLABLE) NOT IN ((SELECT NULLABLE, NOT_NULLABLE FROM IN2EXISTS_T2 WHERE NULLABLE > 1))
+    3 - filter: NULLABLE > 1                                    
+
+12 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM IN2EXISTS_T1 WHERE IN2EXISTS_T1.ROWID IN (SELECT IN2EXISTS_T1.ROWID FROM IN2EXISTS_T2 WHERE nullable > 1);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |              | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER         |       |              | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL   | SYS   | IN2EXISTS_T1 | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | IN2EXISTS_T2 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: EXISTS(SELECT 1 FROM IN2EXISTS_T2 WHERE NULLABLE > 1)
+    3 - filter: NULLABLE > 1                                    
+
+12 rows fetched.
+
+SQL> EXPLAIN SELECT * FROM IN2EXISTS_T1 WHERE IN2EXISTS_T1.ROWID IN (SELECT IN2EXISTS_T2.ROWID FROM IN2EXISTS_T2 WHERE nullable > 1);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name         | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |              | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER         |       |              | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL   | SYS   | IN2EXISTS_T1 | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | IN2EXISTS_T2 | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: ROWID IN ((SELECT ROWID FROM IN2EXISTS_T2 WHERE NULLABLE > 1))
+    3 - filter: NULLABLE > 1                                    
+
+12 rows fetched.
+
+SQL> 
+SQL> DROP TABLE IN2EXISTS_T1;
+
+Succeed.
+
+SQL> DROP TABLE IN2EXISTS_T2;
+
+Succeed.
+
+SQL> 
+SQL> -- Test for EXISTS optimization
+SQL> DROP TABLE IF EXISTS EXISTS_OPT_T1;
+
+Succeed.
+
+SQL> DROP TABLE IF EXISTS EXISTS_OPT_T2;
+
+Succeed.
+
+SQL> CREATE TABLE EXISTS_OPT_T1 (
+  2     nullable INT NOT NULL,
+  3     not_nullable INT
+  4 );
+
+Succeed.
+
+SQL> 
+SQL> CREATE TABLE EXISTS_OPT_T2 (
+  2     nullable INT NOT NULL,
+  3     not_nullable INT
+  4 );
+
+Succeed.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM EXISTS_OPT_T1 WHERE EXISTS (SELECT * from EXISTS_OPT_T2);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |               | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER         |       |               | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL   | SYS   | EXISTS_OPT_T1 | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | EXISTS_OPT_T2 | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: EXISTS(SELECT 1 FROM EXISTS_OPT_T2)             
+
+11 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM EXISTS_OPT_T1 WHERE EXISTS (SELECT AVG(nullable) from EXISTS_OPT_T2);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------
+| Id | Operation             | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT      |       |               | 0    | 10000 | 0         |       |        |
+| 1  |     TABLE ACCESS FULL | SYS   | EXISTS_OPT_T1 | 0    | 10000 | 0         |       |        |
+--------------------------------------------------------------------------------------------------
+
+6 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM EXISTS_OPT_T1 WHERE EXISTS (SELECT DISTINCT nullable from EXISTS_OPT_T2 GROUP BY nullable ORDER BY nullable);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |               | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER         |       |               | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL   | SYS   | EXISTS_OPT_T1 | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | EXISTS_OPT_T2 | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: EXISTS(SELECT 1 FROM EXISTS_OPT_T2)             
+
+11 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM EXISTS_OPT_T1 WHERE EXISTS (SELECT 1 from EXISTS_OPT_T2 START WITH EXISTS_OPT_T1.nullable = EXISTS_OPT_T2.nullable CONNECT BY PRIOR EXISTS_OPT_T2*10 = EXISTS_OPT_T2.not_nullable);
+
+OG-00601, [1:155]Sql syntax error: invalid column name 'EXISTS_OPT_T2'
+SQL> 
+SQL> EXPLAIN SELECT * FROM EXISTS_OPT_T1 WHERE EXISTS (SELECT nullable, ROW_NUMBER() OVER (ORDER BY not_nullable DESC) AS col1 from EXISTS_OPT_T2);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |               | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER         |       |               | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL   | SYS   | EXISTS_OPT_T1 | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | EXISTS_OPT_T2 | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: EXISTS(SELECT 1 FROM EXISTS_OPT_T2)             
+
+11 rows fetched.
+
+SQL> 
+SQL> 
+SQL> -- test not in (select null) constraints
+SQL> drop table if exists not_in_null_t1;
+
+Succeed.
+
+SQL> drop table if exists not_in_null_t2;
+
+Succeed.
+
+SQL> 
+SQL> create table not_in_null_t1(c1 int, c2 int not null, constraint pk_not_in_null_t1 primary key(c1));
+
+Succeed.
+
+SQL> create table not_in_null_t2(c1 int, c2 int not null, c3 varchar(10) check(c3 is json), constraint pk_not_in_null_t2 primary key(c1));
+
+Succeed.
+
+SQL> 
+SQL> insert into not_in_null_t1 values(1,1);
+
+1 rows affected.
+
+SQL> insert into not_in_null_t1 values(2,2);
+
+1 rows affected.
+
+SQL> insert into not_in_null_t1 values(3,4);
+
+1 rows affected.
+
+SQL> insert into not_in_null_t2 values(3,1,null);
+
+1 rows affected.
+
+SQL> insert into not_in_null_t2 values(4,2,null);
+
+1 rows affected.
+
+SQL> insert into not_in_null_t2 values(5,3,null);
+
+1 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> 
+SQL> explain plan for 
+  2 select * from not_in_null_t2 t1 left join not_in_null_t1 t2 on t1.c2=t2.c2 where t1.c1 not in (select null from not_in_null_t2 t3);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name              | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |                   | 1    | 20000 | 0         |       |        |
+| 1  |   KERNEL FILTER             |       |                   | 1    | 20000 | 0         |       |        |
+| 2  |     NESTED LOOPS OUTER      |       |                   | 1    | 20000 | 0         |       |        |
+| 3  |       KERNEL FILTER         |       |                   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL   | SYS   | NOT_IN_NULL_T2 T1 | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | NOT_IN_NULL_T2 T3 | 0    | 10000 | 0         |       |        |
+| 6  |       KERNEL FILTER         |       |                   | 0    | 10000 | 0         |       |        |
+| 7  |         TABLE ACCESS FULL   | SYS   | NOT_IN_NULL_T1 T2 | 0    | 10000 | 0         |       |        |
+| 8  |           TABLE ACCESS FULL | SYS   | NOT_IN_NULL_T2 T3 | 0    | 10000 | 0         |       |        |
+| 9  |       TABLE ACCESS FULL     | SYS   | NOT_IN_NULL_T2 T3 | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: T1.C1 NOT IN ((SELECT NULL FROM NOT_IN_NULL_T2 T3))
+    7 - filter: T1.C1 NOT IN ((SELECT NULL FROM NOT_IN_NULL_T2 T3)) AND T1.C2 = T2.C2
+
+18 rows fetched.
+
+SQL> select * from not_in_null_t2 t1 left join not_in_null_t1 t2 on t1.c2=t2.c2 where t1.c1 not in (select null from not_in_null_t2 t3);
+
+C1           C2           C3         C1           C2          
+------------ ------------ ---------- ------------ ------------
+
+0 rows fetched.
+
+SQL> 
+SQL> explain plan for 
+  2 select * from not_in_null_t1 t1 
+  3 where t1.c1 not in (
+  4     select t3.c1 from not_in_null_t1 t2 left join not_in_null_t2 t3 on t2.c2 = t3.c2
+  5 );
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name              | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |                   | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER           |       |                   | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL     | SYS   | NOT_IN_NULL_T1 T1 | 0    | 10000 | 0         |       |        |
+| 3  |     NESTED LOOPS OUTER    |       |                   | 1    | 20000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | NOT_IN_NULL_T1 T2 | 0    | 10000 | 0         |       |        |
+| 5  |         TABLE ACCESS FULL | SYS   | NOT_IN_NULL_T2 T3 | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: T1.C1 NOT IN ((SELECT C1 FROM NOT_IN_NULL_T1 T2 LEFT JOIN  NOT_IN_NULL_T2 T3 ON T2.C2 = T3.C2))
+    5 - filter: T2.C2 = T3.C2                                   
+
+14 rows fetched.
+
+SQL> select * from not_in_null_t1 t1 
+  2 where t1.c1 not in (
+  3     select t3.c1 from not_in_null_t1 t2 left join not_in_null_t2 t3 on t2.c2 = t3.c2
+  4 );
+
+C1           C2          
+------------ ------------
+
+0 rows fetched.
+
+SQL> 
+SQL> explain plan for 
+  2 select * from not_in_null_t1 t1 
+  3 where t1.c1 not in (
+  4     select nullif(t2.c1, 1) from not_in_null_t1 t2 left join not_in_null_t2 t3 on t2.c2 = t3.c2
+  5 );
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name              | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |                   | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER           |       |                   | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL     | SYS   | NOT_IN_NULL_T1 T1 | 0    | 10000 | 0         |       |        |
+| 3  |     NESTED LOOPS OUTER    |       |                   | 1    | 20000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | NOT_IN_NULL_T1 T2 | 0    | 10000 | 0         |       |        |
+| 5  |         TABLE ACCESS FULL | SYS   | NOT_IN_NULL_T2 T3 | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: T1.C1 NOT IN ((SELECT NULLIF(T2.C1, 1) FROM NOT_IN_NULL_T1 T2 LEFT JOIN  NOT_IN_NULL_T2 T3 ON T2.C2 =
+                T3.C2))                                         
+    5 - filter: T2.C2 = T3.C2                                   
+
+15 rows fetched.
+
+SQL> select * from not_in_null_t1 t1 
+  2 where t1.c1 not in (
+  3     select nullif(t2.c1, 1) from not_in_null_t1 t2 left join not_in_null_t2 t3 on t2.c2 = t3.c2
+  4 );
+
+C1           C2          
+------------ ------------
+
+0 rows fetched.
+
+SQL> 
+SQL> explain plan for 
+  2 select * from not_in_null_t1 t1 
+  3 where t1.c1 not in (
+  4     select sleep(1) from not_in_null_t1 t2 left join not_in_null_t2 t3 on t2.c2 = t3.c2
+  5 );
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name              | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |                   | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER           |       |                   | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL     | SYS   | NOT_IN_NULL_T1 T1 | 0    | 10000 | 0         |       |        |
+| 3  |     NESTED LOOPS OUTER    |       |                   | 1    | 20000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | NOT_IN_NULL_T1 T2 | 0    | 10000 | 0         |       |        |
+| 5  |         TABLE ACCESS FULL | SYS   | NOT_IN_NULL_T2 T3 | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: T1.C1 NOT IN ((SELECT SLEEP(1) FROM NOT_IN_NULL_T1 T2 LEFT JOIN  NOT_IN_NULL_T2 T3 ON T2.C2 = T3.C2))
+    5 - filter: T2.C2 = T3.C2                                   
+
+14 rows fetched.
+
+SQL> select * from not_in_null_t1 t1 
+  2 where t1.c1 not in (
+  3     select sleep(1) from not_in_null_t1 t2 left join not_in_null_t2 t3 on t2.c2 = t3.c2
+  4 );
+
+C1           C2          
+------------ ------------
+
+0 rows fetched.
+
+SQL> 
+SQL> -- set autotrace on;
+SQL> SELECT * 
+  2 FROM not_in_null_t1 t1 
+  3 WHERE t1.c1 NOT IN (
+  4     SELECT t2.c3 
+  5     FROM not_in_null_t2 t2
+  6 );
+
+C1           C2          
+------------ ------------
+
+0 rows fetched.
+
+SQL> 
+SQL> SELECT * 
+  2 FROM not_in_null_t1 t1 
+  3 WHERE t1.c1 NOT IN (
+  4     SELECT (CASE WHEN t2.c1 < 1000 THEN 1 ELSE NULL END) 
+  5     FROM not_in_null_t2 t2
+  6 );
+
+C1           C2          
+------------ ------------
+2            2           
+3            4           
+
+2 rows fetched.
+
+SQL> 
+SQL> SELECT * 
+  2 FROM not_in_null_t1 t1 
+  3 WHERE t1.c1 NOT IN (
+  4     SELECT SUM(null) OVER (PARTITION BY 1) 
+  5     FROM not_in_null_t2 t2
+  6 );
+
+C1           C2          
+------------ ------------
+
+0 rows fetched.
+
+SQL> -- set autotrace off;
+SQL> 
+SQL> 
+SQL> drop table if exists not_in_null_t1;
+
+Succeed.
+
+SQL> drop table if exists not_in_null_t2;
+Succeed.
+
+
+
+

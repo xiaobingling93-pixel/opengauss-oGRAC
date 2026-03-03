@@ -1,4 +1,5 @@
 test: og_rowid_scan
+test: og_in2exists
 test: og_json_1
 test: og_resource_manager
 test: og_stat

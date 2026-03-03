@@ -149,6 +149,7 @@ static status_t sql_create_json_column(sql_stmt_t *stmt, sql_table_t *table, wor
     new_col->name = new_col->expr->root->word.column.name.value;
     new_col->type = RS_COL_CALC;
     OG_BIT_SET(new_col->rs_flag, RS_NULLABLE);
+    OG_BIT_SET(new_col->rs_flag, RS_STRICT_NULLABLE);
 
     new_col->expr->loc = word->loc;
     new_col->expr->root->owner = new_col->expr;
@@ -169,6 +170,8 @@ static void create_ordinality_for_json_table(sql_table_t *table)
     new_col->expr->root->value.type = OG_TYPE_BIGINT;
     new_col->expr->root->value.v_bigint = 0;
     new_col->expr->root->value.is_null = OG_FALSE;
+    OG_BIT_SET(new_col->rs_flag, RS_NULLABLE);
+    OG_BIT_SET(new_col->rs_flag, RS_STRICT_NULLABLE);
 }
 
 void set_json_func_default_error_type(expr_node_t *func_node, json_error_type_t default_type)

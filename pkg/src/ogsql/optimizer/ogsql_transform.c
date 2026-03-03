@@ -41,6 +41,8 @@
 #include "ogsql_predicate_deliver.h"
 #include "ogsql_or2union.h"
 #include "ogsql_connect_rewrite.h"
+#include "ogsql_connect_rewrite.h"
+#include "ogsql_in2exists.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -224,6 +226,8 @@ status_t ogsql_apply_rule_set_2(sql_stmt_t *statement, sql_query_t *qry)
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_connect_by_cond);
     // transfrom predicate delivery.
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_predicate_pushdown);
+    // transform in 2 exist.
+    OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_in2exists);
     // 19. transform condition order.
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_cond_reorder);
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_eliminate_proj_col);

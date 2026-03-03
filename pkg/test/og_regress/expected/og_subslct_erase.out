@@ -183,8 +183,8 @@ EXPLAIN PLAN OUTPUT
 -------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    2 - filter: A IN ((SELECT B FROM SSE_T2 T2 WHERE B = SUB_QRY.B))
-    4 - filter: B = SUB_QRY.B                                   
+    2 - filter: EXISTS(SELECT 1 FROM SSE_T2 T2 WHERE B = SUB_QRY.B AND A = T2.B)
+    4 - filter: B = SUB_QRY.B AND A = T2.B                      
 
 13 rows fetched.
 

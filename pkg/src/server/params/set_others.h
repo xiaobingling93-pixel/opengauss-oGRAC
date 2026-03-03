@@ -169,6 +169,7 @@ status_t sql_notify_als_hash_pages_hold(void *se, void *item, char *value);
 status_t sql_notify_als_func_index_scan(void *se, void *item, char *value);
 status_t sql_notify_als_index_cond_pruning(void *se, void *item, char *value);
 status_t sql_notify_als_simplify_exists_subq(void *se, void *item, char *value);
+status_t sql_notify_als_in_transform(void *se, void *item, char *value);
 status_t sql_notify_als_parall_max_threads(void *se, void *item, char *value);
 status_t sql_notify_als_arch_upper_limit(void *se, void *item, char *value);
 status_t sql_notify_als_arch_lower_limit(void *se, void *item, char *value);

@@ -174,6 +174,7 @@ typedef struct st_sql_instance {
     bool32 enable_subquery_rewrite;
     bool32 enable_semi2inner;
     bool32 enable_pred_pushdown;
+    bool32 enable_in_transform;
     bool32 parallel_policy;
     bool32 strict_case_datatype;
     bool32 enable_nestloop_join;
