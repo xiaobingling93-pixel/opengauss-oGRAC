@@ -96,13 +96,14 @@ static void og_copy_array_column(var_column_t *var_col, rs_column_t *rs_column)
 }
 
 // Add anc level; if anc info is newly added, add parent reference
-static status_t og_pred_down_process_ancestor_info(uint32 *anc, visit_assist_t *v_ast,
+static status_t og_pred_down_process_ancestor_info(uint32 *anc_lev, visit_assist_t *v_ast,
     sql_query_t *sub_qry, uint16 tab_id, expr_node_t **exprn)
 {
-    CM_POINTER4(anc, v_ast, sub_qry, exprn);
-    (*anc)++;
-    SET_ANCESTOR_LEVEL(sub_qry->owner, *anc);
-    OG_RETSUC_IFTRUE(*anc >= 2);
+    uint32 parent_col_lev = 1;
+    CM_POINTER4(anc_lev, v_ast, sub_qry, exprn);
+    (*anc_lev)++;
+    SET_ANCESTOR_LEVEL(sub_qry->owner, *anc_lev);
+    OG_RETSUC_IFTRUE(*anc_lev > parent_col_lev);
     sql_query_t *qry = (sql_query_t *)v_ast->param0;
     return qry->owner == NULL ? OG_SUCCESS:
         sql_add_parent_refs(v_ast->stmt, qry->owner->parent_refs, tab_id, *exprn);
@@ -450,7 +451,7 @@ static bool32 og_pred_down_chk_cols(sql_stmt_t *statement, sql_query_t *qry,
 
     if (!og_pred_down_chk_cols_used(statement, col_used, qry, NULL)) {
         OG_LOG_DEBUG_INF("[PRED_PUSH_DOWN]: col used chk failed");
-        return OG_FALSE; 
+        return OG_FALSE;
     }
 
     return OG_TRUE;
@@ -573,12 +574,14 @@ static bool32 og_pred_down_check_priv(sql_stmt_t *statement, sql_query_t *qry,
 
 static bool32 og_pred_down_chk_filter_down(sql_stmt_t *statement, bool32 is_same_table)
 {
-    return ogsql_opt_param_is_enable(statement, g_instance->sql.enable_filter_pushdown, OPT_FILTER_PUSHDOWN) || !is_same_table;
+    return ogsql_opt_param_is_enable(statement, g_instance->sql.enable_filter_pushdown, OPT_FILTER_PUSHDOWN) ||
+            is_same_table;
 }
 
 static bool32 og_pred_down_chk_join_down(sql_stmt_t *statement, bool32 is_same_table)
 {
-    return ogsql_opt_param_is_enable(statement, g_instance->sql.enable_join_pred_pushdown, OPT_JOIN_PRED_PUSHDOWN) || is_same_table;
+    return ogsql_opt_param_is_enable(statement, g_instance->sql.enable_join_pred_pushdown, OPT_JOIN_PRED_PUSHDOWN) ||
+        is_same_table;
 }
 
 static bool32 og_pred_down_chk_subslct(cols_used_t *col_used_l, cols_used_t *col_used_r,
@@ -657,11 +660,15 @@ static bool32 og_pred_down_chk_cmp_node(sql_stmt_t *statement, sql_query_t *qry,
     return OG_TRUE;
 }
 
-static bool32 og_pred_down_check_cond_node(sql_stmt_t *statement, sql_query_t *qry, cond_node_t *cond_nd,
-                                                    sql_table_t *tbl, select_node_type_t sub_slct_node_type,
-                                                    bool32 *is_same_table)
+static bool32 og_pred_down_check_cond_node(pred_down_common_input_t *input, select_node_type_t sub_slct_node_type,
+    bool32 *is_same_table)
 {
+    sql_stmt_t *statement = input->statement;
+    sql_query_t *qry = input->qry;
+    cond_node_t *cond_nd = input->cond;
+    sql_table_t *tbl = input->tbl;
     CM_POINTER5(statement, qry, cond_nd, tbl, is_same_table);
+
     if (sql_stack_safe(statement) != OG_SUCCESS) {
         cm_reset_error();
         OG_LOG_DEBUG_ERR("[PRED_PUSH_DOWN]: Stack is not safe.");
@@ -672,11 +679,22 @@ static bool32 og_pred_down_check_cond_node(sql_stmt_t *statement, sql_query_t *q
         return og_pred_down_chk_cmp_node(statement, qry, cond_nd, tbl, sub_slct_node_type, is_same_table);
     }
 
+    pred_down_common_input_t l_input = {
+        .cond = cond_nd->left,
+        .qry = qry,
+        .statement = statement,
+        .tbl = tbl
+    };
+    pred_down_common_input_t r_input = {
+        .cond = cond_nd->right,
+        .qry = qry,
+        .statement = statement,
+        .tbl = tbl
+    };
+
     if (cond_nd->type == COND_NODE_OR || cond_nd->type == COND_NODE_AND) {
-        return og_pred_down_check_cond_node(statement, qry, cond_nd->left, tbl,
-                                                     sub_slct_node_type, is_same_table) &&
-               og_pred_down_check_cond_node(statement, qry, cond_nd->right, tbl,
-                                                     sub_slct_node_type, is_same_table);
+        return og_pred_down_check_cond_node(&l_input, sub_slct_node_type, is_same_table) &&
+               og_pred_down_check_cond_node(&r_input, sub_slct_node_type, is_same_table);
     }
     
     return OG_TRUE;
@@ -712,10 +730,13 @@ static inline status_t og_pred_down_pre_add_cond(sql_stmt_t *statement, cond_tre
 }
 
 // Core process of pushing down conditions
-static status_t og_pred_down_cond_node(sql_stmt_t *statement, sql_table_t *tbl, sql_query_t *qry,
-    pred_pushdown_helper_t* helper, cond_node_t *cond, cond_tree_t **push_down_cond_tree,
-    bool32 *has_need_del, bool32 is_same_table)
+static status_t og_pred_down_cond_node(pred_down_common_input_t *input, pred_pushdown_helper_t* helper,
+    cond_tree_t **push_down_cond_tree, bool32 *has_need_del, bool32 is_same_table)
 {
+    sql_stmt_t *statement = input->statement;
+    sql_table_t *tbl = input->tbl;
+    sql_query_t *qry = input->qry;
+    cond_node_t *cond = input->cond;
     CM_POINTER4(statement, helper, has_need_del, tbl);
     cond_node_t *new_cond = NULL;
     OG_RETURN_IFERR(sql_clone_cond_node(statement->context, cond, &new_cond, sql_alloc_mem));
@@ -737,16 +758,14 @@ static status_t og_pred_down_cond_node(sql_stmt_t *statement, sql_table_t *tbl, 
     return sql_add_cond_node(*push_down_cond_tree, new_cond);
 }
 
-static status_t og_pred_down_gen_cond(sql_stmt_t *statement, sql_table_t *tbl, sql_query_t *qry,
-    pred_pushdown_helper_t* helper, cond_node_t *cond, cond_tree_t **push_down_cond_tree,
-    bool32 *has_need_del)
+static status_t og_pred_down_gen_cond(pred_down_common_input_t *input, pred_pushdown_helper_t* helper,
+    cond_tree_t **push_down_cond_tree, bool32 *has_need_del)
 {
     CM_POINTER(helper);
     bool32 is_same_table = OG_TRUE;
-    if (og_pred_down_check_cond_node(statement, qry, cond, tbl,
-        helper->subslct_type, &is_same_table)) {
-        return og_pred_down_cond_node(statement, tbl, qry, helper, cond,
-                                               push_down_cond_tree, has_need_del, is_same_table);
+    if (og_pred_down_check_cond_node(input, helper->subslct_type, &is_same_table)) {
+        return og_pred_down_cond_node(input, helper, push_down_cond_tree,
+            has_need_del, is_same_table);
     }
     return OG_SUCCESS;
 }
@@ -773,9 +792,14 @@ static status_t og_collect_conds(sql_stmt_t *statement, galist_t *cond_lst, cond
 }
 
 // Collect and traverse all conditions to extract those that can be pushed down.
-static status_t og_pred_down_extract_cond(sql_stmt_t *statement, cond_node_t *orig_cond, sql_table_t *tbl,
-    sql_query_t *qry, pred_pushdown_helper_t *helper, cond_tree_t **tgt_cond_tree)
+static status_t og_pred_down_extract_cond(pred_down_common_input_t *input,
+    pred_pushdown_helper_t *helper, cond_tree_t **tgt_cond_tree)
 {
+    sql_stmt_t *statement = input->statement;
+    sql_table_t *tbl = input->tbl;
+    sql_query_t *qry = input->qry;
+    cond_node_t *orig_cond = input->cond;
+
     CM_POINTER2(orig_cond, statement);
     bool32 is_and_node = orig_cond->type == COND_NODE_AND;
 
@@ -798,8 +822,13 @@ static status_t og_pred_down_extract_cond(sql_stmt_t *statement, cond_node_t *or
     int cond_node_it = 0;
     while (cond_node_it < cond_lst->count) {
         cond = (cond_node_t *)cm_galist_get(cond_lst, cond_node_it++);
-        OG_RETURN_IFERR(og_pred_down_gen_cond(statement, tbl, qry, helper, cond,
-                                                       tgt_cond_tree, &has_need_del));
+        pred_down_common_input_t tmp_input = {
+            .cond = cond,
+            .qry = qry,
+            .statement = statement,
+            .tbl = tbl
+        };
+        OG_RETURN_IFERR(og_pred_down_gen_cond(&tmp_input, helper, tgt_cond_tree, &has_need_del));
     }
 
     if (is_and_node && has_need_del) {
@@ -818,8 +847,13 @@ static status_t og_predicate_push_down_to_query(sql_stmt_t *statement, cond_node
     cond_tree_t *tgt_cond_tree = NULL;
 
     helper->ssa_count = 0;
-    OG_RETURN_IFERR(og_pred_down_extract_cond(statement, cond_nd, tbl, sub_qry,
-        helper, &tgt_cond_tree));
+    pred_down_common_input_t input = {
+        .cond = cond_nd,
+        .qry = sub_qry,
+        .statement = statement,
+        .tbl = tbl
+    };
+    OG_RETURN_IFERR(og_pred_down_extract_cond(&input, helper, &tgt_cond_tree));
 
     if (tgt_cond_tree == NULL) {
         OG_LOG_DEBUG_INF("[PRED_PUSH_DOWN]: tgt_cond_tree is NULL, no possible predicates to push down");

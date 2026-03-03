@@ -26,10 +26,18 @@
 #ifndef __OGSQL_PREDICATE_PUSHDOWN_H__
 #define __OGSQL_PREDICATE_PUSHDOWN_H__
 #include "ogsql_stmt.h"
+#include "ogsql_cond.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct st_pred_down_common_input {
+    sql_stmt_t *statement;
+    cond_node_t *cond;
+    sql_table_t *tbl;
+    sql_query_t *qry;
+} pred_down_common_input_t;
 
 status_t og_transf_predicate_pushdown(sql_stmt_t *statement, sql_query_t *qry);
 

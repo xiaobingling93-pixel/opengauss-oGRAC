@@ -122,7 +122,7 @@ static status_t update_select_node_object(visit_assist_t *visit_ass, expr_node_t
 static status_t og_update_multi_set_pair(column_value_pair_t *col_val_pair, visit_assist_t *v_ast,
     uint32 pair_expr_idx)
 {
-    expr_tree_t *exprtr = (expr_tree_t *)cm_galist_get(col_val_pair->exprs, pair_expr_idx);;
+    expr_tree_t *exprtr = (expr_tree_t *)cm_galist_get(col_val_pair->exprs, pair_expr_idx);
     return visit_expr_node(v_ast, &exprtr->root, update_select_node_object);
 }
 
@@ -182,7 +182,7 @@ status_t sql_update_query_ssa(sql_stmt_t *statement, sql_query_t *query)
     if (statement->context->type == OGSQL_TYPE_UPDATE) {
         sql_update_t *upd = (sql_update_t *)statement->context->entry;
         OG_RETURN_IFERR(og_handle_update_col_val_pair_ssa(upd));
-    } 
+    }
     return OG_SUCCESS;
 }
 
