@@ -1,0 +1,906 @@
+
+
+SQL> DROP TABLE IF EXISTS PRED_DOWN_1;
+
+Succeed.
+
+SQL> CREATE TABLE PRED_DOWN_1(
+  2     c1 INT,
+  3     c2 VARCHAR(20),
+  4     c3 BOOLEAN,
+  5     c4 DECIMAL,
+  6     c5 CHAR(10),
+  7     c6 BINARY(10),
+  8     c7 DATETIME,
+  9     c8 FLOAT,
+ 10     c9 INT[],
+ 11     c10 INT
+ 12 );
+
+Succeed.
+
+SQL> DROP TABLE IF EXISTS PRED_DOWN_2;
+
+Succeed.
+
+SQL> CREATE TABLE PRED_DOWN_2(
+  2     c1 INT,
+  3     c2 VARCHAR(20),
+  4     c3 BOOLEAN,
+  5     c4 DECIMAL,
+  6     c5 CHAR(10),
+  7     c6 BINARY(10),
+  8     c7 DATETIME,
+  9     c8 FLOAT,
+ 10     c9 INT[],
+ 11     c10 INT
+ 12 );
+
+Succeed.
+
+SQL> DROP TABLE IF EXISTS PRED_DOWN_3;
+
+Succeed.
+
+SQL> CREATE TABLE PRED_DOWN_3(
+  2     c1 INT,
+  3     c2 VARCHAR(20),
+  4     c3 BOOLEAN,
+  5     c4 DECIMAL,
+  6     c5 CHAR(10),
+  7     c6 BINARY(10),
+  8     c7 DATETIME,
+  9     c8 FLOAT,
+ 10     c9 INT[],
+ 11     c10 INT
+ 12 );
+
+Succeed.
+
+SQL> 
+SQL> INSERT INTO PRED_DOWN_1 VALUES (1, 'AA', TRUE, 12.3, '王五', '101010', '2024-01-15 14:30:00', 1.1, '{1,2,3}', 10);
+
+1 rows affected.
+
+SQL> INSERT INTO PRED_DOWN_1 VALUES (2, 'BB', FALSE, 12.4, '张三', '010101', '2025-01-15 14:30:00', 1.1, '{1,2,3}', 10);
+
+1 rows affected.
+
+SQL> INSERT INTO PRED_DOWN_1 VALUES (3, 'CC', 0, 12.5, '张三', '010101', '2024-01-15 14:30:00', 2.1, '{1,2}', 10);
+
+1 rows affected.
+
+SQL> INSERT INTO PRED_DOWN_1 VALUES (4, 'DD', 1, 12.4, '李四', '010101', '2025-01-15 14:30:00', 2.1, '{1,2,3}', 10);
+
+1 rows affected.
+
+SQL> INSERT INTO PRED_DOWN_1 VALUES (5, 'AA', TRUE, 1.3, '王五', '101010', '2024-01-15 14:30:00', 3.1, '{1,2,3}', 10);
+
+1 rows affected.
+
+SQL> INSERT INTO PRED_DOWN_1 VALUES (6, 'DD', FALSE, 12.40, '王六', '101010', '2025-01-15 14:30:00', 3.1, '{1,2}', 10);
+
+1 rows affected.
+
+SQL> 
+SQL> INSERT INTO PRED_DOWN_2 VALUES (7, 'AA', TRUE, 12.3, '王五', '101010', '2024-01-15 14:30:00', 1.1, '{1,2,3}', 10);
+
+1 rows affected.
+
+SQL> INSERT INTO PRED_DOWN_2 VALUES (8, 'BB', FALSE, 12.4, '张三', '010101', '2025-01-15 14:30:00', 1.1, '{1,2,3}', 10);
+
+1 rows affected.
+
+SQL> INSERT INTO PRED_DOWN_2 VALUES (9, 'CC', 0, 12.5, '张三', '010101', '2024-01-15 14:30:00', 1.1, '{1,2}', 10);
+
+1 rows affected.
+
+SQL> 
+SQL> INSERT INTO PRED_DOWN_3 VALUES (11, 'AA', TRUE, 12.3, '王五', '101010', '2024-01-15 14:30:00', 1.1, NULL, 10);
+
+1 rows affected.
+
+SQL> INSERT INTO PRED_DOWN_3 VALUES (12, 'BB', FALSE, NULL, '张三', '010101', '2025-01-15 14:30:00', 1.1, '{1,2,3}', 10);
+
+1 rows affected.
+
+SQL> INSERT INTO PRED_DOWN_3 VALUES (13, 'CC', 0, 12.5, '张三', '010101', NULL, 1.1, NULL, 10);
+
+1 rows affected.
+
+SQL> 
+SQL> COMMIT;
+
+Succeed.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c1, COUNT(c2) FROM PRED_DOWN_1 GROUP BY c1 ORDER BY c1) WHERE c1 < 4;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |             | 3    | 27   | 8         |       |        |
+| 1  |     SUBSELECT                   | SYS   |             | 3    | 27   | 8         |       |        |
+| 2  |       QUERY SORT ORDER BY       |       |             | 3    | 27   | 8         |       |        |
+| 3  |         HASH DISTINCT           |       |             | 3    | 26   | 8         |       |        |
+| 4  |           HASH GROUP BY         |       |             | 3    | 18   | 8         |       |        |
+| 5  |               TABLE ACCESS FULL | SYS   | PRED_DOWN_1 | 3    | 1    | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: C1 < 4                                          
+
+13 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c1, COUNT(c2) FROM PRED_DOWN_1 GROUP BY c1 ORDER BY c1) WHERE c1 < 4;
+
+C1           COUNT(C2)           
+------------ --------------------
+1            1                   
+2            1                   
+3            1                   
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c1, SUM(c4) FROM PRED_DOWN_1 GROUP BY c1 ORDER BY c1) WHERE c1 < 4;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |             | 3    | 27   | 8         |       |        |
+| 1  |     SUBSELECT                   | SYS   |             | 3    | 27   | 8         |       |        |
+| 2  |       QUERY SORT ORDER BY       |       |             | 3    | 27   | 8         |       |        |
+| 3  |         HASH DISTINCT           |       |             | 3    | 26   | 8         |       |        |
+| 4  |           HASH GROUP BY         |       |             | 3    | 18   | 8         |       |        |
+| 5  |               TABLE ACCESS FULL | SYS   | PRED_DOWN_1 | 3    | 1    | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: C1 < 4                                          
+
+13 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c1, SUM(c4) FROM PRED_DOWN_1 GROUP BY c1 ORDER BY c1) WHERE c1 < 4;
+
+C1           SUM(C4)                                 
+------------ ----------------------------------------
+1            12.3                                    
+2            12.4                                    
+3            12.5                                    
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c1, AVG(c4) FROM PRED_DOWN_1 GROUP BY c1 ORDER BY c1) WHERE c1 < 4;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |             | 3    | 27   | 8         |       |        |
+| 1  |     SUBSELECT                   | SYS   |             | 3    | 27   | 8         |       |        |
+| 2  |       QUERY SORT ORDER BY       |       |             | 3    | 27   | 8         |       |        |
+| 3  |         HASH DISTINCT           |       |             | 3    | 26   | 8         |       |        |
+| 4  |           HASH GROUP BY         |       |             | 3    | 18   | 8         |       |        |
+| 5  |               TABLE ACCESS FULL | SYS   | PRED_DOWN_1 | 3    | 1    | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: C1 < 4                                          
+
+13 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c1, AVG(c4) FROM PRED_DOWN_1 GROUP BY c1 ORDER BY c1) WHERE c1 < 4;
+
+C1           AVG(C4)                                 
+------------ ----------------------------------------
+1            12.3                                    
+2            12.4                                    
+3            12.5                                    
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c1, MAX(c4) FROM PRED_DOWN_1 GROUP BY c1 ORDER BY c1) WHERE c1 < 4;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |             | 3    | 27   | 8         |       |        |
+| 1  |     SUBSELECT                   | SYS   |             | 3    | 27   | 8         |       |        |
+| 2  |       QUERY SORT ORDER BY       |       |             | 3    | 27   | 8         |       |        |
+| 3  |         HASH DISTINCT           |       |             | 3    | 26   | 8         |       |        |
+| 4  |           HASH GROUP BY         |       |             | 3    | 18   | 8         |       |        |
+| 5  |               TABLE ACCESS FULL | SYS   | PRED_DOWN_1 | 3    | 1    | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: C1 < 4                                          
+
+13 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c1, MAX(c4) FROM PRED_DOWN_1 GROUP BY c1 ORDER BY c1) WHERE c1 < 4;
+
+C1           MAX(C4)                                 
+------------ ----------------------------------------
+1            12.3                                    
+2            12.4                                    
+3            12.5                                    
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c1, MIN(c4) FROM PRED_DOWN_1 GROUP BY c1 ORDER BY c1) WHERE c1 < 4;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |             | 3    | 27   | 8         |       |        |
+| 1  |     SUBSELECT                   | SYS   |             | 3    | 27   | 8         |       |        |
+| 2  |       QUERY SORT ORDER BY       |       |             | 3    | 27   | 8         |       |        |
+| 3  |         HASH DISTINCT           |       |             | 3    | 26   | 8         |       |        |
+| 4  |           HASH GROUP BY         |       |             | 3    | 18   | 8         |       |        |
+| 5  |               TABLE ACCESS FULL | SYS   | PRED_DOWN_1 | 3    | 1    | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: C1 < 4                                          
+
+13 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c1, MIN(c4) FROM PRED_DOWN_1 GROUP BY c1 ORDER BY c1) WHERE c1 < 4;
+
+C1           MIN(C4)                                 
+------------ ----------------------------------------
+1            12.3                                    
+2            12.4                                    
+3            12.5                                    
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c1, ROW_NUMBER() OVER (ORDER BY c1) FROM PRED_DOWN_1) sub_q WHERE sub_q.c1 < 4;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |             | 6    | 9    | 0         |       |        |
+| 1  |     SUBSELECT                 | SYS   | SUB_Q       | 6    | 9    | 0         |       |        |
+| 2  |       HASH DISTINCT           |       |             | 6    | 9    | 0         |       |        |
+| 3  |         WINDOW SORT           |       |             | 6    | 1    | 0         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_1 | 6    | 1    | 0         |       |        |
+-------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - filter: SUB_Q.C1 < 4                                    
+
+12 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c1, ROW_NUMBER() OVER (ORDER BY c1) FROM PRED_DOWN_1) sub_q WHERE sub_q.c1 < 4;
+
+C1           ROW_NUMBER() OVER (ORDER BY C1)
+------------ -------------------------------
+1            1                              
+2            2                              
+3            3                              
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c1, c2, c5 FROM PRED_DOWN_1 GROUP BY c1, c2, c5) WHERE c1 < 4;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |             | 3    | 26   | 8         |       |        |
+| 1  |     SUBSELECT                 | SYS   |             | 3    | 26   | 8         |       |        |
+| 2  |       HASH DISTINCT           |       |             | 3    | 26   | 8         |       |        |
+| 3  |         HASH GROUP BY         |       |             | 3    | 18   | 8         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_1 | 3    | 1    | 0         |       |        |
+-------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: C1 < 4                                          
+
+12 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c1, c2, c5 FROM PRED_DOWN_1 GROUP BY c1, c2, c5) WHERE c1 < 4;
+
+C1           C2                   C5        
+------------ -------------------- ----------
+3            CC                   张三    
+1            AA                   王五    
+2            BB                   张三    
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c5, c3 FROM PRED_DOWN_1 UNION SELECT c5, c3 FROM PRED_DOWN_2) WHERE c3 = TRUE;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 5    | 2    | 0         |       |        |
+| 1  |     SUBSELECT               | SYS   |             | 5    | 2    | 0         |       |        |
+| 2  |       HASH UNION            |       |             | 5    | 2    | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | PRED_DOWN_1 | 3    | 1    | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | PRED_DOWN_2 | 2    | 1    | 0         |       |        |
+-----------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - filter: C3 = TRUE                                       
+    3 - filter: C3 = TRUE                                       
+    4 - filter: C3 = TRUE                                       
+
+14 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c5, c3 FROM PRED_DOWN_1 UNION SELECT c5, c3 FROM PRED_DOWN_2) WHERE c3 = TRUE;
+
+C5         C3    
+---------- ------
+王五     TRUE  
+李四     TRUE  
+
+2 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c5, c3 FROM PRED_DOWN_1 UNION ALL SELECT c5, c3 FROM PRED_DOWN_2) WHERE c3 = TRUE;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |             | 5    | 10   | 0         |       |        |
+| 1  |     SUBSELECT                 | SYS   |             | 5    | 10   | 0         |       |        |
+| 2  |       UNION ALL               |       |             | 5    | 10   | 0         |       |        |
+| 3  |         HASH DISTINCT         |       |             | 3    | 9    | 0         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_1 | 3    | 1    | 0         |       |        |
+| 5  |           TABLE ACCESS FULL   | SYS   | PRED_DOWN_2 | 2    | 1    | 0         |       |        |
+-------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - filter: PRED_DOWN_1.C3 = TRUE                           
+    4 - filter: C3 = TRUE                                       
+    5 - filter: C3 = TRUE                                       
+
+15 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c5, c3 FROM PRED_DOWN_1 UNION ALL SELECT c5, c3 FROM PRED_DOWN_2) WHERE c3 = TRUE;
+
+C5         C3    
+---------- ------
+王五     TRUE  
+李四     TRUE  
+王五     TRUE  
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c2 FROM PRED_DOWN_1) WHERE c2 = 'AA';
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 2    | 9    | 0         |       |        |
+| 1  |     SUBSELECT               | SYS   |             | 2    | 9    | 0         |       |        |
+| 2  |       HASH DISTINCT         |       |             | 2    | 9    | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | PRED_DOWN_1 | 2    | 1    | 0         |       |        |
+-----------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: C2 = 'AA'                                       
+
+11 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c2 FROM PRED_DOWN_1) WHERE c2 = 'AA';
+
+C2                  
+--------------------
+AA                  
+
+1 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c2, c1 FROM PRED_DOWN_1) WHERE c1 > 0;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 6    | 9    | 0         |       |        |
+| 1  |     SUBSELECT               | SYS   |             | 6    | 9    | 0         |       |        |
+| 2  |       HASH DISTINCT         |       |             | 6    | 9    | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | PRED_DOWN_1 | 6    | 1    | 0         |       |        |
+-----------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: C1 > 0                                          
+
+11 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c2, c1 FROM PRED_DOWN_1) WHERE c1 > 0;
+
+C2                   C1          
+-------------------- ------------
+AA                   1           
+BB                   2           
+CC                   3           
+DD                   4           
+AA                   5           
+DD                   6           
+
+6 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c1, c2, c3 FROM (SELECT DISTINCT c1, c2, c3, c4 FROM PRED_DOWN_1 WHERE c1 < 3) sub_q2 WHERE c3=TRUE) sub_q1 WHERE c2 = 'AA';
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------
+| Id | Operation                         | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                  |       |             | 1    | 17   | 0         |       |        |
+| 1  |     SUBSELECT                     | SYS   | SUB_Q1      | 1    | 17   | 0         |       |        |
+| 2  |       HASH DISTINCT               |       |             | 1    | 17   | 0         |       |        |
+| 3  |           SUBSELECT               | SYS   | SUB_Q2      | 1    | 9    | 0         |       |        |
+| 4  |             HASH DISTINCT         |       |             | 1    | 9    | 0         |       |        |
+| 5  |                 TABLE ACCESS FULL | SYS   | PRED_DOWN_1 | 1    | 1    | 0         |       |        |
+-----------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: C1 < 3 AND C3 = TRUE AND C2 = 'AA'              
+
+13 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c1, c2, c3 FROM (SELECT DISTINCT c1, c2, c3, c4 FROM PRED_DOWN_1 WHERE c1 < 3) sub_q2 WHERE c3=TRUE) sub_q1 WHERE c2 = 'AA';
+
+C1           C2                   C3    
+------------ -------------------- ------
+1            AA                   TRUE  
+
+1 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM PRED_DOWN_1 t1 JOIN (SELECT c1 AS c1_2, c2 as c2_2 FROM PRED_DOWN_2 limit 10) sub_q
+  2     ON t1.c1 = sub_q.c1_2 WHERE sub_q.c1_2 < 5;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name           | Rows | Cost | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |                | 1    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN                  |       |                | 1    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL       | SYS   | PRED_DOWN_1 T1 | 6    | 1    | 0         |       |        |
+| 3  |       SUBSELECT               | SYS   | SUB_Q          | 3    | 1    | 0         |       |        |
+| 4  |         QUERY LIMIT           |       |                | 3    | 2    | 0         |       |        |
+| 5  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_2    | 3    | 1    | 0         |       |        |
+----------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C1 = SUB_Q.C1_2                              
+    3 - filter: SUB_Q.C1_2 < 5                                  
+
+14 rows fetched.
+
+SQL> SELECT * FROM PRED_DOWN_1 t1 JOIN (SELECT c1 AS c1_2, c2 as c2_2 FROM PRED_DOWN_2 limit 10) sub_q
+  2     ON t1.c1 = sub_q.c1_2 WHERE sub_q.c1_2 < 5;
+
+C1           C2                   C3     C4                                       C5         C6                                                               C7                     C8                   C9                                                               C10          C1_2         C2_2                
+------------ -------------------- ------ ---------------------------------------- ---------- ---------------------------------------------------------------- ---------------------- -------------------- ---------------------------------------------------------------- ------------ ------------ --------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM PRED_DOWN_1 t1 JOIN (SELECT c1 AS c1_2, c2 as c2_2 FROM PRED_DOWN_2 t2 GROUP BY grouping sets(c1, c2)) sub_q
+  2     ON t1.c1 = sub_q.c1_2 WHERE sub_q.c1_2 < 5;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name           | Rows | Cost | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |                | 1    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN                  |       |                | 1    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL       | SYS   | PRED_DOWN_1 T1 | 6    | 1    | 0         |       |        |
+| 3  |       SUBSELECT               | SYS   | SUB_Q          | 3    | 1    | 0         |       |        |
+| 4  |         HASH GROUP BY         |       |                | 3    | 18   | 8         |       |        |
+| 5  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_2 T2 | 3    | 1    | 0         |       |        |
+----------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C1 = SUB_Q.C1_2                              
+    3 - filter: SUB_Q.C1_2 < 5                                  
+
+14 rows fetched.
+
+SQL> SELECT * FROM PRED_DOWN_1 t1 JOIN (SELECT c1 AS c1_2, c2 as c2_2 FROM PRED_DOWN_2 t2 GROUP BY grouping sets(c1, c2)) sub_q
+  2     ON t1.c1 = sub_q.c1_2 WHERE sub_q.c1_2 < 5;
+
+C1           C2                   C3     C4                                       C5         C6                                                               C7                     C8                   C9                                                               C10          C1_2         C2_2                
+------------ -------------------- ------ ---------------------------------------- ---------- ---------------------------------------------------------------- ---------------------- -------------------- ---------------------------------------------------------------- ------------ ------------ --------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM PRED_DOWN_1 t1 JOIN (SELECT c1 AS c1_2, c2 as c2_2 FROM PRED_DOWN_2 t2 GROUP BY CUBE(c1, c2)) sub_q
+  2     ON t1.c1 = sub_q.c1_2 WHERE sub_q.c1_2 < 5;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name           | Rows | Cost | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |                | 1    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN                  |       |                | 1    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL       | SYS   | PRED_DOWN_1 T1 | 6    | 1    | 0         |       |        |
+| 3  |       SUBSELECT               | SYS   | SUB_Q          | 3    | 1    | 0         |       |        |
+| 4  |         HASH GROUP BY         |       |                | 3    | 18   | 8         |       |        |
+| 5  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_2 T2 | 3    | 1    | 0         |       |        |
+----------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C1 = SUB_Q.C1_2                              
+    3 - filter: SUB_Q.C1_2 < 5                                  
+
+14 rows fetched.
+
+SQL> SELECT * FROM PRED_DOWN_1 t1 JOIN (SELECT c1 AS c1_2, c2 as c2_2 FROM PRED_DOWN_2 t2 GROUP BY CUBE(c1, c2)) sub_q
+  2     ON t1.c1 = sub_q.c1_2 WHERE sub_q.c1_2 < 5;
+
+C1           C2                   C3     C4                                       C5         C6                                                               C7                     C8                   C9                                                               C10          C1_2         C2_2                
+------------ -------------------- ------ ---------------------------------------- ---------- ---------------------------------------------------------------- ---------------------- -------------------- ---------------------------------------------------------------- ------------ ------------ --------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM PRED_DOWN_1 t1 JOIN (SELECT c1 AS c1_2, c2 as c2_2 FROM PRED_DOWN_2 t2 GROUP BY ROLLUP(c1, c2)) sub_q
+  2     ON t1.c1 = sub_q.c1_2 WHERE sub_q.c1_2 < 5;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name           | Rows | Cost | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |                | 1    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN                  |       |                | 1    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL       | SYS   | PRED_DOWN_1 T1 | 6    | 1    | 0         |       |        |
+| 3  |       SUBSELECT               | SYS   | SUB_Q          | 3    | 1    | 0         |       |        |
+| 4  |         HASH GROUP BY         |       |                | 3    | 18   | 8         |       |        |
+| 5  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_2 T2 | 3    | 1    | 0         |       |        |
+----------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C1 = SUB_Q.C1_2                              
+    3 - filter: SUB_Q.C1_2 < 5                                  
+
+14 rows fetched.
+
+SQL> SELECT * FROM PRED_DOWN_1 t1 JOIN (SELECT c1 AS c1_2, c2 as c2_2 FROM PRED_DOWN_2 t2 GROUP BY ROLLUP(c1, c2)) sub_q
+  2     ON t1.c1 = sub_q.c1_2 WHERE sub_q.c1_2 < 5;
+
+C1           C2                   C3     C4                                       C5         C6                                                               C7                     C8                   C9                                                               C10          C1_2         C2_2                
+------------ -------------------- ------ ---------------------------------------- ---------- ---------------------------------------------------------------- ---------------------- -------------------- ---------------------------------------------------------------- ------------ ------------ --------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT c2, c3 FROM PRED_DOWN_2  START WITH c2 = 'AA' CONNECT BY PRIOR c1 > c1) sub_q WHERE sub_q.c3 = TRUE;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 0    | 0    | 0         |       |        |
+| 1  |     SUBSELECT               | SYS   | SUB_Q       | 0    | 0    | 0         |       |        |
+| 2  |       START WITH            |       |             | 0    | 0    | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | PRED_DOWN_2 | 1    | 1    | 0         |       |        |
+| 4  |       CONNECT BY            |       |             | 0    | 0    | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | PRED_DOWN_2 | 3    | 1    | 0         |       |        |
+-----------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - filter: SUB_Q.C3 = TRUE                                 
+    2 - filter: C2 = 'AA'                                       
+    3 - filter: C2 = 'AA'                                       
+    4 - filter: PRIOR C1 > C1                                   
+
+16 rows fetched.
+
+SQL> SELECT * FROM (SELECT c2, c3 FROM PRED_DOWN_2  START WITH c2 = 'AA' CONNECT BY PRIOR c1 > c1) sub_q WHERE sub_q.c3 = TRUE;
+
+C2                   C3    
+-------------------- ------
+AA                   TRUE  
+
+1 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM PRED_DOWN_1 t1 JOIN (SELECT COUNT(c1) AS c1_2, COUNT(c2) as c2_2 FROM PRED_DOWN_2 t2) sub_q
+  2     ON t1.c1 = sub_q.c1_2 WHERE sub_q.c1_2 < 5;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name           | Rows | Cost | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |                | 1    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN                  |       |                | 1    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL       | SYS   | PRED_DOWN_1 T1 | 6    | 1    | 0         |       |        |
+| 3  |       SUBSELECT               | SYS   | SUB_Q          | 3    | 1    | 0         |       |        |
+| 4  |         AGGR                  |       |                | 1    | 1    | 0         |       |        |
+| 5  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_2 T2 | 3    | 1    | 0         |       |        |
+----------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C1 = SUB_Q.C1_2                              
+    3 - filter: SUB_Q.C1_2 < 5                                  
+
+14 rows fetched.
+
+SQL> SELECT * FROM PRED_DOWN_1 t1 JOIN (SELECT COUNT(c1) AS c1_2, COUNT(c2) as c2_2 FROM PRED_DOWN_2 t2) sub_q
+  2     ON t1.c1 = sub_q.c1_2 WHERE sub_q.c1_2 < 5;
+
+C1           C2                   C3     C4                                       C5         C6                                                               C7                     C8                   C9                                                               C10          C1_2                 C2_2                
+------------ -------------------- ------ ---------------------------------------- ---------- ---------------------------------------------------------------- ---------------------- -------------------- ---------------------------------------------------------------- ------------ -------------------- --------------------
+3            CC                   FALSE  12.5                                     张三     010101                                                           2024-01-15 14:30:00    2.1                  {1,2}                                                            10           3                    3                   
+
+1 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM PRED_DOWN_1 t1 JOIN (SELECT c1 AS c1_2, c2 as c2_2 FROM PRED_DOWN_2 t2 WHERE rownum < 10) sub_q
+  2     ON t1.c1 = sub_q.c1_2 WHERE sub_q.c1_2 < 5;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name           | Rows | Cost | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |                | 1    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN                  |       |                | 1    | 2    | 2         |       |        |
+| 2  |       TABLE ACCESS FULL       | SYS   | PRED_DOWN_1 T1 | 6    | 1    | 0         |       |        |
+| 3  |       SUBSELECT               | SYS   | SUB_Q          | 3    | 1    | 0         |       |        |
+| 4  |         ROWNUM FILTER         |       |                | 3    | 1    | 0         |       |        |
+| 5  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_2 T2 | 3    | 1    | 0         |       |        |
+----------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T1.C1 = SUB_Q.C1_2                              
+    3 - filter: SUB_Q.C1_2 < 5                                  
+    4 - filter: ROWNUM < 10                                     
+
+15 rows fetched.
+
+SQL> SELECT * FROM PRED_DOWN_1 t1 JOIN (SELECT c1 AS c1_2, c2 as c2_2 FROM PRED_DOWN_2 t2 WHERE rownum < 10) sub_q
+  2     ON t1.c1 = sub_q.c1_2 WHERE sub_q.c1_2 < 5;
+
+C1           C2                   C3     C4                                       C5         C6                                                               C7                     C8                   C9                                                               C10          C1_2         C2_2                
+------------ -------------------- ------ ---------------------------------------- ---------- ---------------------------------------------------------------- ---------------------- -------------------- ---------------------------------------------------------------- ------------ ------------ --------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c1, c2 FROM PRED_DOWN_1 t1) sub_q1
+  2     INNER JOIN (SELECT DISTINCT c1, c2 FROM PRED_DOWN_2 t2) sub_q2 ON sub_q1.c1 = sub_q2.c1 WHERE sub_q1.c1 > 0;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name           | Rows | Cost | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |                | 1    | 4    | 0         |       |        |
+| 1  |   NESTED LOOPS                |       |                | 1    | 4    | 0         |       |        |
+| 2  |       SUBSELECT               | SYS   | SUB_Q2         | 3    | 1    | 0         |       |        |
+| 3  |         HASH DISTINCT         |       |                | 3    | 9    | 0         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_2 T2 | 3    | 1    | 0         |       |        |
+| 5  |       SUBSELECT               | SYS   | SUB_Q1         | 1    | 1    | 0         |       |        |
+| 6  |         HASH DISTINCT         |       |                | 1    | 9    | 0         |       |        |
+| 7  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_1 T1 | 1    | 1    | 0         |       |        |
+----------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    7 - filter: T1.C1 > 0 AND T1.C1 = SUB_Q2.C1                 
+
+15 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c1, c2 FROM PRED_DOWN_1 t1) sub_q1
+  2     INNER JOIN (SELECT DISTINCT c1, c2 FROM PRED_DOWN_2 t2) sub_q2 ON sub_q1.c1 = sub_q2.c1 WHERE sub_q1.c1 > 0;
+
+C1           C2                   C1           C2                  
+------------ -------------------- ------------ --------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c1, c2 FROM PRED_DOWN_1 t1) sub_q1
+  2     INNER JOIN (SELECT DISTINCT c1, c2 FROM PRED_DOWN_2 t2) sub_q2 ON sub_q1.c1 = sub_q2.c1 WHERE sub_q2.c1 > 0;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name           | Rows | Cost | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |                | 1    | 4    | 0         |       |        |
+| 1  |   NESTED LOOPS                |       |                | 1    | 4    | 0         |       |        |
+| 2  |       SUBSELECT               | SYS   | SUB_Q2         | 3    | 1    | 0         |       |        |
+| 3  |         HASH DISTINCT         |       |                | 3    | 9    | 0         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_2 T2 | 3    | 1    | 0         |       |        |
+| 5  |       SUBSELECT               | SYS   | SUB_Q1         | 1    | 1    | 0         |       |        |
+| 6  |         HASH DISTINCT         |       |                | 1    | 9    | 0         |       |        |
+| 7  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_1 T1 | 1    | 1    | 0         |       |        |
+----------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: T2.C1 > 0                                       
+    7 - filter: T1.C1 = SUB_Q2.C1                               
+
+16 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c1, c2 FROM PRED_DOWN_1 t1) sub_q1
+  2     INNER JOIN (SELECT DISTINCT c1, c2 FROM PRED_DOWN_2 t2) sub_q2 ON sub_q1.c1 = sub_q2.c1 WHERE sub_q2.c1 > 0;
+
+C1           C2                   C1           C2                  
+------------ -------------------- ------------ --------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c1, c2 FROM PRED_DOWN_1 t1) sub_q1
+  2     LEFT JOIN (SELECT DISTINCT c1, c2 FROM PRED_DOWN_2 t2) sub_q2 ON sub_q1.c1 = sub_q2.c1 WHERE sub_q1.c1 > 0;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name           | Rows | Cost | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |                | 6    | 7    | 0         |       |        |
+| 1  |   NESTED LOOPS OUTER          |       |                | 6    | 7    | 0         |       |        |
+| 2  |       SUBSELECT               | SYS   | SUB_Q1         | 6    | 1    | 0         |       |        |
+| 3  |         HASH DISTINCT         |       |                | 6    | 9    | 0         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_1 T1 | 6    | 1    | 0         |       |        |
+| 5  |       SUBSELECT               | SYS   | SUB_Q2         | 1    | 1    | 0         |       |        |
+| 6  |         HASH DISTINCT         |       |                | 1    | 9    | 0         |       |        |
+| 7  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_2 T2 | 1    | 1    | 0         |       |        |
+----------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: SUB_Q1.C1 > 0                                   
+    5 - filter: SUB_Q1.C1 > 0 AND SUB_Q1.C1 = SUB_Q2.C1         
+    7 - filter: SUB_Q1.C1 = T2.C1                               
+
+17 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c1, c2 FROM PRED_DOWN_1 t1) sub_q1
+  2     LEFT JOIN (SELECT DISTINCT c1, c2 FROM PRED_DOWN_2 t2) sub_q2 ON sub_q1.c1 = sub_q2.c1 WHERE sub_q1.c1 > 0;
+
+C1           C2                   C1           C2                  
+------------ -------------------- ------------ --------------------
+1            AA                                                    
+2            BB                                                    
+3            CC                                                    
+4            DD                                                    
+5            AA                                                    
+6            DD                                                    
+
+6 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c1, c2 FROM PRED_DOWN_1 t1) sub_q1
+  2     LEFT JOIN (SELECT DISTINCT c1, c2 FROM PRED_DOWN_2 t2) sub_q2 ON sub_q1.c1 = sub_q2.c1 WHERE sub_q2.c1 > 0;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name           | Rows | Cost | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |                | 6    | 7    | 0         |       |        |
+| 1  |   NESTED LOOPS OUTER          |       |                | 6    | 7    | 0         |       |        |
+| 2  |       SUBSELECT               | SYS   | SUB_Q1         | 6    | 1    | 0         |       |        |
+| 3  |         HASH DISTINCT         |       |                | 6    | 9    | 0         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_1 T1 | 6    | 1    | 0         |       |        |
+| 5  |       SUBSELECT               | SYS   | SUB_Q2         | 1    | 1    | 0         |       |        |
+| 6  |         HASH DISTINCT         |       |                | 1    | 9    | 0         |       |        |
+| 7  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_2 T2 | 1    | 1    | 0         |       |        |
+----------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: SUB_Q2.C1 > 0                                   
+    7 - filter: SUB_Q1.C1 = T2.C1                               
+
+16 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c1, c2 FROM PRED_DOWN_1 t1) sub_q1
+  2     LEFT JOIN (SELECT DISTINCT c1, c2 FROM PRED_DOWN_2 t2) sub_q2 ON sub_q1.c1 = sub_q2.c1 WHERE sub_q2.c1 > 0;
+
+C1           C2                   C1           C2                  
+------------ -------------------- ------------ --------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c1 FROM PRED_DOWN_1) subq WHERE subq.c1 = (SELECT MAX(c1) FROM PRED_DOWN_1);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |             | 1    | 9    | 0         |       |        |
+| 1  |     SUBSELECT                   | SYS   | SUBQ        | 1    | 9    | 0         |       |        |
+| 2  |       HASH DISTINCT             |       |             | 1    | 9    | 0         |       |        |
+| 3  |         KERNEL FILTER           |       |             | 1    | 1    | 0         |       |        |
+| 4  |           TABLE ACCESS FULL     | SYS   | PRED_DOWN_1 | 1    | 1    | 0         |       |        |
+| 5  |           AGGR                  |       |             | 1    | 1    | 0         |       |        |
+| 6  |               TABLE ACCESS FULL | SYS   | PRED_DOWN_1 | 6    | 1    | 0         |       |        |
+---------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: PRED_DOWN_1.C1 = (SELECT MAX(C1) FROM PRED_DOWN_1)
+
+14 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c1 FROM PRED_DOWN_1) subq WHERE subq.c1 = (SELECT MAX(c1) FROM PRED_DOWN_1);
+
+C1          
+------------
+6           
+
+1 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c1, c2, c10 FROM PRED_DOWN_1) WHERE c1 + c10 > 0;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 6    | 9    | 0         |       |        |
+| 1  |     SUBSELECT               | SYS   |             | 6    | 9    | 0         |       |        |
+| 2  |       HASH DISTINCT         |       |             | 6    | 9    | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | PRED_DOWN_1 | 6    | 1    | 0         |       |        |
+-----------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: C1 + C10 > 0                                    
+
+11 rows fetched.
+
+SQL> SELECT * FROM (SELECT DISTINCT c1, c2, c10 FROM PRED_DOWN_1) WHERE c1 + c10 > 0;
+
+C1           C2                   C10         
+------------ -------------------- ------------
+1            AA                   10          
+2            BB                   10          
+3            CC                   10          
+4            DD                   10          
+5            AA                   10          
+6            DD                   10          
+
+6 rows fetched.
+
+SQL> 
+SQL> 
+
+

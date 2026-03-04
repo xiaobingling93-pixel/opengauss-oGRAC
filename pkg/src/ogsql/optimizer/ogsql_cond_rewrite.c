@@ -29,6 +29,7 @@
 #include "dml_parser.h"
 #include "plan_rbo.h"
 #include "plan_range.h"
+#include "ogsql_optim_common.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -118,10 +119,39 @@ static status_t update_select_node_object(visit_assist_t *visit_ass, expr_node_t
     return OG_SUCCESS;
 }
 
-status_t sql_update_query_ssa(sql_query_t *query)
+static status_t og_update_multi_set_pair(column_value_pair_t *col_val_pair, visit_assist_t *v_ast,
+    uint32 pair_expr_idx)
+{
+    expr_tree_t *exprtr = (expr_tree_t *)cm_galist_get(col_val_pair->exprs, pair_expr_idx);
+    return visit_expr_node(v_ast, &exprtr->root, update_select_node_object);
+}
+
+static status_t og_handle_update_col_val_pair_ssa(sql_update_t *upd)
+{
+    OG_RETVALUE_IFTRUE(upd->pairs == NULL, OG_ERROR);
+    visit_assist_t v_ast = { 0 };
+    sql_init_visit_assist(&v_ast, NULL, upd->query);
+    column_value_pair_t *col_val_pair = (column_value_pair_t *)cm_galist_get(upd->pairs, 0);
+    if (col_val_pair->rs_no > 0) {
+        return og_update_multi_set_pair(col_val_pair, &v_ast, 0);
+    }
+    uint32 pair_idx = 0;
+    while (pair_idx < upd->pairs->count) {
+        col_val_pair = (column_value_pair_t *)cm_galist_get(upd->pairs, pair_idx);
+        pair_idx++;
+        uint32 expr_idx = 0;
+        while (expr_idx < col_val_pair->exprs->count) {
+            OG_RETURN_IFERR(og_update_multi_set_pair(col_val_pair, &v_ast, expr_idx));
+            expr_idx++;
+        }
+    }
+    return OG_SUCCESS;
+}
+
+status_t sql_update_query_ssa(sql_stmt_t *statement, sql_query_t *query)
 {
     visit_assist_t visit_ass;
-    sql_init_visit_assist(&visit_ass, NULL, query);
+    sql_init_visit_assist(&visit_ass, statement, query);
     if (query->cond != NULL) {
         OG_RETURN_IFERR(visit_cond_node(&visit_ass, query->cond->root, update_select_node_object));
     }
@@ -147,6 +177,11 @@ status_t sql_update_query_ssa(sql_query_t *query)
     for (uint32 i = 0; i < query->aggrs->count; i++) {
         expr_node_t *node = (expr_node_t *)cm_galist_get(query->aggrs, i);
         OG_RETURN_IFERR(visit_expr_node(&visit_ass, &node, update_select_node_object));
+    }
+
+    if (statement->context->type == OGSQL_TYPE_UPDATE) {
+        sql_update_t *upd = (sql_update_t *)statement->context->entry;
+        OG_RETURN_IFERR(og_handle_update_col_val_pair_ssa(upd));
     }
     return OG_SUCCESS;
 }

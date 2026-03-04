@@ -43,8 +43,10 @@ typedef status_t (*sql_hint_verifier_func)(sql_hint_verifier_t *verif, hint_item
                                           hint_info_t *query_hint_info);
 
 typedef enum en_opt_param_id {
+    OPT_FILTER_PUSHDOWN,
     OPT_DYNAMIC_SAMPLING,
     OPT_HASH_MATERIALIZE,
+    OPT_JOIN_PRED_PUSHDOWN,
     OPT_ORDER_BY_ELIMINATION,
     OPT_PRED_REORDER,
     OPT_PARAM_COUNT,

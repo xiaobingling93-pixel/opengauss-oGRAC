@@ -218,6 +218,7 @@ status_t srv_load_optim_params(void)
     OG_RETURN_IFERR(srv_get_param_bool32("ENABLE_NESTLOOP_JOIN", &sql->enable_nestloop_join));
     OG_RETURN_IFERR(srv_get_param_bool32("ENABLE_HASH_JOIN", &sql->enable_hash_join));
     OG_RETURN_IFERR(srv_get_param_bool32("ENABLE_MERGE_JOIN", &sql->enable_merge_join));
+    OG_RETURN_IFERR(srv_get_param_bool32("_OPTIM_PRED_PUSHDOWN", &sql->enable_pred_pushdown));
     OG_RETURN_IFERR(srv_get_param_bool32("CBO_HINT_ENABLED", &g_instance->sql.enable_cbo_hint));
     OG_RETURN_IFERR(srv_get_param_bool32("USE_BISON_PARSER", &sql->use_bison_parser));
     OG_RETURN_IFERR(srv_get_cbo_param(sql));

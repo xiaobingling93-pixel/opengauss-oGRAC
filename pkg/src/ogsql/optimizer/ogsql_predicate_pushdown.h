@@ -1,0 +1,48 @@
+/*
+ * Copyright (c) 2024 Huawei Technologies Co., Ltd. All rights reserved.
+ * This file is part of the oGRAC project.
+ *
+ * oGRAC is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *          http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * -------------------------------------------------------------------------
+ *
+ * ogsql_predicate_pushdown.h
+ *
+ *
+ * IDENTIFICATION
+ * src/ogsql/optimizer/ogsql_predicate_pushdown.h
+ *
+ * -------------------------------------------------------------------------
+ */
+
+#ifndef __OGSQL_PREDICATE_PUSHDOWN_H__
+#define __OGSQL_PREDICATE_PUSHDOWN_H__
+#include "ogsql_stmt.h"
+#include "ogsql_cond.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct st_pred_down_common_input {
+    sql_stmt_t *statement;
+    cond_node_t *cond;
+    sql_table_t *tbl;
+    sql_query_t *qry;
+} pred_down_common_input_t;
+
+status_t og_transf_predicate_pushdown(sql_stmt_t *statement, sql_query_t *qry);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

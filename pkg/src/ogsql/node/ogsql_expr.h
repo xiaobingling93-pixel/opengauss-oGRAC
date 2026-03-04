@@ -50,6 +50,7 @@ static inline og_type_t sql_get_func_arg2_datatype(const expr_node_t *func_node)
 }
 
 void sql_init_visit_assist(visit_assist_t *visit_ass, sql_stmt_t *stmt, sql_query_t *query);
+void sql_set_vst_param(visit_assist_t *v_ast, void *p0, void *p1, void *p2);
 const text_t *sql_get_nodetype_text(expr_node_type_t node_type);
 typedef status_t (*visit_func_t)(visit_assist_t *va, expr_node_t **node);
 status_t visit_expr_node(visit_assist_t *visit_ass, expr_node_t **node, visit_func_t visit_func);
