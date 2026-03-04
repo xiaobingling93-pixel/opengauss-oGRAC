@@ -139,6 +139,7 @@ typedef struct st_sql_instance {
     bool32 enable_or_expand;
     bool32 enable_project_list_pruning;
     bool32 enable_pred_move_around;
+    bool32 enable_pred_delivery;
     bool32 enable_hash_mtrl;
     bool32 enable_winmagic_rewrite;
     bool32 enable_pred_reorder;

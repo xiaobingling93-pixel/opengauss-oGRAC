@@ -186,7 +186,7 @@ status_t sql_update_query_ssa(sql_stmt_t *statement, sql_query_t *query)
     return OG_SUCCESS;
 }
 
-static inline uint32 sql_get_func_table_column_count(sql_stmt_t *stmt, sql_table_t *table)
+uint32 sql_get_func_table_column_count(sql_stmt_t *stmt, sql_table_t *table)
 {
     plv_collection_t *plv_coll = NULL;
     if (cm_text_str_equal(&table->func.name, "CAST")) {
@@ -233,7 +233,7 @@ static inline status_t sql_init_dlvr_pair(sql_stmt_t *stmt, sql_query_t *query, 
     return OG_SUCCESS;
 }
 
-static inline bool32 if_dlvr_border_equal(sql_stmt_t *stmt, plan_border_t *border1, plan_border_t *border2)
+bool32 if_dlvr_border_equal(sql_stmt_t *stmt, plan_border_t *border1, plan_border_t *border2)
 {
     if (border1->type != border2->type || border1->closed != border2->closed) {
         return OG_FALSE;
@@ -241,7 +241,7 @@ static inline bool32 if_dlvr_border_equal(sql_stmt_t *stmt, plan_border_t *borde
     return sql_expr_tree_equal(stmt, border1->expr, border2->expr, NULL);
 }
 
-static bool32 if_dlvr_range_equal(sql_stmt_t *stmt, plan_range_t *range1, plan_range_t *range2)
+bool32 if_dlvr_range_equal(sql_stmt_t *stmt, plan_range_t *range1, plan_range_t *range2)
 {
     if (range1->type != range2->type) {
         return OG_FALSE;
@@ -368,8 +368,7 @@ static inline bool32 sql_dlvr_inter_border(sql_stmt_t *stmt, plan_border_t *bord
     return sql_inter_const_range(stmt, border1, border2, is_left, result);
 }
 
-static inline bool32 sql_dlvr_inter_range(sql_stmt_t *stmt, plan_range_t *range1, plan_range_t *range2,
-    plan_range_t *result)
+bool32 sql_dlvr_inter_range(sql_stmt_t *stmt, plan_range_t *range1, plan_range_t *range2, plan_range_t *result)
 {
     if (!sql_dlvr_inter_border(stmt, &range1->left, &range2->left, BORDER_INFINITE_LEFT, &result->left, OG_TRUE)) {
         return OG_FALSE;
@@ -643,12 +642,12 @@ static inline bool32 has_semi_in_expr(sql_query_t *query, expr_tree_t *expr)
     return OG_TRUE;
 }
 
-static inline bool32 has_semi_in_cmp_node(sql_query_t *query, cmp_node_t *cmp)
+bool32 has_semi_in_cmp_node(sql_query_t *query, cmp_node_t *cmp)
 {
     return (bool32)(has_semi_in_expr(query, cmp->left) || has_semi_in_expr(query, cmp->right));
 }
 
-static status_t expr_node_is_dlvr_value(visit_assist_t *visit_ass, expr_node_t **node)
+status_t expr_node_is_dlvr_value(visit_assist_t *visit_ass, expr_node_t **node)
 {
     switch ((*node)->type) {
         case EXPR_NODE_PARAM:
@@ -680,7 +679,7 @@ static status_t expr_node_is_dlvr_value(visit_assist_t *visit_ass, expr_node_t *
     return OG_SUCCESS;
 }
 
-static inline status_t expr_tree_is_dlvr_value(sql_stmt_t *stmt, expr_tree_t *expr_tree, bool32 *is_dlvr)
+status_t expr_tree_is_dlvr_value(sql_stmt_t *stmt, expr_tree_t *expr_tree, bool32 *is_dlvr)
 {
     visit_assist_t visit_ass;
     sql_init_visit_assist(&visit_ass, stmt, NULL);
@@ -690,7 +689,7 @@ static inline status_t expr_tree_is_dlvr_value(sql_stmt_t *stmt, expr_tree_t *ex
     return OG_SUCCESS;
 }
 
-static inline status_t pre_generate_dlvr_cond(sql_stmt_t *stmt, expr_tree_t *column, cond_node_t **node)
+status_t pre_generate_dlvr_cond(sql_stmt_t *stmt, expr_tree_t *column, cond_node_t **node)
 {
     OG_RETURN_IFERR(sql_alloc_mem(stmt->context, sizeof(cond_node_t), (void **)node));
     OG_RETURN_IFERR(sql_alloc_mem(stmt->context, sizeof(cmp_node_t), (void **)&(*node)->cmp));
@@ -777,7 +776,7 @@ static inline status_t generate_range_section_cond(sql_stmt_t *stmt, expr_tree_t
     return sql_add_cond_node_left(cond, node);
 }
 
-static inline status_t sql_generate_fv_cond(sql_stmt_t *stmt, expr_tree_t *left, plan_range_t *range, cond_tree_t *cond)
+status_t sql_generate_fv_cond(sql_stmt_t *stmt, expr_tree_t *left, plan_range_t *range, cond_tree_t *cond)
 {
     switch (range->type) {
         case RANGE_LIST:

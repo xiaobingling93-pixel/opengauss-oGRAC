@@ -27,6 +27,7 @@
 
 #include "ogsql_stmt.h"
 #include "ogsql_cond.h"
+#include "plan_range.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,6 +64,19 @@ status_t replace_group_expr_node(sql_stmt_t *stmt, expr_node_t **node);
 bool32 get_specified_level_query(sql_query_t *curr_query, uint32 level, sql_query_t **query, sql_select_t **subslct);
 status_t sql_update_query_ssa(sql_stmt_t *statement, sql_query_t *query);
 bool32 sql_can_expr_node_optm_by_hash(expr_node_t *node);
+status_t sql_generate_fv_cond(sql_stmt_t *stmt, expr_tree_t *left, plan_range_t *range, cond_tree_t *cond);
+bool32 if_dlvr_range_equal(sql_stmt_t *stmt, plan_range_t *range1, plan_range_t *range2);
+bool32 has_semi_in_cmp_node(sql_query_t *query, cmp_node_t *cmp);
+uint32 sql_get_func_table_column_count(sql_stmt_t *stmt, sql_table_t *table);
+bool32 check_single_col_filter_cond(const cmp_node_t *cmp1, const cmp_node_t *cmp2, const expr_tree_t *r1,
+    const expr_tree_t *r2, int32 *result);
+status_t expr_node_is_dlvr_value(visit_assist_t *visit_ass, expr_node_t **node);
+status_t expr_tree_is_dlvr_value(sql_stmt_t *stmt, expr_tree_t *expr_tree, bool32 *is_dlvr);
+status_t pre_generate_dlvr_cond(sql_stmt_t *stmt, expr_tree_t *column, cond_node_t **node);
+bool32 if_dlvr_border_equal(sql_stmt_t *stmt, plan_border_t *border1, plan_border_t *border2);
+status_t sql_process_oper_or_sink(sql_stmt_t *stmt, cond_node_t **cond);
+bool32 sql_dlvr_inter_range(sql_stmt_t *stmt, plan_range_t *range1, plan_range_t *range2, plan_range_t *result);
+bool32 sql_is_simple_expr_node(expr_node_t *node, uint32 level);
 #ifdef __cplusplus
 }
 #endif

@@ -190,6 +190,7 @@ status_t srv_load_optim_params(void)
     OG_RETURN_IFERR(srv_get_param_bool32("_OPTIM_OR_EXPANSION", &sql->enable_or_expand));
     OG_RETURN_IFERR(srv_get_param_bool32("_OPTIM_PROJECT_LIST_PRUNING", &sql->enable_project_list_pruning));
     OG_RETURN_IFERR(srv_get_param_bool32("_OPTIM_PRED_MOVE_AROUND", &sql->enable_pred_move_around));
+    OG_RETURN_IFERR(srv_get_param_bool32("_OPTIM_PRED_DELIVERY", &sql->enable_pred_delivery));
     OG_RETURN_IFERR(srv_get_param_bool32("_OPTIM_HASH_MATERIALIZE", &sql->enable_hash_mtrl));
     OG_RETURN_IFERR(srv_get_param_bool32("_OPTIM_WINMAGIC_REWRITE", &sql->enable_winmagic_rewrite));
     OG_RETURN_IFERR(srv_get_param_bool32("_OPTIM_PRED_REORDER", &sql->enable_pred_reorder));

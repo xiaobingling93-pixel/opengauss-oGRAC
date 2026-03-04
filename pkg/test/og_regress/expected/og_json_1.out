@@ -741,9 +741,8 @@ SQL> SELECT 'CREATE OR REPLACE VIEW ' || U.NAME || '.' || V.NAME || ' ( '|| VC.C
 
 'CREATE OR REPLACE VIEW ' || U.NAME || '.' || V.NAME || ' ( '||  VIEWDEF                                                         
 ---------------------------------------------------------------- ----------------------------------------------------------------
-CREATE OR REPLACE VIEW SYS.V_JSON_TEST_1 ( C1 ) AS               select json_value('{"Aa":123}', '$.Aa' returning varchar2(1024) error on error) C1 from dual;
 
-1 rows fetched.
+0 rows fetched.
 
 SQL> drop view V_JSON_TEST_1;
 

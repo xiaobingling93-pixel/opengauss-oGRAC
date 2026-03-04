@@ -274,6 +274,7 @@ typedef struct st_opt_param_bool {
     uint64 enable_order_by_placement : 1;
     uint64 enable_or_expand : 1;
     uint64 enable_pred_move_around : 1;
+    uint64 enable_pred_delivery : 1;
     uint64 enable_pred_reorder : 1;
     uint64 enable_project_list_pruning : 1;
     uint64 enable_subquery_elimination : 1;

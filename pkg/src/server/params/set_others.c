@@ -867,6 +867,12 @@ status_t sql_notify_als_pred_move_around(void *se, void *item, char *value)
     return sql_notify_als_bool(se, item, value);
 }
 
+status_t sql_notify_als_pred_delivery(void *se, void *item, char *value)
+{
+    g_instance->sql.enable_pred_delivery = (bool32)value[0];
+    return sql_notify_als_bool(se, item, value);
+}
+
 status_t sql_notify_als_hash_mtrl(void *se, void *item, char *value)
 {
     g_instance->sql.enable_hash_mtrl = (bool32)value[0];

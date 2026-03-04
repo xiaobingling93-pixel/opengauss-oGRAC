@@ -184,7 +184,7 @@ static inline const char *get_datatype_name_str(int32 type)
 }
 
 bool32 var_datatype_matched(og_type_t dest_type, og_type_t src_type);
-
+bool32 var_datatype_is_compatible(og_type_t left_datatype, og_type_t right_datatype);
 #define OG_SET_ERROR_MISMATCH(dest_type, src_type) \
     OG_THROW_ERROR(ERR_TYPE_MISMATCH,              \
         get_datatype_name_str((int32)(dest_type)),  \
