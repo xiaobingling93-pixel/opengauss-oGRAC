@@ -519,6 +519,11 @@ status_t spc_create_datafiles(knl_session_t *session, space_t *space, knl_altspa
         return OG_ERROR;
     }
 
+    for (uint32 i = 0; i < datafiles->count; i++) {
+        file = (knl_device_def_t *)cm_galist_get(datafiles, i);
+        OG_RETURN_IFERR(spc_create_datafile_precheck(session, space, file));
+    }
+
     if (def->undo_segments > 0) {
         if (!DB_IS_RESTRICT(session)) {
             OG_THROW_ERROR(ERR_INVALID_OPERATION, ",operation only supported in restrict mode");
