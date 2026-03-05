@@ -264,6 +264,14 @@ static status_t sql_parse_sequence_parameters(sql_stmt_t *stmt, knl_sequence_def
         }
 
         switch (word->id) {
+            case (uint32)KEY_WORD_RESTART:
+                if (seq_def->is_restart_set == OG_TRUE) {
+                    OG_SRC_THROW_ERROR_EX(lex->loc, ERR_SQL_SYNTAX_ERROR, "duplicate RESTART specifications");
+                    return OG_ERROR;
+                }
+                seq_def->is_restart_set = OG_TRUE;
+                break;
+
             case (uint32)KEY_WORD_INCREMENT:
                 if (seq_def->is_step_set == OG_TRUE) {
                     OG_SRC_THROW_ERROR_EX(lex->loc, ERR_SQL_SYNTAX_ERROR, "duplicate INCREMENT specifications");
@@ -516,12 +524,13 @@ static void seq_merge_alter_param(knl_sequence_def_t *seq_def, dc_sequence_t *se
 static status_t seq_check_alter_param(sql_stmt_t *stmt, knl_sequence_def_t *def, dc_sequence_t *sequence)
 {
     int64 step = cm_abs64(def->step);
+    int64 curr_value = sequence->rsv_nextval;
     int64 next;
     if (!def->is_option_set) {
         OG_THROW_ERROR(ERR_SEQ_INVALID, "no options specified for alter sequence");
         return OG_ERROR;
     }
-    if (def->is_start_set) {
+    if (def->is_start_set && !def->is_restart_set) {
         OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "cannot alter starting sequence number ");
         return OG_ERROR;
     }
@@ -543,13 +552,21 @@ static status_t seq_check_alter_param(sql_stmt_t *stmt, knl_sequence_def_t *def,
         }
     }
 
+    if (def->is_restart_set) {
+        if (def->is_start_set && (def->start < def->min_value || def->start > def->max_value)) {
+            OG_THROW_ERROR(ERR_SEQ_INVALID, "restart value must be between MINVALUE and MAXVALUE");
+            return OG_ERROR;
+        }
+        curr_value = def->start;
+    }
+
     if (!IS_COORDINATOR || (IS_COORDINATOR && IS_APP_CONN(stmt->session))) {
-        if (def->min_value > sequence->rsv_nextval) {
+        if (def->min_value > curr_value) {
             OG_THROW_ERROR(ERR_SEQ_INVALID, "MINVALUE cannot be made to exceed the current value");
             return OG_ERROR;
         }
 
-        if (def->max_value < (sequence->rsv_nextval)) {
+        if (def->max_value < curr_value) {
             OG_THROW_ERROR(ERR_SEQ_INVALID, "MAXVALUE cannot be made to below the current value");
             return OG_ERROR;
         }
@@ -610,6 +627,11 @@ static status_t sql_parse_check_param(sql_stmt_t *stmt, knl_sequence_def_t *def)
     def->step = def->is_step_set ? def->step : sequence->step;
     sql_parse_alter_sequence_get_param(def, sequence);
     seq_merge_alter_param(def, sequence);
+
+    if (def->is_restart_set && !def->is_start_set) {
+        def->start = (def->step > 0) ? def->min_value : def->max_value;
+    }
+
     ret = seq_check_alter_param(stmt, def, sequence);
     dls_spin_unlock(&stmt->session->knl_session, &sequence->entry->lock);
     dc_seq_close(&dc_seq);

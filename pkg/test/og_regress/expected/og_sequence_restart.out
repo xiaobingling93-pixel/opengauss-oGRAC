@@ -1,0 +1,97 @@
+
+
+SQL> -- sequence restart gate case
+SQL> drop sequence if exists seq17;
+
+Succeed.
+
+SQL> create sequence seq17 start with 10 increment by 2 minvalue 1 maxvalue 100 cache 20;
+
+Succeed.
+
+SQL> 
+SQL> select seq17.nextval from dual;
+
+NEXTVAL             
+--------------------
+10                  
+
+1 rows fetched.
+
+SQL> select seq17.nextval from dual;
+
+NEXTVAL             
+--------------------
+12                  
+
+1 rows fetched.
+
+SQL> 
+SQL> alter sequence seq17 restart;
+
+Succeed.
+
+SQL> select seq17.nextval from dual;
+
+NEXTVAL             
+--------------------
+1                   
+
+1 rows fetched.
+
+SQL> 
+SQL> alter sequence seq17 restart start with 50;
+
+Succeed.
+
+SQL> select seq17.nextval from dual;
+
+NEXTVAL             
+--------------------
+50                  
+
+1 rows fetched.
+
+SQL> 
+SQL> drop sequence if exists seq17;
+
+Succeed.
+
+SQL> 
+SQL> drop sequence if exists seq17_desc;
+
+Succeed.
+
+SQL> create sequence seq17_desc increment by -1 minvalue -10 maxvalue -1 start with -3 cache 20;
+
+Succeed.
+
+SQL> 
+SQL> select seq17_desc.nextval from dual;
+
+NEXTVAL             
+--------------------
+-3                  
+
+1 rows fetched.
+
+SQL> alter sequence seq17_desc restart;
+
+Succeed.
+
+SQL> select seq17_desc.nextval from dual;
+
+NEXTVAL             
+--------------------
+-1                  
+
+1 rows fetched.
+
+SQL> 
+SQL> drop sequence if exists seq17_desc;
+
+Succeed.
+
+SQL> 
+
+
