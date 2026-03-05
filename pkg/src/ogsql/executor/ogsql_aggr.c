@@ -2194,3 +2194,30 @@ aggr_func_t g_aggr_func_tab[] = {
     { AGGR_TYPE_APPX_CNTDIS, sql_aggr_alloc_appx_cntdis, sql_aggr_init_appx_cntdis, sql_aggr_reset_appx_cntdis,
         sql_aggr_appx_cntdis, sql_aggr_calc_appx_cntdis },
 };
+
+status_t og_sql_aggr_get_value(sql_stmt_t *statement, uint32 id, variant_t *value)
+{
+    sql_cursor_t *cursor = OGSQL_CURR_CURSOR(statement);
+    if (cursor == NULL) {
+        return OG_ERROR;
+    }
+    cursor = sql_get_group_cursor(cursor);
+    if (cursor == NULL) {
+        return OG_ERROR;
+    }
+
+    mtrl_cursor_t *mtrl_cursor = &cursor->mtrl.cursor;
+    if (mtrl_cursor->type == MTRL_CURSOR_HASH_GROUP || mtrl_cursor->type == MTRL_CURSOR_SORT_GROUP) {
+        if (mtrl_cursor->hash_group.aggrs == NULL) {
+            return OG_ERROR;
+        }
+    } else {
+        if (cursor->aggr_page == NULL) {
+            return OG_ERROR;
+        }
+    }
+    aggr_var_t *aggr_var = sql_get_aggr_addr(cursor, id);
+    var_copy(&aggr_var->var, value);
+    return OG_SUCCESS;
+}
+

@@ -33,6 +33,7 @@
 #include "srv_instance.h"
 #include "ogsql_select_parser.h"
 #include "srv_param_common.h"
+#include "ogsql_transform_assist.h"
 #include "scanner.h"
 
 static inline bool8 sql_table_has_special_char(text_t *name)

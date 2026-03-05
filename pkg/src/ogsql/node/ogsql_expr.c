@@ -3452,7 +3452,7 @@ status_t visit_func_node(visit_assist_t *visit_ass, expr_node_t *node, visit_fun
     return OG_SUCCESS;
 }
 
-static status_t visit_case_node(visit_assist_t *visit_ass, expr_node_t *node, visit_func_t visit_func)
+status_t visit_case_node(visit_assist_t *visit_ass, expr_node_t *node, visit_func_t visit_func)
 {
     case_expr_t *case_expr = (case_expr_t *)node->value.v_pointer;
 
@@ -3689,8 +3689,7 @@ static inline status_t sql_exec_sequence_node(sql_stmt_t *stmt, expr_node_t *nod
 
 static inline status_t sql_exec_aggr_node(sql_stmt_t *stmt, expr_node_t *node, variant_t *result)
 {
-    sql_get_aggr_value(stmt, VALUE(uint32, &node->value), result);
-    return OG_SUCCESS;
+    return og_sql_aggr_get_value(stmt, VALUE(uint32, &node->value), result);
 }
 
 static inline status_t sql_exec_over_node(sql_stmt_t *stmt, expr_node_t *node, variant_t *result)

@@ -301,6 +301,7 @@ status_t sql_verify_listagg_order(sql_verifier_t *verif, galist_t *sort_items);
 void sql_init_aggr_node(expr_node_t *node, uint32 fun_id, uint32 ofun_id);
 status_t sql_adjust_oper_node(sql_verifier_t *verif, expr_node_t *node);
 status_t sql_table_cache_query_field(sql_stmt_t *stmt, sql_table_t *table, query_field_t *src_query_fld);
+void og_sql_table_release_query_field(sql_query_t *subqry, var_column_t *v_col);
 status_t sql_table_cache_cond_query_field(sql_stmt_t *stmt, sql_table_t *table, query_field_t *src_query_fld);
 status_t sql_add_parent_refs(sql_stmt_t *stmt, galist_t *parent_refs, uint32 tab, expr_node_t *node);
 void sql_del_parent_refs(galist_t *parent_refs, uint32 tab, expr_node_t *node);
