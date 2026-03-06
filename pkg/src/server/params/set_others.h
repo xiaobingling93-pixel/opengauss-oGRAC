@@ -143,6 +143,7 @@ status_t sql_notify_als_or_expansion(void *se, void *item, char *value);
 status_t sql_notify_als_distinct_elimination(void *se, void *item, char *value);
 status_t sql_notify_als_project_list_pruning(void *se, void *item, char *value);
 status_t sql_notify_als_pred_move_around(void *se, void *item, char *value);
+status_t sql_notify_als_pred_delivery(void *se, void *item, char *value);
 status_t sql_notify_als_hash_mtrl(void *se, void *item, char *value);
 status_t sql_notify_als_winmagic_rewrite(void *se, void *item, char *value);
 status_t sql_notify_als_pred_reorder(void *se, void *item, char *value);

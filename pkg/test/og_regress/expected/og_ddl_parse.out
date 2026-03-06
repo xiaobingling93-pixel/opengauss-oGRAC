@@ -100,9 +100,9 @@ EXPLAIN PLAN OUTPUT
 | 5  |           MERGE JOIN                            |       |                           | 0    | 40000 | 40000     |       |        |
 | 6  |             MERGE JOIN                          |       |                           | 0    | 30000 | 30000     |       |        |
 | 7  |               NESTED LOOPS                      |       |                           | 0    | 20000 | 0         |       |        |
-| 8  |                   TABLE ACCESS FULL             | SYS   | SYS_TABLES T              | 0    | 10000 | 0         |       |        |
-| 9  |                   TABLE ACCESS FULL             | SYS   | SYS_TABLE_PARTS TP        | 0    | 10000 | 0         |       |        |
-| 10 |                 TABLE ACCESS FULL               | SYS   | SYS_USERS U               | 0    | 10000 | 0         |       |        |
+| 8  |                   TABLE ACCESS FULL             | SYS   | SYS_USERS U               | 0    | 10000 | 0         |       |        |
+| 9  |                   TABLE ACCESS FULL             | SYS   | SYS_TABLES T              | 0    | 10000 | 0         |       |        |
+| 10 |                 TABLE ACCESS FULL               | SYS   | SYS_TABLE_PARTS TP        | 0    | 10000 | 0         |       |        |
 | 11 |               TABLE ACCESS FULL                 | SYS   | DV_TABLESPACES TS         | 0    | 10000 | 0         |       |        |
 | 12 |       SUBSELECT                                 | SYS   | Z                         | 1    | 0     | 0         |       |        |
 | 13 |         MERGE SORT GROUP BY                     |       |                           | 0    | 0     | 0         |       |        |
@@ -130,39 +130,41 @@ EXPLAIN PLAN OUTPUT
 ----------------------------------------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    3 - filter: CO.ORG_SCN = TP.ORG_SCN AND CO.OBJECT_TYPE = 2  
+    3 - filter: CO.OBJECT_TYPE = 2 AND CO.ORG_SCN = TP.ORG_SCN  
     5 - access: TP.SPACE# = TS.ID                               
-    6 - access: TP.USER# = U.ID                                 
-        filter: U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME || '"', 'TABLE')
-    8 - filter: T.RECYCLED = 0                                  
-    9 - filter: TP.USER# = T.USER# AND TP.TABLE# = T.ID         
-    10 - filter: U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME || '"', 'TABLE')
-    11 - filter: T.RECYCLED = 0 AND TP.TABLE# = T.ID AND TP.USER# = T.USER# AND (U.NAME = USER OR USER = 'SYS' OR FALSE
-                != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME || '"', 'TABLE'))
+    6 - access: U.ID = TP.USER#                                 
+        filter: T.USER# = TP.USER# AND TP.TABLE# = T.ID         
+    9 - filter: T.RECYCLED = 0 AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME
+                || '"', 'TABLE')) AND U.ID = T.USER#            
+    10 - filter: TP.TABLE# = T.ID AND T.USER# = TP.USER#        
+    11 - filter: T.RECYCLED = 0 AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' ||
+                T.NAME || '"', 'TABLE')) AND U.ID = T.USER# AND TP.TABLE# = T.ID AND T.USER# = TP.USER#
     12 - filter: X.PARTITION_NAME = Z.PARENTPART_NAME           
-    14 - filter: X.PARTITION_NAME = Y.PARENTPART_NAME           
-    16 - filter: X.PARTITION_NAME = O.PARENTPART_NAME           
+    16 - filter: O.PARENTPART_NAME = X.PARTITION_NAME           
     21 - filter: T.RECYCLED = 0 AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' ||
-                T.NAME || '"', 'TABLE')) AND T.NAME = P.NAME    
+                T.NAME || '"', 'TABLE')) AND T.NAME = P.NAME AND T.NAME = 'T_RG_HS_01' AND T.USER# = U.ID
     22 - access: TSUBP.SPACE# = TS.ID                           
-    24 - filter: TSUBP.USER# = U.ID AND TSUBP.TABLE# = T.ID AND TSUBP.USER# = T.USER#
-    25 - filter: TSUBP.PARENT_PART# = TP.PART# AND TSUBP.TABLE# = TP.TABLE# AND TSUBP.USER# = TP.USER# AND FALSE !=
-                TP.FLAGS & 0x04                                 
-    26 - filter: T.RECYCLED = 0 AND T.NAME = P.NAME AND TSUBP.USER# = T.USER# AND (U.NAME = USER OR USER = 'SYS' OR
-                FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME || '"', 'TABLE')) AND TSUBP.USER# = TP.USER# AND
-                TSUBP.TABLE# = T.ID AND TSUBP.PARENT_PART# = TP.PART# AND TSUBP.TABLE# = TP.TABLE# AND TSUBP.USER# =
-                U.ID AND FALSE != TP.FLAGS & 0x04               
+    24 - filter: T.USER# = TSUBP.USER# AND U.ID = TSUBP.USER# AND TSUBP.TABLE# = T.ID
+    25 - filter: TSUBP.USER# = TP.USER# AND U.ID = TP.USER# AND T.USER# = TP.USER# AND FALSE != TP.FLAGS & 0x04 AND
+                TSUBP.PARENT_PART# = TP.PART# AND TP.TABLE# = TSUBP.TABLE# AND TP.TABLE# = T.ID
+    26 - filter: T.RECYCLED = 0 AND U.ID = TSUBP.USER# AND TSUBP.TABLE# = T.ID AND T.NAME = P.NAME AND TSUBP.USER# =
+                TP.USER# AND T.USER# = U.ID AND TSUBP.PARENT_PART# = TP.PART# AND U.ID = TP.USER# AND T.NAME =
+                'T_RG_HS_01' AND FALSE != TP.FLAGS & 0x04 AND T.USER# = TP.USER# AND TP.TABLE# = TSUBP.TABLE# AND
+                T.USER# = TSUBP.USER# AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"'
+                || T.NAME || '"', 'TABLE')) AND TP.TABLE# = T.ID
     28 - access: T.SPACE# = TS.ID                               
     29 - access: P.USER# = U.ID                                 
-         filter: U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME || '"', 'TABLE')
+         filter: (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME || '"', 'TABLE'))
+                AND T.USER# = U.ID                              
     31 - filter: P.INDEX# = (-1)                                
-    32 - filter: T.RECYCLED = 0 AND P.USER# = T.USER# AND T.NAME = 'T_RG_HS_01' AND P.TABLE# = T.ID
-    33 - filter: U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME || '"', 'TABLE')
-    34 - filter: T.RECYCLED = 0 AND P.TABLE# = T.ID AND T.NAME = 'T_RG_HS_01' AND (U.NAME = USER OR USER = 'SYS' OR
-                FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME || '"', 'TABLE')) AND P.INDEX# = (-1) AND P.USER#
-                = T.USER#                                       
+    32 - filter: T.NAME = 'T_RG_HS_01' AND P.TABLE# = T.ID AND T.USER# = P.USER# AND T.RECYCLED = 0 AND T.NAME = O.TABLE_NAME
+    33 - filter: T.USER# = U.ID AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' ||
+                T.NAME || '"', 'TABLE'))                        
+    34 - filter: P.INDEX# = (-1) AND T.NAME = O.TABLE_NAME AND T.RECYCLED = 0 AND T.USER# = U.ID AND T.NAME = 'T_RG_HS_01'
+                AND P.TABLE# = T.ID AND T.USER# = P.USER# AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER,
+                U.NAME, '"' || T.NAME || '"', 'TABLE'))         
 
-72 rows fetched.
+74 rows fetched.
 
 SQL> 
 SQL> DROP TABLE IF EXISTS T_RG_HS_01;

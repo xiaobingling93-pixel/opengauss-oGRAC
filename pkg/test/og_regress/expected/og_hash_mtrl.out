@@ -238,9 +238,9 @@ Predicate Information (identified by id):
                 D.DEPT_ID ORDER BY SALARY DESC LIMIT 1)         
     6 - filter: DEPT_ID = D.DEPT_ID                             
     9 - filter: BUDGET > (SELECT AVG(P.COST) FROM TEST_MTRL_PROJ P WHERE P.DEPT_ID = D.DEPT_ID AND P.COST > (SELECT
-                COUNT(*) * 1000 FROM TEST_MTRL_EMP GROUP BY DEPT_ID,EMP_ID))
-    12 - filter: P.DEPT_ID = D.DEPT_ID AND P.COST > (SELECT COUNT(*) * 1000 FROM TEST_MTRL_EMP GROUP BY DEPT_ID,EMP_ID)
-    13 - access: DEPT_ID = P.DEPT_ID AND EMP_ID = P.EMP_ID      
+                COUNT(*) * 1000 FROM TEST_MTRL_EMP GROUP BY EMP_ID,DEPT_ID))
+    12 - filter: P.DEPT_ID = D.DEPT_ID AND P.COST > (SELECT COUNT(*) * 1000 FROM TEST_MTRL_EMP GROUP BY EMP_ID,DEPT_ID)
+    13 - access: EMP_ID = P.EMP_ID AND DEPT_ID = P.DEPT_ID      
 
 28 rows fetched.
 

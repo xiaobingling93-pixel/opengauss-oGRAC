@@ -1,0 +1,15 @@
+drop table if exists t_pred_dlvr_1;
+drop table if exists t_pred_dlvr_2;
+create table t_pred_dlvr_1(a int, b int);
+create table t_pred_dlvr_2(a int, b int);
+INSERT INTO t_pred_dlvr_1 VALUES (1, 0), (2, 1);
+INSERT INTO t_pred_dlvr_2 VALUES (1, 0), (2, 1);
+commit;
+explain select * from t_pred_dlvr_1 t1 where t1.a = 1 and t1.b = 1;
+explain select * from t_pred_dlvr_1 t1, t_pred_dlvr_2 t2 where t1.a = 1 and t2.b = 1;
+select * from (select round(a / b) avg from t_pred_dlvr_1 where a > 0 and a = 1 and a = b) where avg < 3 order by 1;
+select round(a / b) avg from t_pred_dlvr_1 where b > 0 and a / b = 3;
+select round(a / b) avg from t_pred_dlvr_1 where a / b = 3 and b > 0;
+explain select * from (select * from t_pred_dlvr_1 where a = b) t1 inner join t_pred_dlvr_2 t2 on t1.a = t2.b;
+drop table if exists t_pred_dlvr_1;
+drop table if exists t_pred_dlvr_2;

@@ -193,6 +193,15 @@ bool32 var_datatype_matched(og_type_t dest_type, og_type_t src_type)
     return ((g_dest_cast_mask[OG_TYPE_I(dest_type)] & OG_TYPE_MASK(src_type)) != 0);
 }
 
+bool32 var_datatype_is_compatible(og_type_t left_datatype, og_type_t right_datatype)
+{
+    OG_RETVALUE_IFTRUE(OG_IS_NUMERIC_TYPE2(left_datatype, right_datatype), OG_TRUE);
+    OG_RETVALUE_IFTRUE(OG_IS_STRING_TYPE2(left_datatype, right_datatype), OG_TRUE);
+    OG_RETVALUE_IFTRUE(OG_IS_DATETIME_TYPE2(left_datatype, right_datatype), OG_TRUE);
+    OG_RETVALUE_IFTRUE(OG_IS_BINARY_TYPE2(left_datatype, right_datatype), OG_TRUE);
+    return left_datatype == right_datatype;
+}
+
 status_t var_text2num(const text_t *text, og_type_t type, bool32 negative, variant_t *result)
 {
     char num_str[512];

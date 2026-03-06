@@ -2288,6 +2288,7 @@ static void optim_init_rewrite_helper(rewrite_helper_t *helper, sql_stmt_t *stat
     helper->state = REWRITE_UNCERTAINLY;
     helper->pullup_cond = OG_FALSE;
     helper->has_join_cond = OG_FALSE;
+    return;
 }
 
 status_t og_transf_subquery_rewrite(sql_stmt_t *statement, sql_query_t *qry)

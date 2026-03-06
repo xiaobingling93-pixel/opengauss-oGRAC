@@ -468,7 +468,7 @@ EXPLAIN PLAN OUTPUT
 -----------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    5 - filter: C1 < 3 AND C3 = TRUE AND C2 = 'AA'              
+    5 - filter: C2 = 'AA' AND C3 = TRUE AND C1 < 3              
 
 13 rows fetched.
 
@@ -787,7 +787,7 @@ Predicate Information (identified by id):
 -----------------------------------------                       
     2 - filter: SUB_Q1.C1 > 0                                   
     5 - filter: SUB_Q1.C1 > 0 AND SUB_Q1.C1 = SUB_Q2.C1         
-    7 - filter: SUB_Q1.C1 = T2.C1                               
+    7 - filter: T2.C1 = SUB_Q1.C1                               
 
 17 rows fetched.
 
@@ -826,7 +826,7 @@ EXPLAIN PLAN OUTPUT
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     5 - filter: SUB_Q2.C1 > 0                                   
-    7 - filter: SUB_Q1.C1 = T2.C1                               
+    7 - filter: T2.C1 = SUB_Q1.C1                               
 
 16 rows fetched.
 
