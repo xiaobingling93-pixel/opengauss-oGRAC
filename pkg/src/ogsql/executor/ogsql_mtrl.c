@@ -1449,7 +1449,8 @@ static status_t og_get_mtrl_rs_col(sql_stmt_t *statement, rs_column_t *rs_col, v
     return sql_get_table_value(statement, &rs_col->v_col, val);
 }
 
-status_t ogsql_make_mtrl_row_for_hash_union(sql_stmt_t *statement, char *pending_buffer, galist_t *col_lst, char* row_buffer)
+status_t ogsql_make_mtrl_row_for_hash_union(sql_stmt_t *statement, char *pending_buffer,
+    galist_t *col_lst, char* row_buffer)
 {
     if (!og_validate_mtrl_col_count(col_lst)) {
         OG_THROW_ERROR(ERR_SQL_TOO_COMPLEX);

@@ -448,10 +448,10 @@ Predicate Information (identified by id):
 -----------------------------------------                       
     1 - access: T0.C = A                                        
     5 - filter: T0.C = A                                        
-    9 - access: T0.C = T1.A                                     
+    9 - access: T1.A = T0.C                                     
     10 - filter: T1.B = T2.B                                    
     12 - filter: T2.B < 10 AND T1.B = T2.B                      
-    15 - access: T0.C = T1.A                                    
+    15 - access: T1.A = T0.C                                    
     16 - filter: T1.C = T3.C                                    
     18 - filter: T3.C < 10 AND T1.C = T3.C                      
 
@@ -469,7 +469,7 @@ SQL> select count(*) from  or_2_union_t t1 where
 
 COUNT(*)            
 --------------------
-1                   
+2                   
 
 1 rows fetched.
 
@@ -478,29 +478,27 @@ EXPLAIN PLAN OUTPUT
 -------------------------------------------------------------------------------------------------------------------
 | Id | Operation                             | Owner | Name            | Rows | Cost | StartCost | Bytes | Remark |
 -------------------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT                      |       |                 | 1    | 8    | 4         |       |        |
-| 1  |   AGGR                                |       |                 | 1    | 8    | 4         |       |        |
-| 2  |       SUBSELECT                       |       | $FROM_ORE_0     | 2    | 4    | 4         |       |        |
-| 3  |         HASH UNION                    |       |                 | 2    | 4    | 4         |       |        |
-| 4  |           MERGE JOIN                  |       |                 | 1    | 2    | 2         |       |        |
+| 0  | SELECT STATEMENT                      |       |                 | 1    | 6    | 0         |       |        |
+| 1  |   AGGR                                |       |                 | 1    | 6    | 0         |       |        |
+| 2  |       SUBSELECT                       |       | $FROM_ORE_0     | 2    | 6    | 0         |       |        |
+| 3  |         HASH UNION                    |       |                 | 2    | 6    | 0         |       |        |
+| 4  |           NESTED LOOPS                |       |                 | 1    | 3    | 0         |       |        |
 | 5  |               TABLE ACCESS FULL       | SYS   | OR_2_UNION_T T1 | 2    | 1    | 0         |       |        |
-| 6  |               SUBSELECT               |       | $FROM_SQ_0      | 2    | 1    | 0         |       |        |
+| 6  |               SUBSELECT               |       | $FROM_SQ_0      | 1    | 1    | 0         |       |        |
 | 7  |                 HASH DISTINCT         |       |                 | 1    | 9    | 0         |       |        |
 | 8  |                     TABLE ACCESS FULL | SYS   | OR_2_UNION_T T2 | 1    | 1    | 0         |       |        |
-| 9  |           MERGE JOIN                  |       |                 | 1    | 2    | 2         |       |        |
+| 9  |           NESTED LOOPS                |       |                 | 1    | 3    | 0         |       |        |
 | 10 |               TABLE ACCESS FULL       | SYS   | OR_2_UNION_T T1 | 2    | 1    | 0         |       |        |
-| 11 |               SUBSELECT               |       | $FROM_SQ_1      | 2    | 1    | 0         |       |        |
+| 11 |               SUBSELECT               |       | $FROM_SQ_1      | 1    | 1    | 0         |       |        |
 | 12 |                 HASH DISTINCT         |       |                 | 1    | 9    | 0         |       |        |
 | 13 |                     TABLE ACCESS FULL | SYS   | OR_2_UNION_T    | 1    | 1    | 0         |       |        |
 -------------------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    4 - access: T1.B = T2.B                                     
-    8 - filter: T1.B = T2.B AND T1.B = T2.B                     
-    9 - access: T1.C = OR_2_UNION_T.C                           
-    13 - filter: B = C AND T1.C = OR_2_UNION_T.C AND T1.C = OR_2_UNION_T.C
+    8 - filter: T2.B = T1.B                                     
+    13 - filter: B = C AND OR_2_UNION_T.C = T1.C                
 
-24 rows fetched.
+22 rows fetched.
 
 SQL> 
 SQL> select count(*) from  or_2_union_t t0 where c in (
@@ -520,11 +518,11 @@ EXPLAIN PLAN OUTPUT
 --------------------------------------------------------------------------------------------------------------------------------
 | Id | Operation                                          | Owner | Name            | Rows | Cost | StartCost | Bytes | Remark |
 --------------------------------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT                                   |       |                 | 1    | 10   | 5         |       |        |
-| 1  |   AGGR                                             |       |                 | 1    | 10   | 5         |       |        |
-| 2  |     MERGE JOIN                                     |       |                 | 1    | 5    | 5         |       |        |
+| 0  | SELECT STATEMENT                                   |       |                 | 1    | 1    | 0         |       |        |
+| 1  |   AGGR                                             |       |                 | 1    | 1    | 0         |       |        |
+| 2  |     NESTED LOOPS                                   |       |                 | 1    | 1    | 0         |       |        |
 | 3  |         TABLE ACCESS FULL                          | SYS   | OR_2_UNION_T T0 | 2    | 1    | 0         |       |        |
-| 4  |         SUBSELECT                                  |       | $FROM_SQ_0      | 2    | 4    | 0         |       |        |
+| 4  |         SUBSELECT                                  |       | $FROM_SQ_0      | 2    | 0    | 0         |       |        |
 | 5  |           HASH DISTINCT                            |       |                 | 2    | 24   | 8         |       |        |
 | 6  |               SUBSELECT                            |       | $FROM_ORE_0     | 2    | 16   | 8         |       |        |
 | 7  |                 HASH UNION                         |       |                 | 2    | 16   | 8         |       |        |
@@ -543,16 +541,14 @@ EXPLAIN PLAN OUTPUT
 --------------------------------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    2 - access: C = A                                           
+    4 - filter: C = A                                           
     6 - filter: C = A                                           
-    10 - access: C = T1.A                                       
-    11 - filter: T1.B = T2.B                                    
-    13 - filter: T1.B = T2.B AND T1.B = T2.B                    
-    16 - access: C = T1.A                                       
-    17 - filter: T1.C = T3.C                                    
-    19 - filter: T1.C = T3.C AND T1.C = T3.C                    
+    10 - access: T1.A = C                                       
+    13 - filter: T2.B = T1.B                                    
+    16 - access: T1.A = C                                       
+    19 - filter: T3.C = T1.C                                    
 
-34 rows fetched.
+32 rows fetched.
 
 SQL> 
 SQL> select count(*) from  t_or_index_1 t1 where 
@@ -771,9 +767,10 @@ EXPLAIN PLAN OUTPUT
 --------------------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
+    3 - filter: T2.F1 = 5                                       
     5 - access: T1.F1 = 5 AND T1.F1 = T2.F1 AND (T1.F2 IN (1, 2, 3) OR T1.F2 = 10000)
 
-13 rows fetched.
+14 rows fetched.
 
 SQL> 
 SQL> select count(*) from  t_or_index_1 where f1 = 5 and (f2 = 10000 or f2 <= 5);

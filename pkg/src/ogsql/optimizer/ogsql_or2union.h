@@ -28,6 +28,7 @@
 #include "ogsql_stmt.h"
 #include "ogsql_expr.h"
 #include "ogsql_cond.h"
+#include "plan_range.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,53 +83,126 @@ typedef enum en_compare_result {
 #define OR2UNION_MAX_TABLES 32
 #define OR_EXPAND_MAX_CONDS 32
 #define OR2UNION_COST_THRESHOLD (double)0.5
-#define SET_NO_OR2UNION_FLAG(helper) ((helper)->rewrite_level = NO_OR2UNION)
-#define SET_LOW_OR2UNION_FLAG(helper) ((helper)->rewrite_level = LOW_OR2UNION)
-#define SET_HIGH_OR2UNION_FLAG(helper) ((helper)->rewrite_level = HIGH_OR2UNION)
-#define HAS_HIGH_OR2UNION_FLAG(helper) ((helper)->rewrite_level == HIGH_OR2UNION)
-#define HAS_NO_OR2UNION_FLAG(helper) ((helper)->rewrite_level == NO_OR2UNION)
-#define GET_OPT_SUBSLCT_CNT(helper) ((helper)->opt_subselect_count)
-#define ALL_HAS_JOIN_COND(bitmap, mask) (((uint64)0xFFFFFFFF >> (OR2UNION_MAX_TABLES - (mask))) == (bitmap))
-#define COND_HAS_EXIST_CMP(cmp_type) ((cmp_type) == CMP_TYPE_EXISTS || (cmp_type) == CMP_TYPE_NOT_EXISTS)
-#define COND_HAS_IN_CMP(cmp_type) ((cmp_type) == CMP_TYPE_IN || (cmp_type) == CMP_TYPE_NOT_IN)
-#define IS_BORDER_INFINITE_LEFT(type) ((type) == BORDER_INFINITE_LEFT)
-#define IS_BORDER_INFINITE_RIGHT(type) ((type) == BORDER_INFINITE_RIGHT)
-#define IS_ANY_BORDER_INFINITE_RIGHT(type1, type2) \
-    ((type1) == BORDER_INFINITE_RIGHT || (type2) == BORDER_INFINITE_RIGHT)
-#define IS_BOTH_RANGE_POINT(type1, type2) ((type1) == RANGE_POINT && (type2) == RANGE_POINT)
-#define IS_CMP_TYPE_HAS_IS_NULL(type1, type2) ((type1) == CMP_TYPE_IS_NULL || (type2) == CMP_TYPE_IS_NULL)
-#define IS_BORDER_BOTH_NULL(type1, type2) ((type1) == BORDER_IS_NULL && (type2) == BORDER_IS_NULL)
-#define IS_ANY_BORDER_NULL(type1, type2) ((type1) == BORDER_IS_NULL || (type2) == BORDER_IS_NULL)
-#define IS_BORDER_NULL(type) ((type) == BORDER_IS_NULL)
-#define CHK_IF_ANY_RANGE_EMPTY(type1, type2) ((type1) == RANGE_EMPTY || (type2) == RANGE_EMPTY)
-#define IS_CMP_TYPE_HAS_NULL(type) ((type) == CMP_TYPE_IS_NOT_NULL || (type) == CMP_TYPE_IS_NULL)
-#define HINT_OR2UNION_KEY_CLEAR(hint_info)                                \
-    do {                                                                  \
-        ((hint_info)->mask[OPTIM_HINT]) &= ~(HINT_KEY_WORD_OR_EXPAND);    \
-        (hint_info)->args[ID_HINT_OR_EXPAND] = NULL;                      \
-    } while (0)
-#define HINT_NO_OR2UNION_KEY_SET(hint_info)                               \
-    do {                                                                  \
-        ((hint_info)->mask[OPTIM_HINT]) |= (HINT_KEY_WORD_NO_OR_EXPAND);  \
-    } while (0)
-#define SET_OR2UNION_CBO_INFO(info, tbl, index, add_cost)                 \
-    do {                                                                  \
-        (info)->index_desc = (index);                                     \
-        (info)->target_table = (tbl);                                     \
-        (info)->additional_cost = (add_cost);                             \
-    } while (0)
-#define RANGE_SET_FULL(range)                                             \
-    do {                                                                  \
-        (range)->right.type = (BORDER_INFINITE_RIGHT);                    \
-        (range)->left.type  = (BORDER_INFINITE_LEFT);                     \
-        (range)->type       = (RANGE_FULL);                               \
-    } while (0)
-#define MERGE_OR_COND(node_prev, node_next, opt_node)                     \
-    do {                                                                  \
-        (opt_node)->left = (node_prev);                                   \
-        (opt_node)->right = (node_next);                                  \
-        (opt_node)->type = (COND_NODE_OR);                                \
-    } while (0)
+
+static inline void set_no_or2u_flag(or_expand_helper_t *helper)
+{
+    helper->rewrite_level = NO_OR2UNION;
+}
+
+static inline void set_low_or2u_flag(or_expand_helper_t *helper)
+{
+    helper->rewrite_level = LOW_OR2UNION;
+}
+
+static inline void set_high_or2u_flag(or_expand_helper_t *helper)
+{
+    helper->rewrite_level = HIGH_OR2UNION;
+}
+
+static inline bool32 has_high_or2u_flag(or_expand_helper_t *helper)
+{
+    return helper->rewrite_level == HIGH_OR2UNION;
+}
+
+static inline bool32 has_no_or2u_flag(or_expand_helper_t *helper)
+{
+    return helper->rewrite_level == NO_OR2UNION;
+}
+
+static inline bool32 cond_has_exist_cmp(cmp_type_t cmp_type)
+{
+    return cmp_type == CMP_TYPE_EXISTS || cmp_type == CMP_TYPE_NOT_EXISTS;
+}
+
+static inline bool32 cond_has_in_cmp(cmp_type_t cmp_type)
+{
+    return cmp_type == CMP_TYPE_IN || cmp_type == CMP_TYPE_NOT_IN;
+}
+
+static inline bool32 is_border_infinite_left(border_type_t type)
+{
+    return type == BORDER_INFINITE_LEFT;
+}
+
+static inline bool32 is_border_infinite_right(border_type_t type)
+{
+    return type == BORDER_INFINITE_RIGHT;
+}
+
+static inline bool32 is_any_border_infinite_right(border_type_t type1, border_type_t type2)
+{
+    return is_border_infinite_right(type1) || is_border_infinite_right(type2);
+}
+
+static inline bool32 is_both_range_point(range_type_t type1, range_type_t type2)
+{
+    return (type1 == RANGE_POINT) && (type2 == RANGE_POINT);
+}
+
+static inline bool32 is_cmp_type_has_is_null(cmp_type_t type1, cmp_type_t type2)
+{
+    return (type1 == CMP_TYPE_IS_NULL) || (type2 == CMP_TYPE_IS_NULL);
+}
+
+static inline bool32 is_border_null(border_type_t type)
+{
+    return type == BORDER_IS_NULL;
+}
+
+
+static inline bool32 is_border_both_null(border_type_t type1, border_type_t type2)
+{
+    return is_border_null(type1) && is_border_null(type2);
+}
+
+static inline bool32 is_border_any_null(border_type_t type1, border_type_t type2)
+{
+    return is_border_null(type1) || is_border_null(type2);
+}
+
+static inline bool32 chk_if_any_range_empty(range_type_t type1, range_type_t type2)
+{
+    return (type1 == RANGE_EMPTY) || (type2 == RANGE_EMPTY);
+}
+
+static inline bool32 is_cmp_type_has_null(cmp_type_t type)
+{
+    return (type == CMP_TYPE_IS_NOT_NULL) || (type == CMP_TYPE_IS_NULL);
+}
+
+static inline void hint_or2u_key_clear(hint_info_t *hint_info)
+{
+    hint_info->mask[OPTIM_HINT] &= ~HINT_KEY_WORD_OR_EXPAND;
+    hint_info->args[ID_HINT_OR_EXPAND] = NULL;
+}
+
+static inline void hint_no_or2u_set_key(hint_info_t *hint_info)
+{
+    hint_info->mask[OPTIM_HINT] |= HINT_KEY_WORD_NO_OR_EXPAND;
+}
+
+static inline void set_or2u_cbo_info(or2union_info_t *info, sql_table_t *tbl,
+    knl_index_desc_t *index, double add_cost)
+{
+    info->index_desc = index;
+    info->target_table = tbl;
+    info->additional_cost = add_cost;
+}
+
+static inline void range_set_full(scan_range_t *range)
+{
+    range->right.type = BORDER_INFINITE_RIGHT;
+    range->left.type  = BORDER_INFINITE_LEFT;
+    range->type = RANGE_FULL;
+}
+
+static inline void merge_or_cond(cond_node_t *node_prev, cond_node_t *node_next, cond_node_t *opt_node)
+{
+    opt_node->left = node_prev;
+    opt_node->right = node_next;
+    opt_node->type = COND_NODE_OR;
+}
+
 status_t og_transf_or2union_rewrite(sql_stmt_t *statement, sql_query_t *sql_qry);
 
 #ifdef __cplusplus

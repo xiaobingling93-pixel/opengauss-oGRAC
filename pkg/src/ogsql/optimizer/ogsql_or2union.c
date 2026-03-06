@@ -501,30 +501,28 @@ static status_t og_update_filter_cond4union(sql_query_t *union_sub_qry, sql_quer
     return visit_cond_node(&visit_assist, or_cond_node, og_update_ssa_and_ancestor);
 }
 
-// Generate the select nodes associated with the UNION.
-static status_t og_gen_union_slct_node(sql_query_t *sql_qry, sql_stmt_t *statement, sql_select_t *sub_select_ctx,
-                                       cond_tree_t *remain_conds, select_node_t **select_node, cond_node_t *cond_node)
+static status_t og_build_union_slct_node(sql_stmt_t *statement, select_node_t **select_node,
+    sql_query_t *union_sub_qry)
 {
-    sql_query_t *union_sub_qry = NULL;
-    if (og_build_union_query(sql_qry, &union_sub_qry, statement) != OG_SUCCESS) {
-        OG_LOG_RUN_ERR("[OR2UNION] Rewrite step 2, build union as subquery failed");
-        return OG_ERROR;
-    }
-    union_sub_qry->owner = sub_select_ctx;
-
     if (sql_alloc_mem(statement->context, sizeof(select_node_t), (void **)select_node) != OG_SUCCESS) {
         return OG_ERROR;
     }
     (*select_node)->type = SELECT_NODE_QUERY;
     (*select_node)->query = union_sub_qry;
+    return OG_SUCCESS;
+}
 
-    // 4) construct the where filtr conditions, including the remain_conds, or_conds, lnnvl_conds
+// Generate the select nodes associated with the UNION.
+static status_t og_build_union_qry_filter(sql_query_t *sql_qry, sql_stmt_t *statement, sql_query_t *union_sub_qry,
+                                       cond_tree_t *remain_conds, cond_node_t *cond_node)
+{
+    // construct the where filtr conditions, including the remain_conds, or_conds, lnnvl_conds
     if (og_build_filter_cond4union(union_sub_qry, statement, cond_node, remain_conds) != OG_SUCCESS) {
         OG_LOG_RUN_ERR("[OR2UNION] Rewrite step 2, generate filter_conds for union subquery failed");
         return OG_ERROR;
     }
 
-    // 5) update ssa and column ancestor for union_query
+    // update ssa and column ancestor for union_query
     if (og_update_filter_cond4union(union_sub_qry, sql_qry, statement, union_sub_qry->cond->root) != OG_SUCCESS) {
         OG_LOG_RUN_ERR("[OR2UNION] Rewrite step 2, edit ssa and col ancestor for union subquery failed");
         return OG_ERROR;
@@ -547,7 +545,19 @@ static status_t og_gen_slct_nodes_by_or_conds(sql_query_t *sql_qry, sql_stmt_t *
             return OG_ERROR;
         }
 
-        if (og_gen_union_slct_node(sql_qry, statement, *sub_select_ctx, remain_conds, &select_node, cond_tree->root) !=
+        sql_query_t *union_sub_qry = NULL;
+        if (og_build_union_query(sql_qry, &union_sub_qry, statement) != OG_SUCCESS) {
+            OG_LOG_RUN_ERR("[OR2UNION] Rewrite step 2, build union as subquery failed");
+            return OG_ERROR;
+        }
+        union_sub_qry->owner = *sub_select_ctx;
+
+        if (og_build_union_slct_node(statement, &select_node, union_sub_qry) != OG_SUCCESS) {
+            OG_LOG_RUN_ERR("[OR2UNION] Rewrite step 2, build union as subquery failed");
+            return OG_ERROR;
+        }
+
+        if (og_build_union_qry_filter(sql_qry, statement, union_sub_qry, remain_conds, cond_tree->root) !=
             OG_SUCCESS) {
             OG_LOG_RUN_ERR("[OR2UNION] Rewrite step 2, Generate the select nodes associated with the UNION. failed");
             return OG_ERROR;
@@ -591,7 +601,7 @@ static status_t og_combine_or_cond_branches(galist_t *or_conds, uint32 *sets, sq
             }
 
             OG_LOG_DEBUG_INF("[OR2UNION]: merge or cond branch %d and %d into one union cond branch", idx, idx + 1);
-            MERGE_OR_COND(node_prev, node_next, opt_node);
+            merge_or_cond(node_prev, node_next, opt_node);
             node_prev = opt_node;
             idx++;
         }
@@ -1003,11 +1013,11 @@ static void og_update_bitmap_by_hash_cond(cond_node_t *node, bitmapset_t *bit_ma
 static void og_init_or_expand_info(sql_query_t *sql_qry, sql_stmt_t *statement, or_expand_helper_t *ex_helper)
 {
     ex_helper->has_nested_or_cond = OG_FALSE;
-    GET_OPT_SUBSLCT_CNT(ex_helper) = 0;
+    ex_helper->opt_subselect_count = 0;
     ex_helper->or_conds = NULL;
     ex_helper->query = sql_qry;
     ex_helper->stmt = statement;
-    SET_NO_OR2UNION_FLAG(ex_helper);
+    set_no_or2u_flag(ex_helper);
     // When single table sql_qry, expand_helper->table_bit_cnt = 0
     // When non-single table sql_qry, the expand_helper->table_bit_cnt is count of query tables
     ex_helper->table_bit_cnt = sql_qry->tables.count <= 1 ? 0 : sql_qry->tables.count;
@@ -1046,9 +1056,9 @@ static status_t og_deal_exists_or_cond_subslct(or_expand_helper_t *ex_helper, sq
     }
 
     if (can_rewrite) {
-        SET_HIGH_OR2UNION_FLAG(ex_helper);
+        set_high_or2u_flag(ex_helper);
     } else {
-        SET_NO_OR2UNION_FLAG(ex_helper);
+        set_no_or2u_flag(ex_helper);
     }
 
     return OG_SUCCESS;
@@ -1063,22 +1073,22 @@ static status_t og_check_in_exist_sub_slct(or_expand_helper_t *ex_helper, cmp_no
     if (has_in_cmp != NULL && *has_in_cmp == OG_TRUE &&
         (cmp->right->next != NULL || TREE_EXPR_TYPE(cmp->right) != EXPR_NODE_SELECT)) {
         OG_LOG_DEBUG_INF("[OR2UNION] Check for scen1, the cond type in or not_in not a single sub_select, no rewrite");
-        SET_NO_OR2UNION_FLAG(ex_helper);
+        set_no_or2u_flag(ex_helper);
         return OG_SUCCESS;
     }
 
     sql_select_t *sub_select = (sql_select_t *)EXPR_VALUE_PTR(var_object_t, cmp->right)->ptr;
     sql_query_t *sub_slct_qry = sub_select->first_query;
     if (og_check_in_exist_subslct_invalid(sub_select, sub_slct_qry)) {
-        SET_NO_OR2UNION_FLAG(ex_helper);
+        set_no_or2u_flag(ex_helper);
         OG_LOG_DEBUG_INF("[OR2UNION] Check for scen1, the sub select not meet the requirements, no rewrite");
         return OG_SUCCESS;
     }
 
-    GET_OPT_SUBSLCT_CNT(ex_helper)++;
+    ex_helper->opt_subselect_count++;
 
     if (has_in_cmp != NULL && *has_in_cmp == OG_TRUE) {
-        SET_HIGH_OR2UNION_FLAG(ex_helper);
+        set_high_or2u_flag(ex_helper);
         return OG_SUCCESS;
     }
 
@@ -1086,7 +1096,7 @@ static status_t og_check_in_exist_sub_slct(or_expand_helper_t *ex_helper, cmp_no
     // since the sub-query not correlated with the parent table would be precomputed by the optimizer.
     if (sub_select->has_ancestor == 0) {
         OG_LOG_DEBUG_INF("[OR2UNION] Check for scen1, exists subslct without ancestor col, low rewrite");
-        SET_LOW_OR2UNION_FLAG(ex_helper);
+        set_low_or2u_flag(ex_helper);
         return OG_SUCCESS;
     }
 
@@ -1103,12 +1113,12 @@ static status_t og_handle_or_cond_equal(or_expand_helper_t *ex_helper, cond_node
     uint32 tbl1_id = 0;
     uint32 tbl2_id = 0;
     if (og_check_hash_cond_exist(cond_node->cmp, &tbl1_id, &tbl2_id)) {
-        SET_HIGH_OR2UNION_FLAG(ex_helper);
+        set_high_or2u_flag(ex_helper);
         add_ele_to_bitmaps(&ex_helper->table_bitmap, tbl1_id);
         add_ele_to_bitmaps(&ex_helper->table_bitmap, tbl2_id);
         return OG_SUCCESS;
     }
-    SET_NO_OR2UNION_FLAG(ex_helper);
+    set_no_or2u_flag(ex_helper);
     OG_LOG_DEBUG_INF("[OR2UNION] Check for Scen2, can not construct hash cond, no rewrite");
     return OG_SUCCESS;
 }
@@ -1118,7 +1128,7 @@ static status_t og_or2union_check_cond(or_expand_helper_t *ex_helper, cond_node_
     if (cond_node->type == COND_NODE_OR) {
         // If OR node appears again under AND node or COMPARE node, this is nested OR conditions.
         ex_helper->has_nested_or_cond = OG_TRUE;
-        SET_NO_OR2UNION_FLAG(ex_helper);
+        set_no_or2u_flag(ex_helper);
         OG_LOG_DEBUG_INF("[OR2UNION] Check for Scen1-2, there has nested or cond");
         return OG_SUCCESS;
     }
@@ -1143,8 +1153,8 @@ static status_t og_or2union_check_cond(or_expand_helper_t *ex_helper, cond_node_
         }
         // Scenario 1 : or cond type must be in | not in | exist | not exist
         // Check if both sides of the OR condition can independently use hash join semi for query optimization.
-        bool32 has_exist_cmp = COND_HAS_EXIST_CMP(cond_node->cmp->type);
-        bool32 has_in_cmp = COND_HAS_IN_CMP(cond_node->cmp->type);
+        bool32 has_exist_cmp = cond_has_exist_cmp(cond_node->cmp->type);
+        bool32 has_in_cmp = cond_has_in_cmp(cond_node->cmp->type);
         if (has_exist_cmp || has_in_cmp) {
             return og_check_in_exist_sub_slct(ex_helper, cond_node->cmp, &has_exist_cmp, &has_in_cmp);
         }
@@ -1153,14 +1163,14 @@ static status_t og_or2union_check_cond(or_expand_helper_t *ex_helper, cond_node_
             "[OR2UNION] Check for Scen1, the or cond must be in | not in | exist | not exist, no rewrite");
     }
 
-    SET_NO_OR2UNION_FLAG(ex_helper);
+    set_no_or2u_flag(ex_helper);
     return OG_SUCCESS;
 }
 
 static status_t og_or2union_process_conds(or_expand_helper_t *ex_helper, cond_node_t *cond_node)
 {
-    uint32 sub_select_count = GET_OPT_SUBSLCT_CNT(ex_helper);
-    GET_OPT_SUBSLCT_CNT(ex_helper) = 0;
+    uint32 sub_select_count = ex_helper->opt_subselect_count;
+    ex_helper->opt_subselect_count = 0;
     bitmapset_t tab_bitmap = ex_helper->table_bitmap;
 
     if (og_or2union_check_cond(ex_helper, cond_node) != OG_SUCCESS) {
@@ -1168,17 +1178,17 @@ static status_t og_or2union_process_conds(or_expand_helper_t *ex_helper, cond_no
         return OG_ERROR;
     }
 
-    if (HAS_NO_OR2UNION_FLAG(ex_helper) || ex_helper->has_nested_or_cond ||
+    if (has_no_or2u_flag(ex_helper) || ex_helper->has_nested_or_cond ||
         (get_ele_cnt_from_bitmaps(&ex_helper->table_bitmap) != ex_helper->table_bit_cnt &&
-         GET_OPT_SUBSLCT_CNT(ex_helper) == 0)) {
+         ex_helper->opt_subselect_count == 0)) {
         ex_helper->table_bitmap = tab_bitmap;
-        GET_OPT_SUBSLCT_CNT(ex_helper) = sub_select_count;
-        SET_NO_OR2UNION_FLAG(ex_helper);
+        ex_helper->opt_subselect_count = sub_select_count;
+        set_no_or2u_flag(ex_helper);
         return OG_SUCCESS;
     }
 
     ex_helper->table_bitmap = tab_bitmap;
-    GET_OPT_SUBSLCT_CNT(ex_helper) += sub_select_count;
+    ex_helper->opt_subselect_count += sub_select_count;
     return cm_galist_insert(ex_helper->or_conds, cond_node);
 }
 
@@ -1188,11 +1198,11 @@ static status_t og_evaluate_or2union_conver(or_expand_helper_t *ex_helper, cond_
 
     if (cond_node->type == COND_NODE_OR) {
         OG_RETURN_IFERR(og_evaluate_or2union_conver(ex_helper, cond_node->left));
-        OG_RETVALUE_IFTRUE(HAS_NO_OR2UNION_FLAG(ex_helper), OG_SUCCESS);
+        OG_RETVALUE_IFTRUE(has_no_or2u_flag(ex_helper), OG_SUCCESS);
         rewrite_level_t left_cond_level = ex_helper->rewrite_level;
 
         OG_RETURN_IFERR(og_evaluate_or2union_conver(ex_helper, cond_node->right));
-        OG_RETVALUE_IFTRUE(HAS_NO_OR2UNION_FLAG(ex_helper), OG_SUCCESS);
+        OG_RETVALUE_IFTRUE(has_no_or2u_flag(ex_helper), OG_SUCCESS);
         rewrite_level_t right_cond_level = ex_helper->rewrite_level;
 
         ex_helper->rewrite_level = MAX(left_cond_level, right_cond_level);
@@ -1203,7 +1213,7 @@ static status_t og_evaluate_or2union_conver(or_expand_helper_t *ex_helper, cond_
         return og_or2union_process_conds(ex_helper, cond_node);
     }
 
-    SET_NO_OR2UNION_FLAG(ex_helper);
+    set_no_or2u_flag(ex_helper);
     return OG_SUCCESS;
 }
 
@@ -1213,7 +1223,7 @@ static status_t og_traverse_process_or_cond(sql_stmt_t *statement, cond_node_t *
     or_expand_helper_t *expand_helper, galist_t *opt_or_conds)
 {
     while (node != NULL) {
-        OG_BREAK_IF_TRUE(GET_OPT_SUBSLCT_CNT(expand_helper) > 0);
+        OG_BREAK_IF_TRUE(expand_helper->opt_subselect_count > 0);
 
         if (node->type != COND_NODE_OR) {
             node = node->next;
@@ -1229,9 +1239,9 @@ static status_t og_traverse_process_or_cond(sql_stmt_t *statement, cond_node_t *
             return OG_ERROR;
         }
 
-        if (HAS_HIGH_OR2UNION_FLAG(expand_helper)) {
+        if (has_high_or2u_flag(expand_helper)) {
             *opt_or_conds = sub_conds;
-        } else if (GET_OPT_SUBSLCT_CNT(expand_helper) > 0) {
+        } else if (expand_helper->opt_subselect_count > 0) {
             return OG_SUCCESS;
         }
         node = node->next;
@@ -1248,7 +1258,7 @@ static status_t og_determine_final_result(or_expand_helper_t *expand_helper, sql
         return OG_SUCCESS;
     }
 
-    if (GET_OPT_SUBSLCT_CNT(expand_helper) != sql_qry->ssa.count) {
+    if (expand_helper->opt_subselect_count != sql_qry->ssa.count) {
         OG_LOG_DEBUG_INF("[OR2UNION] Check for Scen1-2, the opt_sub_select != query_sub_select_cnt, no rewrite");
         *need_rewrite = OG_FALSE;
         return OG_SUCCESS;
@@ -1259,7 +1269,7 @@ static status_t og_determine_final_result(or_expand_helper_t *expand_helper, sql
     bool32 all_or_cond_hash_join = OG_FALSE;
     uint32 used_table_cnt = get_ele_cnt_from_bitmaps(&expand_helper->table_bitmap);
     all_or_cond_hash_join = (expand_helper->table_bit_cnt == used_table_cnt);
-    *need_rewrite = GET_OPT_SUBSLCT_CNT(expand_helper) > 0 ? all_or_cond_hash_join : !all_or_cond_hash_join;
+    *need_rewrite = expand_helper->opt_subselect_count > 0 ? all_or_cond_hash_join : !all_or_cond_hash_join;
     return OG_SUCCESS;
 }
 
@@ -1327,7 +1337,7 @@ static status_t og_check_driver_tbl_index_impl(sql_table_t *tbl, knl_index_desc_
     }
 
     *need_rewrite = OG_TRUE;
-    SET_OR2UNION_CBO_INFO(info, tbl, index, *additional_cost);
+    set_or2u_cbo_info(info, tbl, index, *additional_cost);
     return OG_SUCCESS;
 }
 
@@ -1571,22 +1581,22 @@ static status_t og_or2union_get_additional_conds(sql_stmt_t *statement, cond_tre
 static status_t og_compare_or_sub_ranges_left(const scan_border_t new_left, const scan_border_t cmp_left,
     compare_result_t *cmp_ret)
 {
-    if (IS_BORDER_NULL(new_left.type)) {
+    if (is_border_null(new_left.type)) {
         *cmp_ret = GREATER_RES;
         return OG_SUCCESS;
     }
 
-    if (IS_BORDER_INFINITE_LEFT(cmp_left.type)) {
+    if (is_border_infinite_left(cmp_left.type)) {
         *cmp_ret = GREATER_RES;
         return OG_SUCCESS;
     }
 
-    if (IS_BORDER_NULL(cmp_left.type)) {
+    if (is_border_null(cmp_left.type)) {
         *cmp_ret = LESS_RES;
         return OG_SUCCESS;
     }
 
-    if (IS_BORDER_INFINITE_LEFT(new_left.type)) {
+    if (is_border_infinite_left(new_left.type)) {
         *cmp_ret = LESS_RES;
         return OG_SUCCESS;
     }
@@ -1609,22 +1619,22 @@ static inline void og_or2union_init_plan_ast(sql_query_t *sql_qry, sql_stmt_t *s
 static status_t og_compare_or_sub_ranges_right(const scan_border_t new_right, const scan_border_t cmp_right,
     compare_result_t *cmp_ret)
 {
-    if (IS_BORDER_INFINITE_RIGHT(new_right.type)) {
+    if (is_border_infinite_right(new_right.type)) {
         *cmp_ret = GREATER_RES;
         return OG_SUCCESS;
     }
 
-    if (IS_BORDER_NULL(new_right.type)) {
+    if (is_border_null(new_right.type)) {
         *cmp_ret = GREATER_RES;
         return OG_SUCCESS;
     }
 
-    if (IS_BORDER_NULL(cmp_right.type)) {
+    if (is_border_null(cmp_right.type)) {
         *cmp_ret = LESS_RES;
         return OG_SUCCESS;
     }
 
-    if (IS_BORDER_INFINITE_RIGHT(cmp_right.type)) {
+    if (is_border_infinite_right(cmp_right.type)) {
         *cmp_ret = LESS_RES;
         return OG_SUCCESS;
     }
@@ -1641,7 +1651,7 @@ static status_t og_compare_or_sub_ranges_right(const scan_border_t new_right, co
 static void og_construct_max_match_range(scan_range_list_t *match_range, scan_range_t *range)
 {
     if (match_range->type == RANGE_LIST_FULL) {
-        RANGE_SET_FULL(range);
+        range_set_full(range);
     } else if (match_range->type == RANGE_LIST_EMPTY) {
         range->type = RANGE_EMPTY;
     } else if (match_range->count != 1) {
@@ -1657,7 +1667,7 @@ static void og_construct_max_match_range(scan_range_list_t *match_range, scan_ra
 
 static status_t og_compare_or_sub_ranges(scan_range_t *new_range, scan_range_t *cmp_range, compare_result_t *cmp_ret)
 {
-    if (CHK_IF_ANY_RANGE_EMPTY(new_range->type, cmp_range->type)) {
+    if (chk_if_any_range_empty(new_range->type, cmp_range->type)) {
         *cmp_ret = (new_range->type == RANGE_EMPTY) ? GREATER_RES : LESS_RES;
         return OG_SUCCESS;
     }
@@ -1802,12 +1812,12 @@ static status_t og_or2union_generate_match_range(galist_t *sub_conds, plan_assis
 // For right border compare, If any is null, the result is null; If any is non-border, the result is non-border.
 static status_t og_merge_right_ranges(scan_border_t merge_right, scan_border_t *curr_right)
 {
-    if (IS_ANY_BORDER_INFINITE_RIGHT(merge_right.type, curr_right->type)) {
+    if (is_any_border_infinite_right(merge_right.type, curr_right->type)) {
         curr_right->type = BORDER_INFINITE_RIGHT;
         return OG_SUCCESS;
     }
 
-    if (IS_ANY_BORDER_NULL(merge_right.type, curr_right->type)) {
+    if (is_border_any_null(merge_right.type, curr_right->type)) {
         // For example, range1 = [a, b], range2 = is null,
         // the merge range is [a, b], but the right border type is BORDER_IS_NULL
         curr_right->type = BORDER_IS_NULL;
@@ -1845,11 +1855,11 @@ static status_t og_get_or_subcond_match_range(galist_t *sub_conds, galist_t *sub
 // If merge_left type is null, no change. If curr_left type is null, use merge.
 static status_t og_merge_left_ranges(scan_border_t merge_left, scan_border_t *curr_left)
 {
-    if (IS_BORDER_NULL(merge_left.type) || IS_BORDER_INFINITE_LEFT(curr_left->type)) {
+    if (is_border_null(merge_left.type) || is_border_infinite_left(curr_left->type)) {
         return OG_SUCCESS;
     }
 
-    if (IS_BORDER_NULL(curr_left->type) || IS_BORDER_INFINITE_LEFT(merge_left.type)) {
+    if (is_border_null(curr_left->type) || is_border_infinite_left(merge_left.type)) {
         *curr_left = merge_left;
         return OG_SUCCESS;
     }
@@ -1876,7 +1886,7 @@ static status_t og_merge_match_ranges(scan_range_t *merge_range, scan_range_t *c
 
     // Handle two equal point ranges
     int32 cmp_ret = 0;
-    if (IS_BOTH_RANGE_POINT(merge_range->type, curr_range->type)) {
+    if (is_both_range_point(merge_range->type, curr_range->type)) {
         if (var_compare_same_type(&merge_range->left.var, &curr_range->left.var, &cmp_ret) != OG_SUCCESS) {
             return OG_ERROR;
         }
@@ -1896,7 +1906,7 @@ static status_t og_merge_match_ranges(scan_range_t *merge_range, scan_range_t *c
     }
 
     // Check if the merged range is full scan
-    if (IS_BORDER_INFINITE_LEFT(curr_range->left.type) && IS_BORDER_INFINITE_RIGHT(curr_range->right.type)) {
+    if (is_border_infinite_left(curr_range->left.type) && is_border_infinite_right(curr_range->right.type)) {
         curr_range->type = RANGE_FULL;
     }
 
@@ -1958,7 +1968,7 @@ static status_t og_get_range_cmp_type(sql_stmt_t *statement, expr_node_t *column
         return OG_ERROR;
     }
 
-    if (IS_CMP_TYPE_HAS_NULL(cmp_type)) {
+    if (is_cmp_type_has_null(cmp_type)) {
         (*cond)->cmp->type = cmp_type;
         OG_LOG_DEBUG_INF(
             "[OR2UNION] The compare type is set as %s", cmp_type == CMP_TYPE_IS_NULL ? "TYPE_NULL" : "TYPE_NOT_NULL");
@@ -1969,7 +1979,7 @@ static status_t og_get_range_cmp_type(sql_stmt_t *statement, expr_node_t *column
     // If the scan_range is [1, 10], the right border has const val,
     // but the right_border_type is BORDER_IS_NULL,
     // the cmp_type is CMP_TYPE_IS_NULL, the right const val is null
-    if (IS_BORDER_NULL(border.type)) {
+    if (is_border_null(border.type)) {
         (*cond)->cmp->type = CMP_TYPE_IS_NULL;
         OG_LOG_DEBUG_INF("[OR2UNION] The compare type is set as CMP_TYPE_IS_NULL");
         (*cond)->cmp->right = NULL;
@@ -2014,7 +2024,7 @@ static status_t og_handle_both_side_border(sql_stmt_t *statement, expr_node_t *c
     // If the create range cond is [is null, val] --> col <= val OR col is null
     // For example, the scan_range is [1, 3], but the right border is null,
     // the range_cond is col >= 1 OR col is null
-    if (IS_CMP_TYPE_HAS_IS_NULL((*range_cond)->left->cmp->type, (*range_cond)->right->cmp->type)) {
+    if (is_cmp_type_has_is_null((*range_cond)->left->cmp->type, (*range_cond)->right->cmp->type)) {
         (*range_cond)->type = COND_NODE_OR;
     }
     return OG_SUCCESS;
@@ -2025,19 +2035,19 @@ static status_t og_get_range_cond_section(sql_stmt_t *statement, expr_node_t *co
 {
     cmp_type_t cmp_type;
     // Left boundary not exist, process right
-    if (IS_BORDER_INFINITE_LEFT(scan_range.left.type)) {
+    if (is_border_infinite_left(scan_range.left.type)) {
         cmp_type = scan_range.right.closed ? CMP_TYPE_LESS_EQUAL : CMP_TYPE_LESS;
         return og_get_range_cmp_type(statement, column, scan_range.right, range_cond, cmp_type);
     }
 
     // Right boundary not exist, process left
-    if (IS_BORDER_INFINITE_RIGHT(scan_range.right.type)) {
+    if (is_border_infinite_right(scan_range.right.type)) {
         cmp_type = scan_range.left.closed ? CMP_TYPE_GREAT_EQUAL : CMP_TYPE_GREAT;
         return og_get_range_cmp_type(statement, column, scan_range.left, range_cond, cmp_type);
     }
 
     // The scan range is only NULL value
-    if (IS_BORDER_BOTH_NULL(scan_range.left.type, scan_range.right.type)) {
+    if (is_border_both_null(scan_range.left.type, scan_range.right.type)) {
         return og_get_range_cmp_type(statement, column, scan_range.left, range_cond, CMP_TYPE_IS_NULL);
     }
 
@@ -2061,7 +2071,7 @@ static status_t og_build_scan_range_conds(sql_stmt_t *statement, expr_node_t *co
         return og_get_range_cmp_type(statement, column, scan_range.left, range_cond, CMP_TYPE_EQUAL);
     }
 
-    if (IS_BORDER_NULL(scan_range.right.type) && IS_BORDER_INFINITE_LEFT(scan_range.left.type)) {
+    if (is_border_null(scan_range.right.type) && is_border_infinite_left(scan_range.left.type)) {
         (*range_cond)->type = COND_NODE_TRUE;
         return OG_SUCCESS;
     }
@@ -2170,7 +2180,7 @@ static bool32 og_or2union_check_hint_valid(or2union_info_t *or2u_info)
     galist_t *hint = (galist_t *)(hint_info->args[HINT_ID_OR_EXPAND]);
     // Check the hint is validate
     if (hint == NULL || or2u_info->or_branch_count != hint->count) {
-        HINT_OR2UNION_KEY_CLEAR(hint_info);
+        hint_or2u_key_clear(hint_info);
         return OG_FALSE;
     }
 
@@ -2178,7 +2188,7 @@ static bool32 og_or2union_check_hint_valid(or2union_info_t *or2u_info)
     while (id < or2u_info->or_branch_count) {
         uint32 set_id = *(uint32 *)cm_galist_get(hint, id++);
         if (set_id >= hint->count) {
-            HINT_OR2UNION_KEY_CLEAR(hint_info);
+            hint_or2u_key_clear(hint_info);
             return OG_FALSE;
         }
     }
@@ -2192,8 +2202,8 @@ static status_t og_or2union_apply_hint(sql_stmt_t *statement, or2union_info_t *o
     galist_t *hint_list = (galist_t *)(or2u_info->target_table->hint_info->args[HINT_ID_OR_EXPAND]);
     if (or2u_info->or_branch_count == 0 || *(uint32 *)cm_galist_get(hint_list, or2u_info->or_branch_count - 1) == 0) {
         *need_rewrite = OG_FALSE;
-        HINT_OR2UNION_KEY_CLEAR(or2u_info->target_table->hint_info);
-        HINT_NO_OR2UNION_KEY_SET(or2u_info->target_table->hint_info);
+        hint_or2u_key_clear(or2u_info->target_table->hint_info);
+        hint_no_or2u_set_key(or2u_info->target_table->hint_info);
         return OG_SUCCESS;
     }
 
@@ -2206,8 +2216,8 @@ static status_t og_or2union_apply_hint(sql_stmt_t *statement, or2union_info_t *o
         i++;
     }
 
-    HINT_OR2UNION_KEY_CLEAR(or2u_info->target_table->hint_info);
-    HINT_NO_OR2UNION_KEY_SET(or2u_info->target_table->hint_info);
+    hint_or2u_key_clear(or2u_info->target_table->hint_info);
+    hint_no_or2u_set_key(or2u_info->target_table->hint_info);
     return OG_SUCCESS;
 }
 
@@ -2507,5 +2517,3 @@ status_t og_transf_or2union_rewrite(sql_stmt_t *statement, sql_query_t *sql_qry)
     OGSQL_RESTORE_STACK(statement);
     return OG_SUCCESS;
 }
-
-

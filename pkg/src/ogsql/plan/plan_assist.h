@@ -22,6 +22,10 @@
  *
  * -------------------------------------------------------------------------
  */
+
+#ifndef __SQL_PLAN_ASSIST_H__
+#define __SQL_PLAN_ASSIST_H__
+
 #include "plan_join.h"
 #include "cbo_base.h"
 
@@ -40,4 +44,6 @@ void og_disable_func_idx_only(sql_query_t *sql_qry);
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

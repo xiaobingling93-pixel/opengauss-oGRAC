@@ -177,7 +177,7 @@
 #define EXPR_INCL_ROWNODEID 0x0040
 #define COND_INCL_ROWNODEID 0x0080
 #define COND_INCL_PARAM 0x0100
-#define COND_INCL_COL_STAR 0x0200 // select * from XXX, not include select tab.* from XXX 
+#define COND_INCL_COL_STAR 0x0200 // select * from XXX, not include select tab.* from XXX
 
 #define SQL_POLICY_FUNC_STR_LEN (uint32)(OG_MAX_NAME_LEN * 4 + 8)
 #define ROWNUM_COND_OCCUR(cond) ((cond) != NULL && ((cond)->incl_flags & SQL_INCL_ROWNUM))
