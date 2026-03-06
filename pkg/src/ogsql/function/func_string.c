@@ -2072,6 +2072,8 @@ static status_t sql_func_substr_core(sql_stmt_t *stmt, expr_node_t *func, varian
         return OG_SUCCESS;
     }
 
+    SQL_CHECK_COLUMN_VAR(&var1, result);
+
     sql_keep_stack_variant(stmt, &var1);
     OG_RETURN_IFERR(sql_var_as_string(stmt, &var1));
     if (var1.v_text.len == 0 && g_instance->sql.enable_empty_string_null) {
