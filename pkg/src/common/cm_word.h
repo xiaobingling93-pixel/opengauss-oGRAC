@@ -199,6 +199,9 @@ typedef enum en_word_flag {
     ((hint_info)->mask[JOIN_HINT] & (HINT_KEY_WORD_USE_NL | HINT_KEY_WORD_USE_MERGE | HINT_KEY_WORD_USE_HASH | \
         HINT_KEY_WORD_NL_FULL_MTRL | HINT_KEY_WORD_NL_FULL_OPT))
 
+#define HINT_JOIN_ID_GET(hint_item) \
+    ((hint_item)->id & (ID_HINT_USE_NL | ID_HINT_USE_HASH | ID_HINT_USE_MERGE))
+
 #define HAS_HINT(hint_info)                                                                                \
     ((hint_info) != NULL && ((hint_info)->mask[INDEX_HINT] != 0 || (hint_info)->mask[JOIN_HINT] != 0 ||    \
     (hint_info)->mask[OPTIM_HINT] != 0 || (hint_info)->mask[SHARD_HINT] != 0))
@@ -209,6 +212,10 @@ typedef enum en_word_flag {
     ((table)->hint_info != NULL && (table)->hint_info->mask[INDEX_HINT] &                                   \
     (HINT_KEY_WORD_INDEX | HINT_KEY_WORD_INDEX_ASC | HINT_KEY_WORD_INDEX_DESC | HINT_KEY_WORD_INDEX_FFS |   \
     HINT_KEY_WORD_INDEX_SS))
+
+#define TABLE_HAS_INDEX_SORT_HINT(table)                                                                    \
+    ((table)->hint_info != NULL && (table)->hint_info->mask[INDEX_HINT] &                                   \
+    (HINT_KEY_WORD_INDEX_DESC | HINT_KEY_WORD_INDEX_ASC))
 
 #define TABLE_HAS_INDEX_SORT_HINT(table)                                                                    \
     ((table)->hint_info != NULL && (table)->hint_info->mask[INDEX_HINT] &                                   \

@@ -44,8 +44,53 @@ sql_opt_param_t g_opt_param_hint[] = {
 };
 
 static sql_hint_t g_hint_infos[] = {
-    {(uint32)ID_HINT_FULL,             INDEX_HINT,    (uint32)HINT_KEY_WORD_FULL,            og_verify_hint_tables},
+    {(uint32)ID_HINT_FULL,             INDEX_HINT,    (uint32)HINT_KEY_WORD_FULL,             og_verify_hint_tables},
     {(uint32)ID_HINT_INDEX,            INDEX_HINT,    (uint32)HINT_KEY_WORD_INDEX,            og_verify_hint_index},
+    {(uint32)ID_HINT_INDEX_ASC,        INDEX_HINT,    (uint32)HINT_KEY_WORD_INDEX_ASC,        og_verify_hint_index},
+    {(uint32)ID_HINT_INDEX_DESC,       INDEX_HINT,    (uint32)HINT_KEY_WORD_INDEX_DESC,       og_verify_hint_index},
+    {(uint32)ID_HINT_INDEX_FFS,        INDEX_HINT,    (uint32)HINT_KEY_WORD_INDEX_FFS,        og_verify_hint_index},
+    {(uint32)ID_HINT_INDEX_SS,         INDEX_HINT,    (uint32)HINT_KEY_WORD_INDEX_SS,         og_verify_hint_index},
+    {(uint32)ID_HINT_LEADING,          INDEX_HINT,    (uint32)HINT_KEY_WORD_INDEX_SS,         og_verify_hint_index},
+    {(uint32)ID_HINT_NL_BATCH,         INDEX_HINT,    (uint32)HINT_KEY_WORD_NL_BATCH,         NULL},
+    {(uint32)ID_HINT_NO_INDEX,         INDEX_HINT,    (uint32)HINT_KEY_WORD_NO_INDEX,         og_verify_hint_index},
+    {(uint32)ID_HINT_NO_INDEX_FFS,     INDEX_HINT,    (uint32)HINT_KEY_WORD_NO_INDEX_FFS,     og_verify_hint_index},
+    {(uint32)ID_HINT_NO_INDEX_SS,      INDEX_HINT,    (uint32)HINT_KEY_WORD_NO_INDEX_SS,      og_verify_hint_index},
+    {(uint32)ID_HINT_OPTIM_MODE,       OUTLINE_HINT,  (uint32)HINT_KEY_WORD_OPTIM_MODE,       NULL},
+    {(uint32)ID_HINT_OR_EXPAND,        OPTIM_HINT,    (uint32)HINT_KEY_WORD_NO_OR_EXPAND,     NULL},
+    {(uint32)MAX_HINT_WITH_TABLE_ARGS, MAX_HINT_TYPE, (uint32)0,                              NULL},
+    {(uint32)ID_HINT_CB_MTRL,          OPTIM_HINT,    (uint32)HINT_KEY_WORD_NO_CB_MTRL,       NULL},
+    {(uint32)ID_HINT_HASH_AJ,          OPTIM_HINT,    (uint32)HINT_KEY_WORD_HASH_AJ,          NULL},
+    {(uint32)ID_HINT_HASH_BUCKET_SIZE, OPTIM_HINT,    (uint32)HINT_KEY_WORD_HASH_BUCKET_SIZE, NULL},
+    {(uint32)ID_HINT_HASH_SJ,          OPTIM_HINT,    (uint32)HINT_KEY_WORD_HASH_SJ,          NULL},
+    {(uint32)ID_HINT_HASH_TABLE,       JOIN_HINT,     (uint32)HINT_KEY_WORD_HASH_TABLE,       NULL},
+    {(uint32)ID_HINT_INLINE,           OPTIM_HINT,    (uint32)HINT_KEY_WORD_INLINE,           NULL},
+    {(uint32)ID_HINT_MATERIALIZE,      OPTIM_HINT,    (uint32)HINT_KEY_WORD_MATERIALIZE,      NULL},
+    {(uint32)ID_HINT_NL_FULL_MTRL,     JOIN_HINT,     (uint32)HINT_KEY_WORD_NL_FULL_MTRL,     NULL},
+    {(uint32)ID_HINT_NL_FULL_OPT,      JOIN_HINT,     (uint32)HINT_KEY_WORD_NL_FULL_OPT,      NULL},
+    {(uint32)ID_HINT_NO_CB_MTRL,       OPTIM_HINT,    (uint32)HINT_KEY_WORD_NO_CB_MTRL,       NULL},
+    {(uint32)ID_HINT_NO_HASH_TABLE,    JOIN_HINT,     (uint32)HINT_KEY_WORD_NO_HASH_TABLE,    NULL},
+    {(uint32)ID_HINT_NO_OR_EXPAND,     OPTIM_HINT,    (uint32)HINT_KEY_WORD_NO_OR_EXPAND,     NULL},
+    {(uint32)ID_HINT_NO_PUSH_PRED,     OPTIM_HINT,    (uint32)HINT_KEY_WORD_NO_PUSH_PRED,     NULL},
+    {(uint32)ID_HINT_NO_UNNEST,        OPTIM_HINT,    (uint32)HINT_KEY_WORD_NO_UNNEST,        NULL},
+    {(uint32)ID_HINT_OPT_ESTIMATE,     OPTIM_HINT,    (uint32)HINT_KEY_WORD_OPT_ESTIMATE,     NULL},
+    {(uint32)ID_HINT_OPT_PARAM,        OPTIM_HINT,    (uint32)HINT_KEY_WORD_OPT_PARAM,        NULL},
+    {(uint32)ID_HINT_ORDERED,          JOIN_HINT,     (uint32)HINT_KEY_WORD_ORDERED,          NULL},
+    {(uint32)ID_HINT_PARALLEL,         OPTIM_HINT,    (uint32)HINT_KEY_WORD_PARALLEL,         NULL},
+    {(uint32)ID_HINT_ROWID,            INDEX_HINT,    (uint32)HINT_KEY_WORD_ROWID,            NULL},
+    {(uint32)ID_HINT_RULE,             OPTIM_HINT,    (uint32)HINT_KEY_WORD_RULE,             NULL},
+    {(uint32)ID_HINT_SEMI_TO_INNER,    OPTIM_HINT,    (uint32)HINT_KEY_WORD_SEMI_TO_INNER,    NULL},
+    #ifdef OG_RAC_ING
+    {(uint32)ID_HINT_SHD_READ_MASTER,  SHARD_HINT,    (uint32)HINT_KEY_WORD_SHD_READ_MASTER,  NULL},
+    {(uint32)ID_HINT_SQL_WHITELIST,    SHARD_HINT,    (uint32)HINT_KEY_WORD_SQL_WHITELIST,    NULL},
+    #endif
+    {(uint32)ID_HINT_THROW_DUPLICATE,  OPTIM_HINT,    (uint32)HINT_KEY_WORD_THROW_DUPLICATE,  NULL},
+    {(uint32)ID_HINT_UNNEST,           OPTIM_HINT,    (uint32)HINT_KEY_WORD_UNNEST,           NULL},
+    {(uint32)ID_HINT_USE_CONCAT,       INDEX_HINT,    (uint32)HINT_KEY_WORD_USE_CONCAT,       NULL},
+    {(uint32)ID_HINT_USE_HASH,         JOIN_HINT,     (uint32)HINT_KEY_WORD_USE_HASH,         og_verify_hint_tables},
+    {(uint32)ID_HINT_USE_MERGE,        JOIN_HINT,     (uint32)HINT_KEY_WORD_USE_MERGE,        og_verify_hint_tables},
+    {(uint32)ID_HINT_USE_NL,           JOIN_HINT,     (uint32)HINT_KEY_WORD_USE_NL,           og_verify_hint_tables},
+    {(uint32)ID_HINT_DB_VERSION,       OUTLINE_HINT,  (uint32)HINT_KEY_WORD_DB_VERSION,       NULL},
+    {(uint32)ID_HINT_FEATURES_ENABLE,  OUTLINE_HINT,  (uint32)HINT_KEY_WORD_FEATURES_ENABLE,  NULL},
 };
 
 static inline status_t og_set_hint_mask(sql_stmt_t *statement, hint_info_t **hint_info, hint_id_t hint_id)
@@ -369,6 +414,11 @@ static const struct {
 } index_skip_strategy_map[] = {
     {HINT_KEY_WORD_FULL,          skip_strategy_full_scan},
     {HINT_KEY_WORD_INDEX,         skip_strategy_specified_index},
+    {HINT_KEY_WORD_INDEX_ASC,     skip_strategy_specified_index},
+    {HINT_KEY_WORD_INDEX_DESC,    skip_strategy_specified_index},
+    {HINT_KEY_WORD_INDEX_FFS,     skip_strategy_specified_index},
+    {HINT_KEY_WORD_INDEX_SS,      skip_strategy_specified_index},
+    {HINT_KEY_WORD_NO_INDEX,      is_hint_specified_index},
 };
 #define STRATEGY_MAP_CNT (sizeof(index_skip_strategy_map)/sizeof(index_skip_strategy_map[0]))
 

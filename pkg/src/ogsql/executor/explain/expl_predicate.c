@@ -939,7 +939,7 @@ static status_t expl_format_node_rownum(sql_stmt_t *statement, sql_query_t *qry,
     }
     int row_id = helper->parent->row_helper.id;
     var_text_t *content = &helper->content;
-    bool32 has_cond = OG_FALSE;  // if CT_TRUE: need add "AND" in front
+    bool32 has_cond = OG_FALSE;  // if OG_TRUE: need add "AND" in front
 
     CM_TEXT_CLEAR(content);
     OG_RETURN_IFERR(expl_format_cond_head(content, row_id, OG_FALSE));
