@@ -12,6 +12,13 @@ where
     (a) in (select a from sse_t2 where a > 2)
  );
 
+select * from sse_t1
+where
+(
+    exists (select a from sse_t2 where a > 1) and
+    (a) in (select a from sse_t2 where a > 2)
+);
+
 --error case
 select * from sse_t1
 where  
