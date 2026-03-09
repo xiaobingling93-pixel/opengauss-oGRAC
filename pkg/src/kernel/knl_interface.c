@@ -10034,6 +10034,7 @@ status_t knl_drop_ltt_index(knl_handle_t session, knl_drop_def_t *def)
 
     if (index == NULL) {
         dc_close(&dc);
+        OG_RETSUC_IFTRUE(def->options & DROP_IF_EXISTS);
         OG_THROW_ERROR(ERR_INDEX_NOT_EXIST, T2S(&def->owner), T2S_EX(&def->name));
         return OG_ERROR;
     }
