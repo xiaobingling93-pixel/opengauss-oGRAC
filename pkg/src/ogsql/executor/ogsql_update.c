@@ -905,8 +905,8 @@ static status_t sql_set_jsonb_value(sql_stmt_t *stmt, knl_column_t *column, vari
 status_t sql_set_table_value(sql_stmt_t *stmt, knl_cursor_t *knl_cur, row_assist_t *row_ass, knl_column_t *column,
     variant_t *value)
 {
-    if (value->is_null && knl_cur->vnc_column == NULL) {
-        if (!column->nullable) {
+    if (value->is_null) {
+        if (!column->nullable && knl_cur->vnc_column == NULL) {
             knl_cur->vnc_column = column->name;
         }
 
