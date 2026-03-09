@@ -38,6 +38,12 @@ typedef struct st_aggr_count {
     hash_table_entry_t ex_table_entry;
 } aggr_count_t;
 
+typedef struct st_aggr_sum {
+    bool32 has_distinct;
+    hash_segment_t ex_hash_segment;
+    hash_table_entry_t ex_table_entry;
+} aggr_sum_t;
+
 #define GET_AGGR_VAR_COUNT(aggr_var)                                                                     \
     ((aggr_count_t *)(((aggr_var)->extra_offset == 0 || (aggr_var)->extra_offset >= OG_VMEM_PAGE_SIZE || \
         (aggr_var)->extra_size != sizeof(aggr_count_t) || (aggr_var)->aggr_type != AGGR_TYPE_COUNT) ?    \
@@ -53,6 +59,17 @@ typedef struct st_winsort_slider {
     aggr_var_t *curr_var;
     mtrl_rowid_t rid;
 } winsort_slider_t;
+
+static inline aggr_sum_t *get_aggr_var_sum(aggr_var_t *aggr_var)
+{
+    if (aggr_var->extra_offset == 0 ||
+        aggr_var->extra_offset >= OG_VMEM_PAGE_SIZE ||
+        aggr_var->extra_size != sizeof(aggr_sum_t) ||
+        aggr_var->aggr_type != AGGR_TYPE_SUM) {
+        return NULL;
+    }
+    return (aggr_sum_t *)((char *)aggr_var + aggr_var->extra_offset);
+}
 
 static inline status_t sql_win_aggr_stack_alloc(sql_stmt_t *stmt, sql_aggr_type_t aggr_type, uint32 extra_size,
     void **buf)
@@ -87,6 +104,8 @@ static inline status_t sql_stack_alloc_aggr_var(sql_stmt_t *stmt, sql_aggr_type_
             return sql_win_aggr_stack_alloc(stmt, type, sizeof(aggr_corr_t), buf);
 
         case AGGR_TYPE_SUM:
+            return sql_win_aggr_stack_alloc(stmt, type, sizeof(aggr_sum_t), buf);
+
         case AGGR_TYPE_LAG:
         case AGGR_TYPE_LAST_VALUE:
             return sql_win_aggr_stack_alloc(stmt, type, 0, buf);
@@ -153,6 +172,10 @@ static inline status_t sql_copy_aggr(sql_aggr_type_t type, aggr_var_t *src, aggr
             GET_AGGR_VAR_FIR_VAL(dest)->ex_has_val = GET_AGGR_VAR_FIR_VAL(src)->ex_has_val;
             // don't break
         case AGGR_TYPE_SUM:
+            MEMS_RETURN_IFERR(memcpy_s(&dest->var, sizeof(variant_t), &src->var, sizeof(variant_t)));
+            MEMS_RETURN_IFERR(memcpy_s(get_aggr_var_sum(dest), sizeof(aggr_sum_t), get_aggr_var_sum(src),
+                sizeof(aggr_sum_t)));
+            break;
         case AGGR_TYPE_LAG:
         case AGGR_TYPE_GROUP_CONCAT:
             MEMS_RETURN_IFERR(memcpy_s(dest, sizeof(aggr_var_t), src, sizeof(aggr_var_t)));
@@ -232,6 +255,18 @@ static inline status_t sql_win_aggr_page_alloc(sql_stmt_t *stmt, sql_aggr_type_t
     return OG_SUCCESS;
 }
 
+static inline status_t og_win_aggr_distinct_alloc(sql_stmt_t *statement, hash_segment_t *ex_hash_segment,
+    hash_table_entry_t *ex_table_entry)
+{
+    vm_hash_segment_init(&statement->session->knl_session, statement->mtrl.pool, ex_hash_segment, PMA_POOL,
+        HASH_PAGES_HOLD, HASH_AREA_SIZE);
+    ex_table_entry->vmid = OG_INVALID_ID32;
+    ex_table_entry->offset = OG_INVALID_ID32;
+    OG_RETURN_IFERR(vm_hash_table_alloc(ex_table_entry, ex_hash_segment, 0));
+    OG_RETURN_IFERR(vm_hash_table_init(ex_hash_segment, ex_table_entry, NULL, NULL, NULL));
+    return OG_SUCCESS;
+}
+
 static inline status_t sql_win_aggr_count_alloc(sql_stmt_t *stmt, sql_aggr_type_t aggr_type, expr_tree_t *func_expr,
     sql_cursor_t *cursor, aggr_var_t **aggr_var, mtrl_rowid_t *rid)
 {
@@ -242,13 +277,22 @@ static inline status_t sql_win_aggr_count_alloc(sql_stmt_t *stmt, sql_aggr_type_
 
     data->has_distinct = func_expr->root->dis_info.need_distinct;
     if (data->has_distinct) {
-        vm_hash_segment_init(&stmt->session->knl_session, stmt->mtrl.pool, &data->ex_hash_segment, PMA_POOL,
-            HASH_PAGES_HOLD, HASH_AREA_SIZE);
-        data->ex_table_entry.vmid = OG_INVALID_ID32;
-        data->ex_table_entry.offset = OG_INVALID_ID32;
+        return og_win_aggr_distinct_alloc(stmt, &data->ex_hash_segment, &data->ex_table_entry);
+    }
+    return OG_SUCCESS;
+}
 
-        OG_RETURN_IFERR(vm_hash_table_alloc(&data->ex_table_entry, &data->ex_hash_segment, 0));
-        OG_RETURN_IFERR(vm_hash_table_init(&data->ex_hash_segment, &data->ex_table_entry, NULL, NULL, NULL));
+static inline status_t og_win_aggr_sum_alloc(sql_stmt_t *statement, sql_aggr_type_t sql_aggr_type, expr_tree_t *exprtr,
+    sql_cursor_t *cursor, aggr_var_t **aggr_var, mtrl_rowid_t *rid)
+{
+    OG_RETURN_IFERR(sql_win_aggr_page_alloc(statement, sql_aggr_type, cursor, aggr_var, sizeof(aggr_sum_t), rid));
+
+    aggr_sum_t *data = get_aggr_var_sum(*aggr_var);
+    OG_RETVALUE_IFTRUE(data == NULL, OG_ERROR);
+
+    data->has_distinct = exprtr->root->dis_info.need_distinct;
+    if (data->has_distinct) {
+        return og_win_aggr_distinct_alloc(statement, &data->ex_hash_segment, &data->ex_table_entry);
     }
     return OG_SUCCESS;
 }
@@ -299,6 +343,8 @@ static inline status_t sql_win_aggr_var_alloc(sql_stmt_t *stmt, sql_aggr_type_t 
 {
     if (aggr_type == AGGR_TYPE_COUNT) {
         OG_RETURN_IFERR(sql_win_aggr_count_alloc(stmt, aggr_type, func_expr, cursor, aggr_var, rid));
+    } else if (aggr_type == AGGR_TYPE_SUM) {
+        OG_RETURN_IFERR(og_win_aggr_sum_alloc(stmt, aggr_type, func_expr, cursor, aggr_var, rid));
     } else {
         OG_RETURN_IFERR(sql_win_aggr_alloc(stmt, aggr_type, cursor, aggr_var, rid));
     }
