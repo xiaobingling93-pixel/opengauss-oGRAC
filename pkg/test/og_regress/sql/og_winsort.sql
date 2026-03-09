@@ -1,0 +1,14 @@
+DROP TABLE IF EXISTS winsort_sum_t1;
+CREATE TABLE winsort_sum_t1 (a int, b int);
+INSERT INTO winsort_sum_t1 VALUES(1, 2);
+INSERT INTO winsort_sum_t1 VALUES(1, 1);
+INSERT INTO winsort_sum_t1 VALUES(1, 3);
+INSERT INTO winsort_sum_t1 VALUES(1, 2);
+INSERT INTO winsort_sum_t1 VALUES(2, 2);
+INSERT INTO winsort_sum_t1 VALUES(2, 1);
+INSERT INTO winsort_sum_t1 VALUES(2, 1);
+SELECT a, SUM(b) OVER(PARTITION BY a) FROM winsort_sum_t1;
+SELECT b, SUM(a) OVER(PARTITION BY b) FROM winsort_sum_t1;
+SELECT a, SUM(DISTINCT b) OVER(PARTITION BY a) FROM winsort_sum_t1;
+SELECT b, SUM(DISTINCT a) OVER(PARTITION BY b) FROM winsort_sum_t1;
+DROP TABLE IF EXISTS winsort_sum_t1;

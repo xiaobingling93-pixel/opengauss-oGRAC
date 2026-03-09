@@ -250,6 +250,41 @@ static inline void sql_winsort_value_set_notnull(variant_t *result)
     }
 }
 
+static status_t og_aggr_sum_value_basic(sql_stmt_t *statement, aggr_var_t *aggr_var,
+    variant_t *v_aggr, variant_t *v_add)
+{
+    char *buf = NULL;
+    row_assist_t ra;
+    bool32 var_exist;
+    aggr_sum_t *data = get_aggr_var_sum(aggr_var);
+
+    if (data != NULL && data->has_distinct) {
+        OGSQL_SAVE_STACK(statement);
+        sql_keep_stack_variant(statement, v_add);
+        if (sql_push(statement, OG_MAX_ROW_SIZE, (void **)&buf) != OG_SUCCESS) {
+            OGSQL_RESTORE_STACK(statement);
+            return OG_ERROR;
+        }
+        row_init(&ra, buf, OG_MAX_ROW_SIZE, 1);
+        if (sql_put_row_value(statement, NULL, &ra, v_add->type, v_add) != OG_SUCCESS) {
+            OGSQL_RESTORE_STACK(statement);
+            return OG_ERROR;
+        }
+        if (vm_hash_table_insert2(&var_exist, &data->ex_hash_segment, &data->ex_table_entry, buf, ra.head->size) !=
+            OG_SUCCESS) {
+            OGSQL_RESTORE_STACK(statement);
+            return OG_ERROR;
+        }
+
+        OGSQL_RESTORE_STACK(statement);
+        if (var_exist) {
+            return OG_SUCCESS;
+        }
+    }
+
+    return sql_aggr_sum_value(statement, v_aggr, v_add);
+}
+
 status_t sql_get_winsort_aggr_value(aggr_assist_t *aggr_ass, aggr_var_t *aggr_var, const char *buf, variant_t *vars,
     variant_t *result)
 {
@@ -276,7 +311,7 @@ status_t sql_get_winsort_aggr_value(aggr_assist_t *aggr_ass, aggr_var_t *aggr_va
             /* fall-through */
         case AGGR_TYPE_SUM:
             sql_winsort_value_set_notnull(result);
-            return sql_aggr_sum_value(aggr_ass->stmt, result, vars);
+            return og_aggr_sum_value_basic(aggr_ass->stmt, aggr_var, result, vars);
 
         case AGGR_TYPE_LAG:
             result->is_null = OG_FALSE;
@@ -585,6 +620,16 @@ static inline status_t sql_winsort_calc_avg(sql_stmt_t *stmt, aggr_var_t *aggr_r
     return opr_exec(OPER_TYPE_DIV, SESSION_NLS(stmt), &aggr_result->var, &v_rows, &aggr_result->var);
 }
 
+static inline status_t og_winsort_sum_end(sql_stmt_t *statement, aggr_var_t *aggr_result)
+{
+    aggr_sum_t *data = get_aggr_var_sum(aggr_result);
+    OG_RETVALUE_IFTRUE(data == NULL, OG_ERROR);
+    if (data->has_distinct) {
+        vm_hash_segment_deinit(&data->ex_hash_segment);
+    }
+    return OG_SUCCESS;
+}
+
 static inline status_t sql_winsort_count_end(sql_stmt_t *stmt, aggr_var_t *aggr_result)
 {
     aggr_count_t *data = GET_AGGR_VAR_COUNT(aggr_result);
@@ -620,6 +665,9 @@ status_t sql_winsort_aggr_value_end(sql_stmt_t *stmt, sql_aggr_type_t aggr_type,
 
         case AGGR_TYPE_COUNT:
             return sql_winsort_count_end(stmt, aggr_result);
+        
+        case AGGR_TYPE_SUM:
+            return og_winsort_sum_end(stmt, aggr_result);
 
         default:
             return sql_win_aggr_append_data(stmt, cursor, aggr_result);
@@ -817,6 +865,22 @@ static status_t sql_func_winsort_init_slider(sql_stmt_t *stmt, sql_aggr_type_t t
         OG_RETURN_IFERR(sql_win_aggr_append_data(stmt, query_cursor, aggr_result));
     }
 
+    return OG_SUCCESS;
+}
+
+status_t sql_win_aggr_var_alloc(sql_stmt_t *stmt, sql_aggr_type_t aggr_type, sql_cursor_t *cursor,
+    aggr_var_t **aggr_var, og_type_t datatype, mtrl_rowid_t *rid, expr_tree_t *func_expr)
+{
+    if (aggr_type == AGGR_TYPE_COUNT) {
+        OG_RETURN_IFERR(sql_win_aggr_count_alloc(stmt, aggr_type, func_expr, cursor, aggr_var, rid));
+    } else if (aggr_type == AGGR_TYPE_SUM) {
+        OG_RETURN_IFERR(sql_win_aggr_page_alloc(stmt, aggr_type, cursor, aggr_var, sizeof(aggr_sum_t), rid));
+        OG_RETURN_IFERR(og_win_aggr_sum_alloc(stmt, func_expr, aggr_var));
+    } else {
+        OG_RETURN_IFERR(sql_win_aggr_alloc(stmt, aggr_type, cursor, aggr_var, rid));
+    }
+    (*aggr_var)->var.is_null = OG_TRUE;
+    (*aggr_var)->var.type = datatype;
     return OG_SUCCESS;
 }
 

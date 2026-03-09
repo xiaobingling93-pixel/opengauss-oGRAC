@@ -44,3 +44,4 @@ test: og_pred_down
 test: og_proj_col_eliminate
 test: og_pred_deliver
 test: og_or2union
+test: og_winsort
