@@ -43,6 +43,7 @@ sql_opt_param_t g_opt_param_hint[] = {
     { { (char *)"_OPTIM_HASH_MATERIALIZE", 23 },            OPT_HASH_MATERIALIZE},
     { { (char *)"_OPTIM_JOIN_PRED_PUSHDOWN", 25 },   OPT_JOIN_PRED_PUSHDOWN},
     { { (char *)"_OPTIM_ORDER_BY_ELIMINATION", 27 },        OPT_ORDER_BY_ELIMINATION},
+    { { (char *)"_OPTIM_OR_EXPANSION", 19 },                OPT_OR_EXPANSION},
 };
 
 static sql_hint_t g_hint_infos[] = {

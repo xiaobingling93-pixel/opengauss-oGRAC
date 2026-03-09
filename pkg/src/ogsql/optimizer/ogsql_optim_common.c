@@ -29,6 +29,7 @@
 #include "ogsql_expr.h"
 #include "ogsql_transform.h"
 #include "ogsql_verifier.h"
+#include "ogsql_plan_defs.h"
 
 static bool32 check_outer_join_node_cond(cond_tree_t *cond_tree)
 {
@@ -41,6 +42,33 @@ static bool32 check_outer_join_node_cond(cond_tree_t *cond_tree)
     bool32 has_parrent_or_ancestor_cols = HAS_PRNT_OR_ANCSTR_COLS(col_used.flags);
 
     return !has_subslct && !has_parrent_or_ancestor_cols;
+}
+
+bool32 og_check_query_has_sets(select_node_type_t type)
+{
+    switch (type) {
+        case SELECT_NODE_UNION:
+        case SELECT_NODE_UNION_ALL:
+        case SELECT_NODE_INTERSECT:
+        case SELECT_NODE_MINUS:
+        case SELECT_NODE_INTERSECT_ALL:
+        case SELECT_NODE_EXCEPT:
+        case SELECT_NODE_EXCEPT_ALL:
+            return OG_TRUE;
+        default:
+            return OG_FALSE;
+    }
+}
+
+bool32 is_query_tables_all_normal(sql_query_t *qry)
+{
+    for (uint32 i = 0; i < qry->tables.count; i++) {
+        sql_table_t *tbl = (sql_table_t *)sql_array_get(&qry->tables, i);
+        if (tbl->type != NORMAL_TABLE) {
+            return OG_FALSE;
+        }
+    }
+    return OG_TRUE;
 }
 
 bool32 validate_outer_join_conditions(sql_join_node_t *jnode)

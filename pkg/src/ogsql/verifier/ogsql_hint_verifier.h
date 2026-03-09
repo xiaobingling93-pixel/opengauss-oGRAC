@@ -48,6 +48,7 @@ typedef enum en_opt_param_id {
     OPT_HASH_MATERIALIZE,
     OPT_JOIN_PRED_PUSHDOWN,
     OPT_ORDER_BY_ELIMINATION,
+    OPT_OR_EXPANSION,
     OPT_PRED_REORDER,
     OPT_PARAM_COUNT,
 } opt_param_id_t;

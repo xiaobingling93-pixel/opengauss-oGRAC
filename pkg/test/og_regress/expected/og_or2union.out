@@ -1,0 +1,913 @@
+
+
+SQL> -- test or2union varchar and lob consistent
+SQL> drop table if exists t1;
+
+Succeed.
+
+SQL> create table t1 (c1 varchar(100), c2 clob, c3 int);
+
+Succeed.
+
+SQL> insert into t1 values ('1aschauchcdc', 'cashohvveoeve@!$!$', 1);
+
+1 rows affected.
+
+SQL> insert into t1 values ('1aschauchcdc', 'cashohvveoeve@!$!$', 2);
+
+1 rows affected.
+
+SQL> insert into t1 values ('1aschauchcdc', 'cashohvveoeve@!$!$', 3);
+
+1 rows affected.
+
+SQL> explain select c3 from t1 where c1 in (select c1 from t1) or c2 in (select c2 from t1);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |             | 3    | 2    | 0         |       |        |
+| 1  |     SUBSELECT                 |       | $FROM_ORE_0 | 3    | 2    | 0         |       |        |
+| 2  |       HASH UNION              |       |             | 3    | 2    | 0         |       |        |
+| 3  |         KERNEL FILTER         |       |             | 1    | 1    | 0         |       |        |
+| 4  |           TABLE ACCESS FULL   | SYS   | T1          | 1    | 1    | 0         |       |        |
+| 5  |             TABLE ACCESS FULL | SYS   | T1          | 3    | 1    | 0         |       |        |
+| 6  |         KERNEL FILTER         |       |             | 2    | 1    | 0         |       |        |
+| 7  |           TABLE ACCESS FULL   | SYS   | T1          | 2    | 1    | 0         |       |        |
+| 8  |             TABLE ACCESS FULL | SYS   | T1          | 3    | 1    | 0         |       |        |
+-------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: C1 IN ((SELECT C1 FROM T1))                     
+    7 - filter: C2 IN ((SELECT C2 FROM T1))                     
+
+17 rows fetched.
+
+SQL> select c3 from t1 where c1 in (select c1 from t1) or c2 in (select c2 from t1);
+
+C3          
+------------
+1           
+2           
+3           
+
+3 rows fetched.
+
+SQL> explain select * from
+  2 (SELECT c3 FROM t1 WHERE EXISTS (SELECT 1 FROM t1 t11 WHERE t11.c1 = t1.c1)
+  3 UNION
+  4 SELECT c3 FROM t1 WHERE EXISTS (SELECT 1 FROM t1 t12 WHERE t12.c2 = t1.c2));
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |        | 6    | 2    | 0         |       |        |
+| 1  |     SUBSELECT                 | SYS   |        | 6    | 2    | 0         |       |        |
+| 2  |       HASH UNION              |       |        | 6    | 2    | 0         |       |        |
+| 3  |         KERNEL FILTER         |       |        | 3    | 1    | 0         |       |        |
+| 4  |           TABLE ACCESS FULL   | SYS   | T1     | 3    | 1    | 0         |       |        |
+| 5  |             TABLE ACCESS FULL | SYS   | T1 T11 | 1    | 1    | 0         |       |        |
+| 6  |         KERNEL FILTER         |       |        | 3    | 1    | 0         |       |        |
+| 7  |           TABLE ACCESS FULL   | SYS   | T1     | 3    | 1    | 0         |       |        |
+| 8  |             TABLE ACCESS FULL | SYS   | T1 T12 | 2    | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: EXISTS(SELECT 1 FROM T1 T11 WHERE T11.C1 = T1.C1)
+    5 - filter: T11.C1 = T1.C1                                  
+    7 - filter: EXISTS(SELECT 1 FROM T1 T12 WHERE T12.C2 = T1.C2)
+    8 - filter: T12.C2 = T1.C2                                  
+
+19 rows fetched.
+
+SQL> select * from
+  2 (SELECT c3 FROM t1 WHERE EXISTS (SELECT 1 FROM t1 t11 WHERE t11.c1 = t1.c1)
+  3 UNION
+  4 SELECT c3 FROM t1 WHERE EXISTS (SELECT 1 FROM t1 t12 WHERE t12.c2 = t1.c2));
+
+C3          
+------------
+1           
+2           
+3           
+
+3 rows fetched.
+
+SQL> drop table t1;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists t1;
+
+Succeed.
+
+SQL> create table t1 (c1 varchar(100), c2 blob, c3 int);
+
+Succeed.
+
+SQL> insert into t1 values ('1aschauchcdc', '1244abcd', 1);
+
+1 rows affected.
+
+SQL> insert into t1 values ('1aschauchcdc', '1244abcd', 2);
+
+1 rows affected.
+
+SQL> insert into t1 values ('1aschauchcdc', '1244abcd', 3);
+
+1 rows affected.
+
+SQL> explain select c3 from t1 where c1 in (select c1 from t1) or c2 in (select c2 from t1);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |             | 3    | 2    | 0         |       |        |
+| 1  |     SUBSELECT                 |       | $FROM_ORE_0 | 3    | 2    | 0         |       |        |
+| 2  |       HASH UNION              |       |             | 3    | 2    | 0         |       |        |
+| 3  |         KERNEL FILTER         |       |             | 1    | 1    | 0         |       |        |
+| 4  |           TABLE ACCESS FULL   | SYS   | T1          | 1    | 1    | 0         |       |        |
+| 5  |             TABLE ACCESS FULL | SYS   | T1          | 3    | 1    | 0         |       |        |
+| 6  |         KERNEL FILTER         |       |             | 2    | 1    | 0         |       |        |
+| 7  |           TABLE ACCESS FULL   | SYS   | T1          | 2    | 1    | 0         |       |        |
+| 8  |             TABLE ACCESS FULL | SYS   | T1          | 3    | 1    | 0         |       |        |
+-------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: C1 IN ((SELECT C1 FROM T1))                     
+    7 - filter: C2 IN ((SELECT C2 FROM T1))                     
+
+17 rows fetched.
+
+SQL> select c3 from t1 where c1 in (select c1 from t1) or c2 in (select c2 from t1);
+
+C3          
+------------
+1           
+2           
+3           
+
+3 rows fetched.
+
+SQL> explain select * from
+  2 (SELECT c3 FROM t1 WHERE EXISTS (SELECT 1 FROM t1 t11 WHERE t11.c1 = t1.c1)
+  3 UNION
+  4 SELECT c3 FROM t1 WHERE EXISTS (SELECT 1 FROM t1 t12 WHERE t12.c2 = t1.c2));
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------
+| Id | Operation                     | Owner | Name   | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT              |       |        | 6    | 2    | 0         |       |        |
+| 1  |     SUBSELECT                 | SYS   |        | 6    | 2    | 0         |       |        |
+| 2  |       HASH UNION              |       |        | 6    | 2    | 0         |       |        |
+| 3  |         KERNEL FILTER         |       |        | 3    | 1    | 0         |       |        |
+| 4  |           TABLE ACCESS FULL   | SYS   | T1     | 3    | 1    | 0         |       |        |
+| 5  |             TABLE ACCESS FULL | SYS   | T1 T11 | 1    | 1    | 0         |       |        |
+| 6  |         KERNEL FILTER         |       |        | 3    | 1    | 0         |       |        |
+| 7  |           TABLE ACCESS FULL   | SYS   | T1     | 3    | 1    | 0         |       |        |
+| 8  |             TABLE ACCESS FULL | SYS   | T1 T12 | 2    | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: EXISTS(SELECT 1 FROM T1 T11 WHERE T11.C1 = T1.C1)
+    5 - filter: T11.C1 = T1.C1                                  
+    7 - filter: EXISTS(SELECT 1 FROM T1 T12 WHERE T12.C2 = T1.C2)
+    8 - filter: T12.C2 = T1.C2                                  
+
+19 rows fetched.
+
+SQL> select * from
+  2 (SELECT c3 FROM t1 WHERE EXISTS (SELECT 1 FROM t1 t11 WHERE t11.c1 = t1.c1)
+  3 UNION
+  4 SELECT c3 FROM t1 WHERE EXISTS (SELECT 1 FROM t1 t12 WHERE t12.c2 = t1.c2));
+
+C3          
+------------
+1           
+2           
+3           
+
+3 rows fetched.
+
+SQL> drop table t1;
+
+Succeed.
+
+SQL> 
+SQL> -- test the subqry of union all has order clause, the order can not be eliminated
+SQL> drop table if exists t_union_all_order_eliminate_test;
+
+Succeed.
+
+SQL> create table t_union_all_order_eliminate_test(id decimal(5,2));
+
+Succeed.
+
+SQL> create index index_test on t_union_all_order_eliminate_test(id);
+
+Succeed.
+
+SQL> insert into t_union_all_order_eliminate_test values (999.99),(999.99),(-999.99),(null),(0),(2),(2),(3),(4);
+
+9 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> (select power(id,2) as pwr from t_union_all_order_eliminate_test order by id)
+  2 union all
+  3 (select power(id,2) from t_union_all_order_eliminate_test order by id);
+
+PWR                                     
+----------------------------------------
+999980.0001                             
+0                                       
+4                                       
+4                                       
+9                                       
+16                                      
+999980.0001                             
+999980.0001                             
+                                        
+999980.0001                             
+0                                       
+4                                       
+4                                       
+9                                       
+16                                      
+999980.0001                             
+999980.0001                             
+                                        
+
+18 rows fetched.
+
+SQL> drop table t_union_all_order_eliminate_test;
+
+Succeed.
+
+SQL> 
+SQL> alter system set _OPTIM_SUBQUERY_REWRITE = TRUE;
+
+Succeed.
+
+SQL> drop table if exists t_or2union_1;
+
+Succeed.
+
+SQL> drop table if exists t_or2union_2;
+
+Succeed.
+
+SQL> create table t_or2union_1 (a int, b int not null, c int);
+
+Succeed.
+
+SQL> alter table t_or2union_1 add constraint pk_a primary key (a);
+
+Succeed.
+
+SQL> insert into t_or2union_1 values (1,2,3), (2,3,4);
+
+2 rows affected.
+
+SQL> create table t_or2union_2 (a int, b int not null, c int);
+
+Succeed.
+
+SQL> alter table t_or2union_2 add constraint pk_a2 primary key (a);
+
+Succeed.
+
+SQL> insert into t_or2union_2 values (1,2,3), (2,3,4);
+
+2 rows affected.
+
+SQL> commit;
+
+Succeed.
+
+SQL> 
+SQL> drop table if exists  t_or_index_1;
+
+Succeed.
+
+SQL> drop table if exists  t_or_index_2;
+
+Succeed.
+
+SQL> create table  t_or_index_1(f1 int,f2 int,f3 number,f4 varchar(40) not null,f5 timestamp);
+
+Succeed.
+
+SQL> create table  t_or_index_2(f1 int,f2 int,f3 number,f4 varchar(10) not null,f5 timestamp);
+
+Succeed.
+
+SQL> create index ind_or_expand_11 on  t_or_index_1(f1, f2);
+
+Succeed.
+
+SQL> create index ind_or_expand_12 on  t_or_index_1(f1, f2, f3);
+
+Succeed.
+
+SQL> create index ind_or_expand_13 on  t_or_index_1(f1, f4, f5);
+
+Succeed.
+
+SQL> 
+SQL> Declare
+  2 i int;
+  3 j int;
+  4 k timestamp;
+  5 begin
+  6  i := 1;
+  7 loop
+  8  j := 1;
+  9  loop
+ 10 	k := ADD_MONTHS(to_timestamp(to_char('1800-03-05 10:51:47'),'yyyy-mm-dd hh24:mi:ss'), j);
+ 11 	insert into  t_or_index_1 values(i, j, 100.123 + j, 'abc' || j, k);
+ 12 	j := j + 1;
+ 13  exit when j > 1000;
+ 14  end loop;
+ 15 i := i+1;
+ 16  exit when i>10;
+ 17 end loop;
+ 18  commit;
+ 19  end;
+ 20 /
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> analyze table t_or_index_1 compute statistics;
+
+Succeed.
+
+SQL> 
+SQL> Declare
+  2 i int;
+  3 j int;
+  4 k timestamp;
+  5 begin
+  6  i := 1;
+  7 loop
+  8  j := 1;
+  9  loop
+ 10 	k := ADD_MONTHS(to_timestamp(to_char('1800-03-05 10:51:47'),'yyyy-mm-dd hh24:mi:ss'), j);
+ 11 	insert into  t_or_index_2 values(i, j, 100.123 + j, 'abc' || j, k);
+ 12 	j := j + 1;
+ 13  exit when j > 500;
+ 14  end loop;
+ 15 i := i+1;
+ 16  exit when i>10;
+ 17 end loop;
+ 18  commit;
+ 19  end;
+ 20  /
+
+PL/SQL procedure successfully completed.
+
+SQL> 
+SQL> drop table if exists or_2_union_t;
+
+Succeed.
+
+SQL> create table or_2_union_t (a int, b int not null, c int);
+
+Succeed.
+
+SQL> alter table or_2_union_t add constraint pk_aa primary key (a);
+
+Succeed.
+
+SQL> insert into or_2_union_t values (1,2,3), (2,3,4);
+
+2 rows affected.
+
+SQL> 
+SQL> ALTER SYSTEM SET _opt_cbo_stat_sampling_level = 0;
+
+Succeed.
+
+SQL> analyze table t_or_index_1 compute statistics;
+
+Succeed.
+
+SQL> analyze table t_or2union_1 compute statistics;
+
+Succeed.
+
+SQL> analyze table or_2_union_t compute statistics;
+
+Succeed.
+
+SQL> explain
+  2 select * from or_2_union_t t0 where t0.c in
+  3 (select t1.a from or_2_union_t t1 where
+  4 t1.b in(select t2.b from or_2_union_t t2 where t2.b < 10)
+  5 or
+  6 t1.c in(select t3.c from or_2_union_t t3 where t3.c < 10));
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------
+| Id | Operation                                        | Owner | Name            | Rows | Cost | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                                 |       |                 | 1    | 5    | 5         |       |        |
+| 1  |   MERGE JOIN                                     |       |                 | 1    | 5    | 5         |       |        |
+| 2  |       TABLE ACCESS FULL                          | SYS   | OR_2_UNION_T T0 | 2    | 1    | 0         |       |        |
+| 3  |       SUBSELECT                                  |       | $FROM_SQ_0      | 2    | 4    | 0         |       |        |
+| 4  |         HASH DISTINCT                            |       |                 | 2    | 24   | 8         |       |        |
+| 5  |             SUBSELECT                            |       | $FROM_ORE_0     | 2    | 16   | 8         |       |        |
+| 6  |               HASH UNION                         |       |                 | 2    | 16   | 8         |       |        |
+| 7  |                 NESTED LOOPS                     |       |                 | 1    | 8    | 4         |       |        |
+| 8  |                     TABLE ACCESS BY INDEX ROWID  | SYS   | OR_2_UNION_T T1 | 1    | 7    | 4         |       |        |
+| 9  |                       INDEX UNIQUE SCAN          | SYS   | PK_AA           | 1    | 7    | 4         |       |        |
+| 10 |                     SUBSELECT                    |       | $FROM_SQ_1      | 1    | 1    | 0         |       |        |
+| 11 |                       HASH DISTINCT              |       |                 | 1    | 9    | 0         |       |        |
+| 12 |                           TABLE ACCESS FULL      | SYS   | OR_2_UNION_T T2 | 1    | 1    | 0         |       |        |
+| 13 |                 NESTED LOOPS                     |       |                 | 1    | 8    | 4         |       |        |
+| 14 |                     TABLE ACCESS BY INDEX ROWID  | SYS   | OR_2_UNION_T T1 | 1    | 7    | 4         |       |        |
+| 15 |                       INDEX UNIQUE SCAN          | SYS   | PK_AA           | 1    | 7    | 4         |       |        |
+| 16 |                     SUBSELECT                    |       | $FROM_SQ_2      | 1    | 1    | 0         |       |        |
+| 17 |                       HASH DISTINCT              |       |                 | 1    | 9    | 0         |       |        |
+| 18 |                           TABLE ACCESS FULL      | SYS   | OR_2_UNION_T T3 | 1    | 1    | 0         |       |        |
+------------------------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - access: T0.C = A                                        
+    5 - filter: T0.C = A                                        
+    9 - access: T1.A = T0.C                                     
+    10 - filter: T1.B = T2.B                                    
+    12 - filter: T2.B < 10 AND T1.B = T2.B                      
+    15 - access: T1.A = T0.C                                    
+    16 - filter: T1.C = T3.C                                    
+    18 - filter: T3.C < 10 AND T1.C = T3.C                      
+
+33 rows fetched.
+
+SQL> 
+SQL> set autotrace on;
+
+ON
+SQL> 
+SQL> select count(*) from  or_2_union_t t1 where
+  2 exists(select * from  or_2_union_t t2 where t1.b = t2.b)
+  3 or
+  4 exists(select * from (select * from  or_2_union_t where b = c) t3 where t1.c = t3.c);
+
+COUNT(*)            
+--------------------
+2                   
+
+1 rows fetched.
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
+| Id | Operation                             | Owner | Name            | Rows | Cost | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                      |       |                 | 1    | 6    | 0         |       |        |
+| 1  |   AGGR                                |       |                 | 1    | 6    | 0         |       |        |
+| 2  |       SUBSELECT                       |       | $FROM_ORE_0     | 2    | 6    | 0         |       |        |
+| 3  |         HASH UNION                    |       |                 | 2    | 6    | 0         |       |        |
+| 4  |           NESTED LOOPS                |       |                 | 1    | 3    | 0         |       |        |
+| 5  |               TABLE ACCESS FULL       | SYS   | OR_2_UNION_T T1 | 2    | 1    | 0         |       |        |
+| 6  |               SUBSELECT               |       | $FROM_SQ_0      | 1    | 1    | 0         |       |        |
+| 7  |                 HASH DISTINCT         |       |                 | 1    | 9    | 0         |       |        |
+| 8  |                     TABLE ACCESS FULL | SYS   | OR_2_UNION_T T2 | 1    | 1    | 0         |       |        |
+| 9  |           NESTED LOOPS                |       |                 | 1    | 3    | 0         |       |        |
+| 10 |               TABLE ACCESS FULL       | SYS   | OR_2_UNION_T T1 | 2    | 1    | 0         |       |        |
+| 11 |               SUBSELECT               |       | $FROM_SQ_1      | 1    | 1    | 0         |       |        |
+| 12 |                 HASH DISTINCT         |       |                 | 1    | 9    | 0         |       |        |
+| 13 |                     TABLE ACCESS FULL | SYS   | OR_2_UNION_T    | 1    | 1    | 0         |       |        |
+-------------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    8 - filter: T2.B = T1.B                                     
+    13 - filter: B = C AND OR_2_UNION_T.C = T1.C                
+
+22 rows fetched.
+
+SQL> 
+SQL> select count(*) from  or_2_union_t t0 where c in (
+  2 select t1.a from  or_2_union_t t1 where -- 不引用外层IN层级的父表字段
+  3 exists(select * from  or_2_union_t t2 where t1.b = t2.b)
+  4 or 
+  5 exists(select * from  or_2_union_t t3 where t1.c = t3.c));
+
+COUNT(*)            
+--------------------
+0                   
+
+1 rows fetched.
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------
+| Id | Operation                                          | Owner | Name            | Rows | Cost | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                                   |       |                 | 1    | 1    | 0         |       |        |
+| 1  |   AGGR                                             |       |                 | 1    | 1    | 0         |       |        |
+| 2  |     NESTED LOOPS                                   |       |                 | 1    | 1    | 0         |       |        |
+| 3  |         TABLE ACCESS FULL                          | SYS   | OR_2_UNION_T T0 | 2    | 1    | 0         |       |        |
+| 4  |         SUBSELECT                                  |       | $FROM_SQ_0      | 2    | 0    | 0         |       |        |
+| 5  |           HASH DISTINCT                            |       |                 | 2    | 24   | 8         |       |        |
+| 6  |               SUBSELECT                            |       | $FROM_ORE_0     | 2    | 16   | 8         |       |        |
+| 7  |                 HASH UNION                         |       |                 | 2    | 16   | 8         |       |        |
+| 8  |                   NESTED LOOPS                     |       |                 | 1    | 8    | 4         |       |        |
+| 9  |                       TABLE ACCESS BY INDEX ROWID  | SYS   | OR_2_UNION_T T1 | 1    | 7    | 4         |       |        |
+| 10 |                         INDEX UNIQUE SCAN          | SYS   | PK_AA           | 1    | 7    | 4         |       |        |
+| 11 |                       SUBSELECT                    |       | $FROM_SQ_1      | 1    | 1    | 0         |       |        |
+| 12 |                         HASH DISTINCT              |       |                 | 1    | 9    | 0         |       |        |
+| 13 |                             TABLE ACCESS FULL      | SYS   | OR_2_UNION_T T2 | 1    | 1    | 0         |       |        |
+| 14 |                   NESTED LOOPS                     |       |                 | 1    | 8    | 4         |       |        |
+| 15 |                       TABLE ACCESS BY INDEX ROWID  | SYS   | OR_2_UNION_T T1 | 1    | 7    | 4         |       |        |
+| 16 |                         INDEX UNIQUE SCAN          | SYS   | PK_AA           | 1    | 7    | 4         |       |        |
+| 17 |                       SUBSELECT                    |       | $FROM_SQ_2      | 1    | 1    | 0         |       |        |
+| 18 |                         HASH DISTINCT              |       |                 | 1    | 9    | 0         |       |        |
+| 19 |                             TABLE ACCESS FULL      | SYS   | OR_2_UNION_T T3 | 1    | 1    | 0         |       |        |
+--------------------------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: C = A                                           
+    6 - filter: C = A                                           
+    10 - access: T1.A = C                                       
+    13 - filter: T2.B = T1.B                                    
+    16 - access: T1.A = C                                       
+    19 - filter: T3.C = T1.C                                    
+
+32 rows fetched.
+
+SQL> 
+SQL> select count(*) from  t_or_index_1 t1 where 
+  2 t1.f1 in (select f1 from  t_or_index_2 t2 where t2.f3 >= 1000)
+  3 or
+  4 t1.f1 in (select f1 from  t_or_index_2 t3 where t3.f2 <= 5);
+
+COUNT(*)            
+--------------------
+10000               
+
+1 rows fetched.
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------
+| Id | Operation                                 | Owner | Name             | Rows  | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                          |       |                  | 1     | 20036 | 16        |       |        |
+| 1  |   AGGR                                    |       |                  | 1     | 20036 | 16        |       |        |
+| 2  |       SUBSELECT                           |       | $FROM_ORE_0      | 2     | 20020 | 16        |       |        |
+| 3  |         HASH UNION                        |       |                  | 2     | 20020 | 16        |       |        |
+| 4  |           NESTED LOOPS                    |       |                  | 1     | 10010 | 8         |       |        |
+| 5  |               SUBSELECT                   |       | $FROM_SQ_0       | 0     | 10000 | 0         |       |        |
+| 6  |                 HASH DISTINCT             |       |                  | 0     | 10008 | 0         |       |        |
+| 7  |                     TABLE ACCESS FULL     | SYS   | T_OR_INDEX_2 T2  | 0     | 10000 | 0         |       |        |
+| 8  |               TABLE ACCESS BY INDEX ONLY  | SYS   | T_OR_INDEX_1 T1  | 10000 | 9     | 8         |       |        |
+| 9  |                 INDEX RANGE SCAN          | SYS   | IND_OR_EXPAND_11 | 10000 | 9     | 8         |       |        |
+| 10 |           NESTED LOOPS                    |       |                  | 1     | 10010 | 8         |       |        |
+| 11 |               SUBSELECT                   |       | $FROM_SQ_1       | 0     | 10000 | 0         |       |        |
+| 12 |                 HASH DISTINCT             |       |                  | 0     | 10008 | 0         |       |        |
+| 13 |                     TABLE ACCESS FULL     | SYS   | T_OR_INDEX_2 T3  | 0     | 10000 | 0         |       |        |
+| 14 |               TABLE ACCESS BY INDEX ONLY  | SYS   | T_OR_INDEX_1 T1  | 10000 | 9     | 8         |       |        |
+| 15 |                 INDEX RANGE SCAN          | SYS   | IND_OR_EXPAND_11 | 10000 | 9     | 8         |       |        |
+--------------------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    7 - filter: T2.F3 >= 1000 AND T1.F1 = T2.F1                 
+    9 - access: T1.F1 = T2.F1                                   
+    13 - filter: T3.F2 <= 5 AND T1.F1 = T3.F1                   
+    15 - access: T1.F1 = T3.F1                                  
+
+26 rows fetched.
+
+SQL> 
+SQL> select count(*) from or_2_union_t t1 where 
+  2 exists(select * from  or_2_union_t t2 where t2.b < 10 and t1.b < 10)
+  3 or 
+  4 exists(select * from  or_2_union_t t3 where t3.c < 10 and t1.c < 10);
+
+OG-00608, Invalid expression
+SQL> 
+SQL> select count(*) from  or_2_union_t t1 where 
+  2 t1.b in(select t2.b from  or_2_union_t t2 where t2.b < 10)
+  3 or 
+  4 t1.c in(select t3.c from  or_2_union_t t3 where t3.c < 10);
+
+COUNT(*)            
+--------------------
+1                   
+
+1 rows fetched.
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------
+| Id | Operation                             | Owner | Name            | Rows | Cost | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                      |       |                 | 1    | 8    | 4         |       |        |
+| 1  |   AGGR                                |       |                 | 1    | 8    | 4         |       |        |
+| 2  |       SUBSELECT                       |       | $FROM_ORE_0     | 2    | 4    | 4         |       |        |
+| 3  |         HASH UNION                    |       |                 | 2    | 4    | 4         |       |        |
+| 4  |           MERGE JOIN                  |       |                 | 1    | 2    | 2         |       |        |
+| 5  |               TABLE ACCESS FULL       | SYS   | OR_2_UNION_T T1 | 2    | 1    | 0         |       |        |
+| 6  |               SUBSELECT               |       | $FROM_SQ_0      | 2    | 1    | 0         |       |        |
+| 7  |                 HASH DISTINCT         |       |                 | 1    | 9    | 0         |       |        |
+| 8  |                     TABLE ACCESS FULL | SYS   | OR_2_UNION_T T2 | 1    | 1    | 0         |       |        |
+| 9  |           MERGE JOIN                  |       |                 | 1    | 2    | 2         |       |        |
+| 10 |               TABLE ACCESS FULL       | SYS   | OR_2_UNION_T T1 | 2    | 1    | 0         |       |        |
+| 11 |               SUBSELECT               |       | $FROM_SQ_1      | 2    | 1    | 0         |       |        |
+| 12 |                 HASH DISTINCT         |       |                 | 1    | 9    | 0         |       |        |
+| 13 |                     TABLE ACCESS FULL | SYS   | OR_2_UNION_T T3 | 1    | 1    | 0         |       |        |
+-------------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - access: T1.B = T2.B                                     
+    8 - filter: T2.B < 10 AND T1.B = T2.B                       
+    9 - access: T1.C = T3.C                                     
+    13 - filter: T3.C < 10 AND T1.C = T3.C                      
+
+24 rows fetched.
+
+SQL> 
+SQL> select count(*) from t_or2union_1 t1, t_or2union_2 t2 where 
+  2 (t1.b = t2.b and t1.a > 10) or t1.c = t2.c;
+
+COUNT(*)            
+--------------------
+2                   
+
+1 rows fetched.
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name            | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |                 | 1    | 40004 | 20002     |       |        |
+| 1  |   AGGR                          |       |                 | 1    | 40004 | 20002     |       |        |
+| 2  |       SUBSELECT                 |       | $FROM_ORE_0     | 2    | 20002 | 20002     |       |        |
+| 3  |         UNION ALL               |       |                 | 2    | 20002 | 20002     |       |        |
+| 4  |           MERGE JOIN            |       |                 | 1    | 10001 | 10001     |       |        |
+| 5  |               TABLE ACCESS FULL | SYS   | T_OR2UNION_1 T1 | 1    | 1     | 0         |       |        |
+| 6  |               TABLE ACCESS FULL | SYS   | T_OR2UNION_2 T2 | 0    | 10000 | 0         |       |        |
+| 7  |           MERGE JOIN            |       |                 | 1    | 10001 | 10001     |       |        |
+| 8  |               TABLE ACCESS FULL | SYS   | T_OR2UNION_1 T1 | 2    | 1     | 0         |       |        |
+| 9  |               TABLE ACCESS FULL | SYS   | T_OR2UNION_2 T2 | 0    | 10000 | 0         |       |        |
+--------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - access: T1.B = T2.B                                     
+    5 - filter: T1.A > 10                                       
+    6 - filter: T1.A > 10                                       
+    7 - access: T1.C = T2.C                                     
+        filter: FALSE != LNNVL(T1.B = T2.B) OR FALSE != LNNVL(T1.A > 10)
+    9 - filter: FALSE != LNNVL(T1.B = T2.B) OR FALSE != LNNVL(T1.A > 10)
+
+22 rows fetched.
+
+SQL> 
+SQL> select count(*) from  t_or2union_1 t1,  t_or2union_1 t2
+  2 where t2.b = t1.a or t1.c = t2.c;
+
+COUNT(*)            
+--------------------
+3                   
+
+1 rows fetched.
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name            | Rows | Cost | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |                 | 1    | 8    | 4         |       |        |
+| 1  |   AGGR                          |       |                 | 1    | 8    | 4         |       |        |
+| 2  |       SUBSELECT                 |       | $FROM_ORE_0     | 3    | 4    | 4         |       |        |
+| 3  |         UNION ALL               |       |                 | 3    | 4    | 4         |       |        |
+| 4  |           MERGE JOIN            |       |                 | 2    | 2    | 2         |       |        |
+| 5  |               TABLE ACCESS FULL | SYS   | T_OR2UNION_1 T1 | 2    | 1    | 0         |       |        |
+| 6  |               TABLE ACCESS FULL | SYS   | T_OR2UNION_1 T2 | 2    | 1    | 0         |       |        |
+| 7  |           MERGE JOIN            |       |                 | 1    | 2    | 2         |       |        |
+| 8  |               TABLE ACCESS FULL | SYS   | T_OR2UNION_1 T1 | 2    | 1    | 0         |       |        |
+| 9  |               TABLE ACCESS FULL | SYS   | T_OR2UNION_1 T2 | 2    | 1    | 0         |       |        |
+-------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - access: T1.A = T2.B                                     
+    7 - access: T1.C = T2.C                                     
+        filter: FALSE != LNNVL(T2.B = T1.A)                     
+    9 - filter: FALSE != LNNVL(T2.B = T1.A)                     
+
+20 rows fetched.
+
+SQL> 
+SQL> select count(*) from  t_or_index_1 where f1 = 5 and (f2 in (1,2,3) or f2 = 10000);
+
+COUNT(*)            
+--------------------
+3                   
+
+1 rows fetched.
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------
+| Id | Operation                                | Owner | Name             | Rows | Cost | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                         |       |                  | 1    | 33   | 16        |       |        |
+| 1  |   AGGR                                   |       |                  | 1    | 33   | 16        |       |        |
+| 2  |       SUBSELECT                          |       | $FROM_ORE_0      | 5    | 17   | 16        |       |        |
+| 3  |         HASH UNION                       |       |                  | 5    | 17   | 16        |       |        |
+| 4  |             TABLE ACCESS BY INDEX ONLY   | SYS   | T_OR_INDEX_1     | 4    | 8    | 8         |       |        |
+| 5  |               OPTIMIZED INDEX RANGE SCAN | SYS   | IND_OR_EXPAND_12 | 4    | 8    | 8         |       |        |
+| 6  |             TABLE ACCESS BY INDEX ONLY   | SYS   | T_OR_INDEX_1     | 1    | 8    | 8         |       |        |
+| 7  |               INDEX RANGE SCAN           | SYS   | IND_OR_EXPAND_12 | 1    | 8    | 8         |       |        |
+-----------------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - access: F1 = 5 AND F2 IN (1, 2, 3)                      
+    7 - access: F1 = 5 AND F2 = 10000                           
+
+16 rows fetched.
+
+SQL> 
+SQL> select count(*) from t_or_index_1 t1, t_or_index_2 t2
+  2 where t1.f1 = t2.f1 and t1.f1 = 5 and (t1.f2 in (1,2,3) or t1.f2 = 10000);
+
+COUNT(*)            
+--------------------
+1500                
+
+1 rows fetched.
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------
+| Id | Operation                            | Owner | Name             | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                     |       |                  | 1    | 10016 | 8         |       |        |
+| 1  |   AGGR                               |       |                  | 1    | 10016 | 8         |       |        |
+| 2  |     NESTED LOOPS                     |       |                  | 1    | 10008 | 8         |       |        |
+| 3  |         TABLE ACCESS FULL            | SYS   | T_OR_INDEX_2 T2  | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS BY INDEX ONLY   | SYS   | T_OR_INDEX_1 T1  | 4    | 8     | 8         |       |        |
+| 5  |           OPTIMIZED INDEX RANGE SCAN | SYS   | IND_OR_EXPAND_12 | 4    | 8     | 8         |       |        |
+--------------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: T2.F1 = 5                                       
+    5 - access: T1.F1 = 5 AND T1.F1 = T2.F1 AND (T1.F2 IN (1, 2, 3) OR T1.F2 = 10000)
+
+14 rows fetched.
+
+SQL> 
+SQL> select count(*) from  t_or_index_1 where f1 = 5 and (f2 = 10000 or f2 <= 5);
+
+COUNT(*)            
+--------------------
+5                   
+
+1 rows fetched.
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------
+| Id | Operation                               | Owner | Name             | Rows | Cost | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                        |       |                  | 1    | 33   | 16        |       |        |
+| 1  |   AGGR                                  |       |                  | 1    | 33   | 16        |       |        |
+| 2  |       SUBSELECT                         |       | $FROM_ORE_0      | 7    | 17   | 16        |       |        |
+| 3  |         UNION ALL                       |       |                  | 7    | 17   | 16        |       |        |
+| 4  |             TABLE ACCESS BY INDEX ONLY  | SYS   | T_OR_INDEX_1     | 6    | 8    | 8         |       |        |
+| 5  |               INDEX RANGE SCAN          | SYS   | IND_OR_EXPAND_12 | 6    | 8    | 8         |       |        |
+| 6  |             TABLE ACCESS BY INDEX ONLY  | SYS   | T_OR_INDEX_1     | 1    | 8    | 8         |       |        |
+| 7  |               INDEX RANGE SCAN          | SYS   | IND_OR_EXPAND_12 | 1    | 8    | 8         |       |        |
+----------------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - access: F1 = 5 AND F2 <= 5                              
+    6 - filter: FALSE != LNNVL(F2 <= 5)                         
+    7 - access: F1 = 5 AND F2 = 10000                           
+
+17 rows fetched.
+
+SQL> 
+SQL> select count(*) from  t_or_index_1 where f1 = 5 and (f2 = 10 or f2 = 20 or f2 = 30 or f2 = 10000);
+
+COUNT(*)            
+--------------------
+3                   
+
+1 rows fetched.
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------
+| Id | Operation                                | Owner | Name             | Rows | Cost | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                         |       |                  | 1    | 33   | 16        |       |        |
+| 1  |   AGGR                                   |       |                  | 1    | 33   | 16        |       |        |
+| 2  |       SUBSELECT                          |       | $FROM_ORE_0      | 4    | 17   | 16        |       |        |
+| 3  |         HASH UNION                       |       |                  | 4    | 17   | 16        |       |        |
+| 4  |             TABLE ACCESS BY INDEX ONLY   | SYS   | T_OR_INDEX_1     | 3    | 8    | 8         |       |        |
+| 5  |               OPTIMIZED INDEX RANGE SCAN | SYS   | IND_OR_EXPAND_12 | 3    | 8    | 8         |       |        |
+| 6  |             TABLE ACCESS BY INDEX ONLY   | SYS   | T_OR_INDEX_1     | 1    | 8    | 8         |       |        |
+| 7  |               INDEX RANGE SCAN           | SYS   | IND_OR_EXPAND_12 | 1    | 8    | 8         |       |        |
+-----------------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - access: F1 = 5 AND (F2 = 10 OR F2 = 20 OR F2 = 30)      
+    7 - access: F1 = 5 AND F2 = 10000                           
+
+16 rows fetched.
+
+SQL> 
+SQL> -- test the result no error
+SQL> select * from t_or_index_1 where f1 = 5 and (f2 in (1,2,3) or f2 in (select f2 from t_or_index_2 where f2 >= 5000));
+
+F1           F2           F3                                       F4                                       F5                              
+------------ ------------ ---------------------------------------- ---------------------------------------- --------------------------------
+5            1            101.123                                  abc1                                     1800-04-05 10:51:47.000000      
+5            2            102.123                                  abc2                                     1800-05-05 10:51:47.000000      
+5            3            103.123                                  abc3                                     1800-06-05 10:51:47.000000      
+
+3 rows fetched.
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------
+| Id | Operation                        | Owner | Name             | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                 |       |                  | 4    | 8     | 8         |       |        |
+| 1  |   KERNEL FILTER                  |       |                  | 4    | 8     | 8         |       |        |
+| 2  |     TABLE ACCESS BY INDEX ROWID  | SYS   | T_OR_INDEX_1     | 4    | 8     | 8         |       |        |
+| 3  |       INDEX RANGE SCAN           | SYS   | IND_OR_EXPAND_12 | 4    | 8     | 8         |       |        |
+| 4  |       TABLE ACCESS FULL          | SYS   | T_OR_INDEX_2     | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - access: F1 = 5 AND (F2 IN (1, 2, 3) OR F2 IN ((SELECT F2 FROM T_OR_INDEX_2 WHERE F2 >= 5000)))
+    4 - filter: F2 >= 5000                                      
+
+13 rows fetched.
+
+SQL> 
+SQL> ---  long list of OR predicates
+SQL> drop table if exists t_base_301;
+
+Succeed.
+
+SQL> create table t_base_301(id int, c_int int, c_vchar varchar(100), c_clob clob, c_blob blob, c_date date) partition by range(id)(partition p1 values less than(5), partition p2 values less than(maxvalue));
+
+Succeed.
+
+SQL> analyze table  t_base_301  compute STATISTICS;
+
+Succeed.
+
+SQL> select  count(*) from t_base_301 where id=1 or id=2 or id=3 or id=4 or id=5 or id=6 or id=7 or id=8 or id=9 or id=10 or id=11 or id=12 or id=13 or id=14 or id=15 or id=16 or id=17 or id=18 or id=19 or id=20 or id=21 or id=22 or id=23 or id=24 or id=25 or id=26 or id=27 or id=28 or id=29 or id=30 or id=31 or id=32 or id=33 or id=34 or id=35 or id=36 or id=37 or id=38 or id=39 or id=40 or id=41 or id=42 or id=43 or id=44 or id=45 or id=46 or id=47 or id=48 or id=49 or id=50 or id=51 or id=52 or id=53 or id=54 or id=55 or id=56 or id=57 or id=58 or id=59 or id=60 or id=61 or id=62 or id=63 or id=64 or id=65 or id=66 or id=67 or id=68 or id=69 or id=70 or id=71 or id=72 or id=73 or id=74 or id=75 or id=76 or id=77 or id=78 or id=79 or id=80 or id=81 or id=82 or id=83 or id=84 or id=85 or id=86 or id=87 or id=88 or id=89 or id=90 or id=91 or id=92 or id=93 or id=94 or id=95 or id=96 or id=97 or id=98 or id=99 or id=100 or id=101 or id=102 or id=103 or id=104 or id=105 or id=106 or id=107 or id=108 or id=109 or id=110 or id=111 or id=112 or id=113 or id=114 or id=115 or id=116 or id=117 or id=118 or id=119 or id=120 or id=121 or id=122 or id=123 or id=124 or id=125 or id=126 or id=127 or id=128 or id=129 or id=130 or id=131 or id=132 or id=133 or id=134 or id=135 or id=136 or id=137 or id=138 or id=139 or id=140 or id=141 or id=142 or id=143 or id=144 or id=145 or id=146 or id=147 or id=148 or id=149 or id=150 or id=151 or id=152 or id=153 or id=154 or id=155 or id=156 or id=157 or id=158 or id=159 or id=160 or id=161 or id=162 or id=163 or id=164 or id=165 or id=166 or id=167 or id=168 or id=169 or id=170 or id=171 or id=172 or id=173 or id=174 or id=175 or id=176 or id=177 or id=178 or id=179 or id=180 or id=181 or id=182 or id=183 or id=184 or id=185 or id=186 or id=187 or id=188 or id=189 or id=190 or id=191 or id=192 or id=193 or id=194 or id=195 or id=196 or id=197 or id=198 or id=199 or id=200 or id=201 or id=202 or id=203 or id=204 or id=205 or id=206 or id=207 or id=208 or id=209 or id=210 or id=211 or id=212 or id=213 or id=214 or id=215 or id=216 or id=217 or id=218 or id=219 or id=220 or id=221 or id=222 or id=223 or id=224 or id=225 or id=226 or id=227 or id=228 or id=229 or id=230 or id=231 or id=232 or id=233 or id=234 or id=235 or id=236 or id=237 or id=238 or id=239 or id=240 or id=241 or id=242 or id=243 or id=244 or id=245 or id=246 or id=247 or id=248 or id=249 or id=250 or id=251 or id=252 or id=253 or id=254 or id=255 or id=256 or id=257 or id=258 or id=259 or id=260 or id=261 or id=262 or id=263 or id=264 or id=265 or id=266 or id=267 or id=268 or id=269 or id=270 or id=271 or id=272 or id=273 or id=274 or id=275 or id=276 or id=277 or id=278 or id=279 or id=280 or id=281 or id=282 or id=283 or id=284 or id=285 or id=286 or id=287 or id=288 or id=289 or id=290 or id=291 or id=292 or id=293 or id=294 or id=295 or id=296 or id=297 or id=298 or id=299 or id=300 or id=301 or id=302 or id=303 or id=304 or id=305 or id=306 or id=307 or id=308 or id=309 or id=310 or id=311 or id=312 or id=313 or id=314 or id=315 or id=316 or id=317 or id=318 or id=319 or id=320 or id=321 or id=322 or id=323 or id=324 or id=325 or id=326 or id=327 or id=328 or id=329 or id=330 or id=331 or id=332 or id=333 or id=334 or id=335 or id=336 or id=337 or id=338 or id=339 or id=340 or id=341 or id=342 or id=343 or id=344 or id=345 or id=346 or id=347 or id=348 or id=349 or id=350 or id=351 or id=352 or id=353 or id=354 or id=355 or id=356 or id=357 or id=358 or id=359 or id=360 or id=361 or id=362 or id=363 or id=364 or id=365 or id=366 or id=367 or id=368 or id=369 or id=370 or id=371 or id=372 or id=373 or id=374 or id=375 or id=376 or id=377 or id=378 or id=379 or id=380 or id=381 or id=382 or id=383 or id=384 or id=385 or id=386 or id=387 or id=388 or id=389 or id=390 or id=391 or id=392 or id=393 or id=394 or id=395 or id=396 or id=397 or id=398 or id=399 or id=400 or id=401 or id=402 or id=403 or id=404 or id=405 or id=406 or id=407 or id=408 or id=409 or id=410 or id=411 or id=412 or id=413 or id=414 or id=415 or id=416 or id=417 or id=418 or id=419 or id=420 or id=421 or id=422 or id=423 or id=424 or id=425 or id=426 or id=427 or id=428 or id=429 or id=430 or id=431 or id=432 or id=433 or id=434 or id=435 or id=436 or id=437 or id=438 or id=439 or id=440 or id=441 or id=442 or id=443 or id=444 or id=445 or id=446 or id=447 or id=448 or id=449 or id=450 or id=451 or id=452 or id=453 or id=454 or id=455 or id=456 or id=457 or id=458 or id=459 or id=460 or id=461 or id=462 or id=463 or id=464 or id=465 or id=466 or id=467 or id=468 or id=469 or id=470 or id=471 or id=472 or id=473 or id=474 or id=475 or id=476 or id=477 or id=478 or id=479 or id=480 or id=481 or id=482 or id=483 or id=484 or id=485 or id=486 or id=487 or id=488 or id=489 or id=490 or id=491 or id=492 or id=493 or id=494 or id=495 or id=496 or id=497 or id=498 or id=499 or id=500 or id=501 or id=502 or id=503 or id=504 or id=505 or id=506 or id=507 or id=508 or id=509 or id=510 or id=511 or id=512 or id=513 or id=514 or id=515 or id=516 or id=517 or id=518 or id=519 or id=520 or id=521 or id=522 or id=523 or id=524 or id=525 or id=526 or id=527 or id=528 or id=529 or id=530 or id=531 or id=532 or id=533 or id=534 or id=535 or id=536 or id=537 or id=538 or id=539 or id=540 or id=541 or id=542 or id=543 or id=544 or id=545 or id=546 or id=547 or id=548 or id=549 or id=550 or id=551 or id=552 or id=553 or id=554 or id=555 or id=556 or id=557 or id=558 or id=559 or id=560 or id=561 or id=562 or id=563 or id=564 or id=565 or id=566 or id=567 or id=568 or id=569 or id=570 or id=571 or id=572 or id=573 or id=574 or id=575 or id=576 or id=577 or id=578 or id=579 or id=580 or id=581 or id=582 or id=583 or id=584 or id=585 or id=586 or id=587 or id=588 or id=589 or id=590 or id=591 or id=592 or id=593 or id=594 or id=595 or id=596 or id=597 or id=598 or id=599 or id=600 or id=601 or id=602 or id=603 or id=604 or id=605 or id=606 or id=607 or id=608 or id=609 or id=610 or id=611 or id=612 or id=613 or id=614 or id=615 or id=616 or id=617 or id=618 or id=619 or id=620 or id=621 or id=622 or id=623 or id=624 or id=625 or id=626 or id=627 or id=628 or id=629 or id=630 or id=631 or id=632 or id=633 or id=634 or id=635 or id=636 or id=637 or id=638 or id=639 or id=640 or id=641 or id=642 or id=643 or id=644 or id=645 or id=646 or id=647 or id=648 or id=649 or id=650 or id=651 or id=652 or id=653 or id=654 or id=655 or id=656 or id=657 or id=658 or id=659 or id=660 or id=661 or id=662 or id=663 or id=664 or id=665 or id=666 or id=667 or id=668 or id=669 or id=670 or id=671 or id=672 or id=673 or id=674 or id=675 or id=676 or id=677 or id=678 or id=679 or id=680 or id=681 or id=682 or id=683 or id=684 or id=685 or id=686 or id=687 or id=688 or id=689 or id=690 or id=691 or id=692 or id=693 or id=694 or id=695 or id=696 or id=697 or id=698 or id=699 or id=700 or id=701 or id=702 or id=703 or id=704 or id=705 or id=706 or id=707 or id=708 or id=709 or id=710 or id=711 or id=712 or id=713 or id=714 or id=715 or id=716 or id=717 or id=718 or id=719 or id=720 or id=721 or id=722 or id=723 or id=724 or id=725 or id=726 or id=727 or id=728 or id=729 or id=730 or id=731 or id=732 or id=733 or id=734 or id=735 or id=736 or id=737 or id=738 or id=739 or id=740 or id=741 or id=742 or id=743 or id=744 or id=745 or id=746 or id=747 or id=748 or id=749 or id=750 or id=751 or id=752 or id=753 or id=754 or id=755 or id=756 or id=757 or id=758 or id=759 or id=760 or id=761 or id=762 or id=763 or id=764 or id=765 or id=766 or id=767 or id=768 or id=769 or id=770 or id=771 or id=772 or id=773 or id=774 or id=775 or id=776 or id=777 or id=778 or id=779 or id=780 or id=781 or id=782 or id=783 or id=784 or id=785 or id=786 or id=787 or id=788 or id=789 or id=790 or id=791 or id=792 or id=793 or id=794 or id=795 or id=796 or id=797 or id=798 or id=799 or id=800 or id=801 or id=802 or id=803 or id=804 or id=805 or id=806 or id=807 or id=808 or id=809 or id=810 or id=811 or id=812 or id=813 or id=814 or id=815 or id=816 or id=817 or id=818 or id=819 or id=820 or id=821 or id=822 or id=823 or id=824 or id=825 or id=826 or id=827 or id=828 or id=829 or id=830 or id=831 or id=832 or id=833 or id=834 or id=835 or id=836 or id=837 or id=838 or id=839 or id=840 or id=841 or id=842 or id=843 or id=844 or id=845 or id=846 or id=847 or id=848 or id=849 or id=850 or id=851 or id=852 or id=853 or id=854 or id=855 or id=856 or id=857 or id=858 or id=859 or id=860 or id=861 or id=862 or id=863 or id=864 or id=865 or id=866 or id=867 or id=868 or id=869 or id=870 or id=871 or id=872 or id=873 or id=874 or id=875 or id=876 or id=877 or id=878 or id=879 or id=880 or id=881 or id=882 or id=883 or id=884 or id=885 or id=886 or id=887 or id=888 or id=889 or id=890 or id=891 or id=892 or id=893 or id=894 or id=895 or id=896 or id=897 or id=898 or id=899 or id=900 or id=901 or id=902 or id=903 or id=904 or id=905 or id=906 or id=907 or id=908 or id=909 or id=910 or id=911 or id=912 or id=913 or id=914 or id=915 or id=916 or id=917 or id=918 or id=919 or id=920 or id=921 or id=922 or id=923 or id=924 or id=925 or id=926 or id=927 or id=928 or id=929 or id=930 or id=931 or id=932 or id=933 or id=934 or id=935 or id=936 or id=937 or id=938 or id=939 or id=940 or id=941 or id=942 or id=943 or id=944 or id=945 or id=946 or id=947 or id=948 or id=949 or id=950 or id=951 or id=952 or id=953 or id=954 or id=955 or id=956 or id=957 or id=958 or id=959 or id=960 or id=961 or id=962 or id=963 or id=964 or id=965 or id=966 or id=967 or id=968 or id=969 or id=970 or id=971 or id=972 or id=973 or id=974 or id=975 or id=976 or id=977 or id=978 or id=979 or id=980 or id=981 or id=982 or id=983 or id=984 or id=985 or id=986 or id=987 or id=988 or id=989 or id=990 or id=991 or id=992 or id=993 or id=994 or id=995 or id=996 or id=997 or id=998 or id=999 or id=1000 or id=1001 or id=1002 or id=1003 or id=1004 or id=1005 or id=1006 or id=1007 or id=1008 or id=1009 or id=1010 or id=1011 or id=1012 or id=1013 or id=1014 or id=1015 or id=1016 or id=1017 or id=1018 or id=1019 or id=1020 or id=1021 or id=1022 or id=1023 or id=1024 or id=1025 or id=1026 or id=1027 or id=1028 or id=1029 or id=1030 or id=1031 or id=1032 or id=1033 or id=1034 or id=1035 or id=1036 or id=1037 or id=1038 or id=1039 or id=1040 or id=1041 or id=1042 or id=1043 or id=1044 or id=1045 or id=1046 or id=1047 or id=1048 or id=1049 or id=1050 or id=1051 or id=1052 or id=1053 or id=1054 or id=1055 or id=1056 or id=1057 or id=1058 or id=1059 or id=1060 or id=1061 or id=1062 or id=1063 or id=1064 or id=1065 or id=1066 or id=1067 or id=1068 or id=1069 or id=1070 or id=1071 or id=1072 or id=1073 or id=1074 or id=1075 or id=1076 or id=1077 or id=1078 or id=1079 or id=1080 or id=1081 or id=1082 or id=1083 or id=1084 or id=1085 or id=1086 or id=1087 or id=1088 or id=1089 or id=1090 or id=1091 or id=1092 or id=1093 or id=1094 or id=1095 or id=1096 or id=1097 or id=1098 or id=1099 or id=1100 or id=1101 or id=1102 or id=1103 or id=1104 or id=1105 or id=1106 or id=1107 or id=1108 or id=1109 or id=1110 or id=1111 or id=1112 or id=1113 or id=1114 or id=1115 or id=1116 or id=1117 or id=1118 or id=1119 or id=1120 or id=1121 or id=1122 or id=1123 or id=1124 or id=1125 or id=1126 or id=1127 or id=1128 or id=1129 or id=1130 or id=1131 or id=1132 or id=1133 or id=1134 or id=1135 or id=1136 or id=1137 or id=1138 or id=1139 or id=1140 or id=1141 or id=1142 or id=1143 or id=1144 or id=1145 or id=1146 or id=1147 or id=1148 or id=1149 or id=1150 or id=1151 or id=1152 or id=1153 or id=1154 or id=1155 or id=1156 or id=1157 or id=1158 or id=1159 or id=1160 or id=1161 or id=1162 or id=1163 or id=1164 or id=1165 or id=1166 or id=1167 or id=1168 or id=1169 or id=1170 or id=1171 or id=1172 or id=1173 or id=1174 or id=1175 or id=1176 or id=1177 or id=1178 or id=1179 or id=1180 or id=1181 or id=1182 or id=1183 or id=1184 or id=1185 or id=1186 or id=1187 or id=1188 or id=1189 or id=1190 or id=1191 or id=1192 or id=1193 or id=1194 or id=1195 or id=1196 or id=1197 or id=1198 or id=1199 or id=1200 or id=1201 or id=1202 or id=1203 or id=1204 or id=1205 or id=1206 or id=1207 or id=1208 or id=1209 or id=1210 or id=1211 or id=1212 or id=1213 or id=1214 or id=1215 or id=1216 or id=1217 or id=1218 or id=1219 or id=1220 or id=1221 or id=1222 or id=1223 or id=1224 or id=1225 or id=1226 or id=1227 or id=1228 or id=1229 or id=1230 or id=1231 or id=1232 or id=1233 or id=1234 or id=1235 or id=1236 or id=1237 or id=1238 or id=1239 or id=1240 or id=1241 or id=1242 or id=1243 or id=1244 or id=1245 or id=1246 or id=1247 or id=1248 or id=1249 or id=1250 or id=1251 or id=1252 or id=1253 or id=1254 or id=1255 or id=1256 or id=1257 or id=1258 or id=1259 or id=1260 or id=1261 or id=1262 or id=1263 or id=1264 or id=1265 or id=1266 or id=1267 or id=1268 or id=1269 or id=1270 or id=1271 or id=1272 or id=1273 or id=1274 or id=1275 or id=1276 or id=1277 or id=1278 or id=1279 or id=1280 or id=1281 or id=1282 or id=1283 or id=1284 or id=1285 or id=1286 or id=1287 or id=1288 or id=1289 or id=1290 or id=1291 or id=1292 or id=1293 or id=1294 or id=1295 or id=1296 or id=1297 or id=1298 or id=1299 or id=1300 or id=1301 or id=1302 or id=1303 or id=1304 or id=1305 or id=1306 or id=1307 or id=1308 or id=1309 or id=1310 or id=1311 or id=1312 or id=1313 or id=1314 or id=1315 or id=1316 or id=1317 or id=1318 or id=1319 or id=1320 or id=1321 or id=1322 or id=1323 or id=1324 or id=1325 or id=1326 or id=1327 or id=1328 or id=1329 or id=1330 or id=1331 or id=1332 or id=1333 or id=1334 or id=1335 or id=1336 or id=1337 or id=1338 or id=1339 or id=1340 or id=1341 or id=1342 or id=1343 or id=1344 or id=1345 or id=1346 or id=1347 or id=1348 or id=1349 or id=1350 or id=1351 or id=1352 or id=1353 or id=1354 or id=1355 or id=1356 or id=1357 or id=1358 or id=1359 or id=1360 or id=1361 or id=1362 or id=1363 or id=1364 or id=1365 or id=1366 or id=1367 or id=1368 or id=1369 or id=1370 or id=1371 or id=1372 or id=1373 or id=1374 or id=1375 or id=1376 or id=1377 or id=1378 or id=1379 or id=1380 or id=1381 or id=1382 or id=1383 or id=1384 or id=1385 or id=1386 or id=1387 or id=1388 or id=1389 or id=1390 or id=1391 or id=1392 or id=1393 or id=1394 or id=1395 or id=1396 or id=1397 or id=1398 or id=1399 or id=1400 or id=1401 or id=1402 or id=1403 or id=1404 or id=1405 or id=1406 or id=1407 or id=1408 or id=1409 or id=1410 or id=1411 or id=1412 or id=1413 or id=1414 or id=1415 or id=1416 or id=1417 or id=1418 or id=1419 or id=1420 or id=1421 or id=1422 or id=1423 or id=1424 or id=1425 or id=1426 or id=1427 or id=1428 or id=1429 or id=1430 or id=1431 or id=1432 or id=1433 or id=1434 or id=1435 or id=1436 or id=1437 or id=1438 or id=1439 or id=1440 or id=1441 or id=1442 or id=1443 or id=1444 or id=1445 or id=1446 or id=1447 or id=1448 or id=1449 or id=1450 or id=1451 or id=1452 or id=1453 or id=1454 or id=1455 or id=1456 or id=1457 or id=1458 or id=1459 or id=1460 or id=1461 or id=1462 or id=1463 or id=1464 or id=1465 or id=1466 or id=1467 or id=1468 or id=1469 or id=1470 or id=1471 or id=1472 or id=1473 or id=1474 or id=1475 or id=1476 or id=1477 or id=1478 or id=1479 or id=1480 or id=1481 or id=1482 or id=1483 or id=1484 or id=1485 or id=1486 or id=1487 or id=1488 or id=1489 or id=1490 or id=1491 or id=1492 or id=1493 or id=1494 or id=1495 or id=1496 or id=1497 or id=1498 or id=1499 or id=1500 or id=1501 or id=1502 or id=1503 or id=1504 or id=1505 or id=1506 or id=1507 or id=1508 or id=1509 or id=1510 or id=1511 or id=1512 or id=1513 or id=1514 or id=1515 or id=1516 or id=1517 or id=1518 or id=1519 or id=1520 or id=1521 or id=1522 or id=1523 or id=1524 or id=1525 or id=1526 or id=1527 or id=1528 or id=1529 or id=1530 or id=1531 or id=1532 or id=1533 or id=1534 or id=1535 or id=1536 or id=1537 or id=1538 or id=1539 or id=1540 or id=1541 or id=1542 or id=1543 or id=1544 or id=1545 or id=1546 or id=1547 or id=1548 or id=1549 or id=1550 or id=1551 or id=1552 or id=1553 or id=1554 or id=1555 or id=1556 or id=1557 or id=1558 or id=1559 or id=1560 or id=1561 or id=1562 or id=1563 or id=1564 or id=1565 or id=1566 or id=1567 or id=1568 or id=1569 or id=1570 or id=1571 or id=1572 or id=1573 or id=1574 or id=1575 or id=1576 or id=1577 or id=1578 or id=1579 or id=1580 or id=1581 or id=1582 or id=1583 or id=1584 or id=1585 or id=1586 or id=1587 or id=1588 or id=1589 or id=1590 or id=1591 or id=1592 or id=1593 or id=1594 or id=1595 or id=1596 or id=1597 or id=1598 or id=1599 or id=1600 or id=1601 or id=1602 or id=1603 or id=1604 or id=1605 or id=1606 or id=1607 or id=1608 or id=1609 or id=1610 or id=1611 or id=1612 or id=1613 or id=1614 or id=1615 or id=1616 or id=1617 or id=1618 or id=1619 or id=1620 or id=1621 or id=1622 or id=1623 or id=1624 or id=1625 or id=1626 or id=1627 or id=1628 or id=1629 or id=1630 or id=1631 or id=1632 or id=1633 or id=1634 or id=1635 or id=1636 or id=1637 or id=1638 or id=1639 or id=1640 or id=1641 or id=1642 or id=1643 or id=1644 or id=1645 or id=1646 or id=1647 or id=1648 or id=1649 or id=1650 or id=1651 or id=1652 or id=1653 or id=1654 or id=1655 or id=1656 or id=1657 or id=1658 or id=1659 or id=1660 or id=1661 or id=1662 or id=1663 or id=1664 or id=1665 or id=1666 or id=1667 or id=1668 or id=1669 or id=1670 or id=1671 or id=1672 or id=1673 or id=1674 or id=1675 or id=1676 or id=1677 or id=1678 or id=1679 or id=1680 or id=1681 or id=1682 or id=1683 or id=1684 or id=1685 or id=1686 or id=1687 or id=1688 or id=1689 or id=1690 or id=1691 or id=1692 or id=1693 or id=1694 or id=1695 or id=1696 or id=1697 or id=1698 or id=1699 or id=1700 or id=1701 or id=1702 or id=1703 or id=1704 or id=1705 or id=1706 or id=1707 or id=1708 or id=1709 or id=1710 or id=1711 or id=1712 or id=1713 or id=1714 or id=1715 or id=1716 or id=1717 or id=1718 or id=1719 or id=1720 or id=1721 or id=1722 or id=1723 or id=1724 or id=1725 or id=1726 or id=1727 or id=1728 or id=1729 or id=1730 or id=1731 or id=1732 or id=1733 or id=1734 or id=1735 or id=1736 or id=1737 or id=1738 or id=1739 or id=1740 or id=1741 or id=1742 or id=1743 or id=1744 or id=1745 or id=1746 or id=1747 or id=1748 or id=1749 or id=1750 or id=1751 or id=1752 or id=1753 or id=1754 or id=1755 or id=1756 or id=1757 or id=1758 or id=1759 or id=1760 or id=1761 or id=1762 or id=1763 or id=1764 or id=1765 or id=1766 or id=1767 or id=1768 or id=1769 or id=1770 or id=1771 or id=1772 or id=1773 or id=1774 or id=1775 or id=1776 or id=1777 or id=1778 or id=1779 or id=1780 or id=1781 or id=1782 or id=1783 or id=1784 or id=1785 or id=1786 or id=1787 or id=1788 or id=1789 or id=1790 or id=1791 or id=1792 or id=1793 or id=1794 or id=1795 or id=1796 or id=1797 or id=1798 or id=1799 or id=1800 or id=1801 or id=1802 or id=1803 or id=1804 or id=1805 or id=1806 or id=1807 or id=1808 or id=1809 or id=1810 or id=1811 or id=1812 or id=1813 or id=1814 or id=1815 or id=1816 or id=1817 or id=1818 or id=1819 or id=1820 or id=1821 or id=1822 or id=1823 or id=1824 or id=1825 or id=1826 or id=1827 or id=1828 or id=1829 or id=1830 or id=1831 or id=1832 or id=1833 or id=1834 or id=1835 or id=1836 or id=1837 or id=1838 or id=1839 or id=1840 or id=1841 or id=1842 or id=1843 or id=1844 or id=1845 or id=1846 or id=1847 or id=1848 or id=1849 or id=1850 or id=1851 or id=1852 or id=1853 or id=1854 or id=1855 or id=1856 or id=1857 or id=1858 or id=1859 or id=1860 or id=1861 or id=1862 or id=1863 or id=1864 or id=1865 or id=1866 or id=1867 or id=1868 or id=1869 or id=1870 or id=1871 or id=1872 or id=1873 or id=1874 or id=1875 or id=1876 or id=1877 or id=1878 or id=1879 or id=1880 or id=1881 or id=1882 or id=1883 or id=1884 or id=1885 or id=1886 or id=1887 or id=1888 or id=1889 or id=1890 or id=1891 or id=1892 or id=1893 or id=1894 or id=1895 or id=1896 or id=1897 or id=1898 or id=1899 or id=1900 or id=1901 or id=1902 or id=1903 or id=1904 or id=1905 or id=1906 or id=1907 or id=1908 or id=1909 or id=1910 or id=1911 or id=1912 or id=1913 or id=1914 or id=1915 or id=1916 or id=1917 or id=1918 or id=1919 or id=1920 or id=1921 or id=1922 or id=1923 or id=1924 or id=1925 or id=1926 or id=1927 or id=1928 or id=1929 or id=1930 or id=1931 or id=1932 or id=1933 or id=1934 or id=1935 or id=1936 or id=1937 or id=1938 or id=1939 or id=1940 or id=1941 or id=1942 or id=1943 or id=1944 or id=1945 or id=1946 or id=1947 or id=1948 or id=1949 or id=1950 or id=1951 or id=1952 or id=1953 or id=1954 or id=1955 or id=1956 or id=1957 or id=1958 or id=1959 or id=1960 or id=1961 or id=1962 or id=1963 or id=1964 or id=1965 or id=1966 or id=1967 or id=1968 or id=1969 or id=1970 or id=1971 or id=1972 or id=1973 or id=1974 or id=1975 or id=1976 or id=1977 or id=1978 or id=1979 or id=1980 or id=1981 or id=1982 or id=1983 or id=1984 or id=1985 or id=1986 or id=1987 or id=1988 or id=1989 or id=1990 or id=1991 or id=1992 or id=1993 or id=1994 or id=1995 or id=1996 or id=1997 or id=1998 or id=1999 or id=2000 or id=2001 or id=2002 or id=2003 or id=2004 or id=2005 or id=2006 or id=2007 or id=2008 or id=2009 or id=2010 or id=2011 or id=2012 or id=2013 or id=2014 or id=2015 or id=2016 or id=2017 or id=2018 or id=2019 or id=2020 or id=2021 or id=2022 or id=2023 or id=2024 or id=2025 or id=2026 or id=2027 or id=2028 or id=2029 or id=2030 or id=2031 or id=2032 or id=2033 or id=2034 or id=2035 or id=2036 or id=2037 or id=2038 or id=2039 or id=2040 or id=2041 or id=2042 or id=2043 or id=2044 or id=2045 or id=2046 or id=2047 or id=2048 or id=2049 or id=2050 or id=2051 or id=2052 or id=2053 or id=2054 or id=2055 or id=2056 or id=2057 or id=2058 or id=2059 or id=2060 or id=2061 or id=2062 or id=2063 or id=2064 or id=2065 or id=2066 or id=2067 or id=2068 or id=2069 or id=2070 or id=2071 or id=2072 or id=2073 or id=2074 or id=2075 or id=2076 or id=2077 or id=2078 or id=2079 or id=2080 or id=2081 or id=2082 or id=2083 or id=2084 or id=2085 or id=2086 or id=2087 or id=2088 or id=2089 or id=2090 or id=2091 or id=2092 or id=2093 or id=2094 or id=2095 or id=2096 or id=2097 or id=2098 or id=2099 or id=2100 or id=2101 or id=2102 or id=2103 or id=2104 or id=2105 or id=2106 or id=2107 or id=2108 or id=2109 or id=2110 or id=2111 or id=2112 or id=2113 or id=2114 or id=2115 or id=2116 or id=2117 or id=2118 or id=2119 or id=2120 or id=2121 or id=2122 or id=2123 or id=2124 or id=2125 or id=2126 or id=2127 or id=2128 or id=2129 or id=2130 or id=2131 or id=2132 or id=2133 or id=2134 or id=2135 or id=2136 or id=2137 or id=2138 or id=2139 or id=2140 or id=2141 or id=2142 or id=2143 or id=2144 or id=2145 or id=2146 or id=2147 or id=2148 or id=2149 or id=2150 or id=2151 or id=2152 or id=2153 or id=2154 or id=2155 or id=2156 or id=2157 or id=2158 or id=2159 or id=2160 or id=2161 or id=2162 or id=2163 or id=2164 or id=2165 or id=2166 or id=2167 or id=2168 or id=2169 or id=2170 or id=2171 or id=2172 or id=2173 or id=2174 or id=2175 or id=2176 or id=2177 or id=2178 or id=2179 or id=2180 or id=2181 or id=2182 or id=2183 or id=2184 or id=2185 or id=2186 or id=2187 or id=2188 or id=2189 or id=2190 or id=2191 or id=2192 or id=2193 or id=2194 or id=2195 or id=2196 or id=2197 or id=2198 or id=2199 or id=2200 or id=2201 or id=2202 or id=2203 or id=2204 or id=2205 or id=2206 or id=2207 or id=2208 or id=2209 or id=2210 or id=2211 or id=2212 or id=2213 or id=2214 or id=2215 or id=2216 or id=2217 or id=2218 or id=2219 or id=2220 or id=2221 or id=2222 or id=2223 or id=2224 or id=2225 or id=2226 or id=2227 or id=2228 or id=2229 or id=2230 or id=2231 or id=2232 or id=2233 or id=2234 or id=2235 or id=2236 or id=2237 or id=2238 or id=2239 or id=2240 or id=2241 or id=2242 or id=2243 or id=2244 or id=2245 or id=2246 or id=2247 or id=2248 or id=2249 or id=2250 or id=2251 or id=2252 or id=2253 or id=2254 or id=2255 or id=2256 or id=2257 or id=2258 or id=2259 or id=2260 or id=2261 or id=2262 or id=2263 or id=2264 or id=2265 or id=2266 or id=2267 or id=2268 or id=2269 or id=2270 or id=2271 or id=2272 or id=2273 or id=2274 or id=2275 or id=2276 or id=2277 or id=2278 or id=2279 or id=2280 or id=2281 or id=2282 or id=2283 or id=2284 or id=2285 or id=2286 or id=2287 or id=2288 or id=2289 or id=2290 or id=2291 or id=2292 or id=2293 or id=2294 or id=2295 or id=2296 or id=2297 or id=2298 or id=2299 or id=2300 or id=2301 or id=2302 or id=2303 or id=2304 or id=2305 or id=2306 or id=2307 or id=2308 or id=2309 or id=2310 or id=2311 or id=2312 or id=2313 or id=2314 or id=2315 or id=2316 or id=2317 or id=2318 or id=2319 or id=2320 or id=2321 or id=2322 or id=2323 or id=2324 or id=2325 or id=2326 or id=2327 or id=2328 or id=2329 or id=2330 or id=2331 or id=2332 or id=2333 or id=2334 or id=2335 or id=2336 or id=2337 or id=2338 or id=2339 or id=2340 or id=2341 or id=2342 or id=2343 or id=2344 or id=2345 or id=2346 or id=2347 or id=2348 or id=2349 or id=2350 or id=2351 or id=2352 or id=2353 or id=2354 or id=2355 or id=2356 or id=2357 or id=2358 or id=2359 or id=2360 or id=2361 or id=2362 or id=2363 or id=2364 or id=2365 or id=2366 or id=2367 or id=2368 or id=2369 or id=2370 or id=2371 or id=2372 or id=2373 or id=2374 or id=2375 or id=2376 or id=2377 or id=2378 or id=2379 or id=2380 or id=2381 or id=2382 or id=2383 or id=2384 or id=2385 or id=2386 or id=2387 or id=2388 or id=2389 or id=2390 or id=2391 or id=2392 or id=2393 or id=2394 or id=2395 or id=2396 or id=2397 or id=2398 or id=2399 or id=2400 or id=2401 or id=2402 or id=2403 or id=2404 or id=2405 or id=2406 or id=2407 or id=2408 or id=2409 or id=2410 or id=2411 or id=2412 or id=2413 or id=2414 or id=2415 or id=2416 or id=2417 or id=2418 or id=2419 or id=2420 or id=2421 or id=2422 or id=2423 or id=2424 or id=2425 or id=2426 or id=2427 or id=2428 or id=2429 or id=2430 or id=2431 or id=2432 or id=2433 or id=2434 or id=2435 or id=2436 or id=2437 or id=2438 or id=2439 or id=2440 or id=2441 or id=2442 or id=2443 or id=2444 or id=2445 or id=2446 or id=2447 or id=2448 or id=2449 or id=2450 or id=2451 or id=2452 or id=2453 or id=2454 or id=2455 or id=2456 or id=2457 or id=2458 or id=2459 or id=2460 or id=2461 or id=2462 or id=2463 or id=2464 or id=2465 or id=2466 or id=2467 or id=2468 or id=2469 or id=2470 or id=2471 or id=2472 or id=2473 or id=2474 or id=2475 or id=2476 or id=2477 or id=2478 or id=2479 or id=2480 or id=2481 or id=2482 or id=2483 or id=2484 or id=2485 or id=2486 or id=2487 or id=2488 or id=2489 or id=2490 or id=2491 or id=2492 or id=2493 or id=2494 or id=2495 or id=2496 or id=2497 or id=2498 or id=2499 or id=2500 or id=2501 or id=2502 or id=2503 or id=2504 or id=2505 or id=2506 or id=2507 or id=2508 or id=2509 or id=2510 or id=2511 or id=2512 or id=2513 or id=2514 or id=2515 or id=2516 or id=2517 or id=2518 or id=2519 or id=2520 or id=2521 or id=2522 or id=2523 or id=2524 or id=2525 or id=2526 or id=2527 or id=2528 or id=2529 or id=2530 or id=2531 or id=2532 or id=2533 or id=2534 or id=2535 or id=2536 or id=2537 or id=2538 or id=2539 or id=2540 or id=2541 or id=2542 or id=2543 or id=2544 or id=2545 or id=2546 or id=2547 or id=2548 or id=2549 or id=2550 or id=2551 or id=2552 or id=2553 or id=2554 or id=2555 or id=2556 or id=2557 or id=2558 or id=2559 or id=2560 or id=2561 or id=2562 or id=2563 or id=2564 or id=2565 or id=2566 or id=2567 or id=2568 or id=2569 or id=2570 or id=2571 or id=2572 or id=2573 or id=2574 or id=2575 or id=2576 or id=2577 or id=2578 or id=2579 or id=2580 or id=2581 or id=2582 or id=2583 or id=2584 or id=2585 or id=2586 or id=2587 or id=2588 or id=2589 or id=2590 or id=2591 or id=2592 or id=2593 or id=2594 or id=2595 or id=2596 or id=2597 or id=2598 or id=2599 or id=2600 or id=2601 or id=2602 or id=2603 or id=2604 or id=2605 or id=2606 or id=2607 or id=2608 or id=2609 or id=2610 or id=2611 or id=2612 or id=2613 or id=2614 or id=2615 or id=2616 or id=2617 or id=2618 or id=2619 or id=2620 or id=2621 or id=2622 or id=2623 or id=2624 or id=2625 or id=2626 or id=2627 or id=2628 or id=2629 or id=2630 or id=2631 or id=2632 or id=2633 or id=2634 or id=2635 or id=2636 or id=2637 or id=2638 or id=2639 or id=2640 or id=2641 or id=2642 or id=2643 or id=2644 or id=2645 or id=2646 or id=2647 or id=2648 or id=2649 or id=2650 or id=2651 or id=2652 or id=2653 or id=2654 or id=2655 or id=2656 or id=2657 or id=2658 or id=2659 or id=2660 or id=2661 or id=2662 or id=2663 or id=2664 or id=2665 or id=2666 or id=2667 or id=2668 or id=2669 or id=2670 or id=2671 or id=2672 or id=2673 or id=2674 or id=2675 or id=2676 or id=2677 or id=2678 or id=2679 or id=2680 or id=2681 or id=2682 or id=2683 or id=2684 or id=2685 or id=2686 or id=2687 or id=2688 or id=2689 or id=2690 or id=2691 or id=2692 or id=2693 or id=2694 or id=2695 or id=2696 or id=2697 or id=2698 or id=2699 or id=2700 or id=2701 or id=2702 or id=2703 or id=2704 or id=2705 or id=2706 or id=2707 or id=2708 or id=2709 or id=2710 or id=2711 or id=2712 or id=2713 or id=2714 or id=2715 or id=2716 or id=2717 or id=2718 or id=2719 or id=2720 or id=2721 or id=2722 or id=2723 or id=2724 or id=2725 or id=2726 or id=2727 or id=2728 or id=2729 or id=2730 or id=2731 or id=2732 or id=2733 or id=2734 or id=2735 or id=2736 or id=2737 or id=2738 or id=2739 or id=2740 or id=2741 or id=2742 or id=2743 or id=2744 or id=2745 or id=2746 or id=2747 or id=2748 or id=2749 or id=2750 or id=2751 or id=2752 or id=2753 or id=2754 or id=2755 or id=2756 or id=2757 or id=2758 or id=2759 or id=2760 or id=2761 or id=2762 or id=2763 or id=2764 or id=2765 or id=2766 or id=2767 or id=2768 or id=2769 or id=2770 or id=2771 or id=2772 or id=2773 or id=2774 or id=2775 or id=2776 or id=2777 or id=2778 or id=2779 or id=2780 or id=2781 or id=2782 or id=2783 or id=2784 or id=2785 or id=2786 or id=2787 or id=2788 or id=2789 or id=2790 or id=2791 or id=2792 or id=2793 or id=2794 or id=2795 or id=2796 or id=2797 or id=2798 or id=2799 or id=2800 or id=2801 or id=2802 or id=2803 or id=2804 or id=2805 or id=2806 or id=2807 or id=2808 or id=2809 or id=2810 or id=2811 or id=2812 or id=2813 or id=2814 or id=2815 or id=2816 or id=2817 or id=2818 or id=2819 or id=2820 or id=2821 or id=2822 or id=2823 or id=2824 or id=2825 or id=2826 or id=2827 or id=2828 or id=2829 or id=2830 or id=2831 or id=2832 or id=2833 or id=2834 or id=2835 or id=2836 or id=2837 or id=2838 or id=2839 or id=2840 or id=2841 or id=2842 or id=2843 or id=2844 or id=2845 or id=2846 or id=2847 or id=2848 or id=2849 or id=2850 or id=2851 or id=2852 or id=2853 or id=2854 or id=2855 or id=2856 or id=2857 or id=2858 or id=2859 or id=2860 or id=2861 or id=2862 or id=2863 or id=2864 or id=2865 or id=2866 or id=2867 or id=2868 or id=2869 or id=2870 or id=2871 or id=2872 or id=2873 or id=2874 or id=2875 or id=2876 or id=2877 or id=2878 or id=2879 or id=2880 or id=2881 or id=2882 or id=2883 or id=2884 or id=2885 or id=2886 or id=2887 or id=2888 or id=2889 or id=2890 or id=2891 or id=2892 or id=2893 or id=2894 or id=2895 or id=2896 or id=2897 or id=2898 or id=2899 or id=2900 or id=2901 or id=2902 or id=2903 or id=2904 or id=2905 or id=2906 or id=2907 or id=2908 or id=2909 or id=2910 or id=2911 or id=2912 or id=2913 or id=2914 or id=2915 or id=2916 or id=2917 or id=2918 or id=2919 or id=2920 or id=2921 or id=2922 or id=2923 or id=2924 or id=2925 or id=2926 or id=2927 or id=2928 or id=2929 or id=2930 or id=2931 or id=2932 or id=2933 or id=2934 or id=2935 or id=2936 or id=2937 or id=2938 or id=2939 or id=2940 or id=2941 or id=2942 or id=2943 or id=2944 or id=2945 or id=2946 or id=2947 or id=2948 or id=2949 or id=2950 or id=2951 or id=2952 or id=2953 or id=2954 or id=2955 or id=2956 or id=2957 or id=2958 or id=2959 or id=2960 or id=2961 or id=2962 or id=2963 or id=2964 or id=2965 or id=2966 or id=2967 or id=2968 or id=2969 or id=2970 or id=2971 or id=2972 or id=2973 or id=2974 or id=2975 or id=2976 or id=2977 or id=2978 or id=2979 or id=2980 or id=2981 or id=2982 or id=2983 or id=2984 or id=2985 or id=2986 or id=2987 or id=2988 or id=2989 or id=2990 or id=2991 or id=2992 or id=2993 or id=2994 or id=2995 or id=2996 or id=2997 or id=2998 or id=2999 or id=3000 or id=3001 or id=3002 or id=3003 or id=3004 or id=3005 or id=3006 or id=3007 or id=3008 or id=3009 or id=3010 or id=3011 or id=3012 or id=3013 or id=3014 or id=3015 or id=3016 or id=3017 or id=3018 or id=3019 or id=3020 or id=3021 or id=3022 or id=3023 or id=3024 or id=3025 or id=3026 or id=3027 or id=3028 or id=3029 or id=3030 or id=3031 or id=3032 or id=3033 or id=3034 or id=3035 or id=3036 or id=3037 or id=3038 or id=3039 or id=3040 or id=3041 or id=3042 or id=3043 or id=3044 or id=3045 or id=3046 or id=3047 or id=3048 or id=3049 or id=3050 or id=3051 or id=3052 or id=3053 or id=3054 or id=3055 or id=3056 or id=3057 or id=3058 or id=3059 or id=3060 or id=3061 or id=3062 or id=3063 or id=3064 or id=3065 or id=3066 or id=3067 or id=3068 or id=3069 or id=3070 or id=3071 or id=3072 or id=3073 or id=3074 or id=3075 or id=3076 or id=3077 or id=3078 or id=3079 or id=3080 or id=3081 or id=3082 or id=3083 or id=3084 or id=3085 or id=3086 or id=3087 or id=3088 or id=3089 or id=3090 or id=3091 or id=3092 or id=3093 or id=3094 or id=3095 or id=3096 or id=3097 or id=3098 or id=3099 or id=3100 or id=3101 or id=3102 or id=3103 or id=3104 or id=3105 or id=3106 or id=3107 or id=3108 or id=3109 or id=3110 or id=3111 or id=3112 or id=3113 or id=3114 or id=3115 or id=3116 or id=3117 or id=3118 or id=3119 or id=3120 or id=3121 or id=3122 or id=3123 or id=3124 or id=3125 or id=3126 or id=3127 or id=3128 or id=3129 or id=3130 or id=3131 or id=3132 or id=3133 or id=3134 or id=3135 or id=3136 or id=3137 or id=3138 or id=3139 or id=3140 or id=3141 or id=3142 or id=3143 or id=3144 or id=3145 or id=3146 or id=3147 or id=3148 or id=3149 or id=3150 or id=3151 or id=3152 or id=3153 or id=3154 or id=3155 or id=3156 or id=3157 or id=3158 or id=3159 or id=3160 or id=3161 or id=3162 or id=3163 or id=3164 or id=3165 or id=3166 or id=3167 or id=3168 or id=3169 or id=3170 or id=3171 or id=3172 or id=3173 or id=3174 or id=3175 or id=3176 or id=3177 or id=3178 or id=3179 or id=3180 or id=3181 or id=3182 or id=3183 or id=3184 or id=3185 or id=3186 or id=3187 or id=3188 or id=3189 or id=3190 or id=3191 or id=3192 or id=3193 or id=3194 or id=3195 or id=3196 or id=3197 or id=3198 or id=3199 or id=3200 or id=3201 or id=3202 or id=3203 or id=3204 or id=3205 or id=3206 or id=3207 or id=3208 or id=3209 or id=3210 or id=3211 or id=3212 or id=3213 or id=3214 or id=3215 or id=3216 or id=3217 or id=3218 or id=3219 or id=3220 or id=3221 or id=3222 or id=3223 or id=3224 or id=3225 or id=3226 or id=3227 or id=3228 or id=3229 or id=3230 or id=3231 or id=3232 or id=3233 or id=3234 or id=3235 or id=3236 or id=3237 or id=3238 or id=3239 or id=3240 or id=3241 or id=3242 or id=3243 or id=3244 or id=3245 or id=3246 or id=3247 or id=3248 or id=3249 or id=3250 or id=3251 or id=3252 or id=3253 or id=3254 or id=3255 or id=3256 or id=3257 or id=3258 or id=3259 or id=3260 or id=3261 or id=3262 or id=3263 or id=3264 or id=3265 or id=3266 or id=3267 or id=3268 or id=3269 or id=3270 or id=3271 or id=3272 or id=3273 or id=3274 or id=3275 or id=3276 or id=3277 or id=3278 or id=3279 or id=3280 or id=3281 or id=3282 or id=3283 or id=3284 or id=3285 or id=3286 or id=3287 or id=3288 or id=3289 or id=3290 or id=3291 or id=3292 or id=3293 or id=3294 or id=3295 or id=3296 or id=3297 or id=3298 or id=3299 or id=3300 or id=3301 or id=3302 or id=3303 or id=3304 or id=3305 or id=3306 or id=3307 or id=3308 or id=3309 or id=3310 or id=3311 or id=3312 or id=3313 or id=3314 or id=3315 or id=3316 or id=3317 or id=3318 or id=3319 or id=3320 or id=3321 or id=3322 or id=3323 or id=3324 or id=3325 or id=3326 or id=3327 or id=3328 or id=3329 or id=3330 or id=3331 or id=3332 or id=3333 or id=3334 or id=3335 or id=3336 or id=3337 or id=3338 or id=3339 or id=3340 or id=3341 or id=3342 or id=3343 or id=3344 or id=3345 or id=3346 or id=3347 or id=3348 or id=3349 or id=3350 or id=3351 or id=3352 or id=3353 or id=3354 or id=3355 or id=3356 or id=3357 or id=3358 or id=3359 or id=3360 or id=3361 or id=3362 or id=3363 or id=3364 or id=3365 or id=3366 or id=3367 or id=3368 or id=3369 or id=3370 or id=3371 or id=3372 or id=3373 or id=3374 or id=3375 or id=3376 or id=3377 or id=3378 or id=3379 or id=3380 or id=3381 or id=3382 or id=3383 or id=3384 or id=3385 or id=3386 or id=3387 or id=3388 or id=3389 or id=3390 or id=3391 or id=3392 or id=3393 or id=3394 or id=3395 or id=3396 or id=3397 or id=3398 or id=3399 or id=3400 or id=3401 or id=3402 or id=3403 or id=3404 or id=3405 or id=3406 or id=3407 or id=3408 or id=3409 or id=3410 or id=3411 or id=3412 or id=3413 or id=3414 or id=3415 or id=3416 or id=3417 or id=3418 or id=3419 or id=3420 or id=3421 or id=3422 or id=3423 or id=3424 or id=3425 or id=3426 or id=3427 or id=3428 or id=3429 or id=3430 or id=3431 or id=3432 or id=3433 or id=3434 or id=3435 or id=3436 or id=3437 or id=3438 or id=3439 or id=3440 or id=3441 or id=3442 or id=3443 or id=3444 or id=3445 or id=3446 or id=3447 or id=3448 or id=3449 or id=3450 or id=3451 or id=3452 or id=3453 or id=3454 or id=3455 or id=3456 or id=3457 or id=3458 or id=3459 or id=3460 or id=3461 or id=3462 or id=3463 or id=3464 or id=3465 or id=3466 or id=3467 or id=3468 or id=3469 or id=3470 or id=3471 or id=3472 or id=3473 or id=3474 or id=3475 or id=3476 or id=3477 or id=3478 or id=3479 or id=3480 or id=3481 or id=3482 or id=3483 or id=3484 or id=3485 or id=3486 or id=3487 or id=3488 or id=3489 or id=3490 or id=3491 or id=3492 or id=3493 or id=3494 or id=3495 or id=3496 or id=3497 or id=3498 or id=3499 or id=3500 or id=3501 or id=3502 or id=3503 or id=3504 or id=3505 or id=3506 or id=3507 or id=3508 or id=3509 or id=3510 or id=3511 or id=3512 or id=3513 or id=3514 or id=3515 or id=3516 or id=3517 or id=3518 or id=3519 or id=3520 or id=3521 or id=3522 or id=3523 or id=3524 or id=3525 or id=3526 or id=3527 or id=3528 or id=3529 or id=3530 or id=3531 or id=3532 or id=3533 or id=3534 or id=3535 or id=3536 or id=3537 or id=3538 or id=3539 or id=3540 or id=3541 or id=3542 or id=3543 or id=3544 or id=3545 or id=3546 or id=3547 or id=3548 or id=3549 or id=3550 or id=3551 or id=3552 or id=3553 or id=3554 or id=3555 or id=3556 or id=3557 or id=3558 or id=3559 or id=3560 or id=3561 or id=3562 or id=3563 or id=3564 or id=3565 or id=3566 or id=3567 or id=3568 or id=3569 or id=3570 or id=3571 or id=3572 or id=3573 or id=3574 or id=3575 or id=3576 or id=3577 or id=3578 or id=3579 or id=3580 or id=3581 or id=3582 or id=3583 or id=3584 or id=3585 or id=3586 or id=3587 or id=3588 or id=3589 or id=3590 or id=3591 or id=3592 or id=3593 or id=3594 or id=3595 or id=3596 or id=3597 or id=3598 or id=3599 or id=3600 or id=3601 or id=3602 or id=3603 or id=3604 or id=3605 or id=3606 or id=3607 or id=3608 or id=3609 or id=3610 or id=3611 or id=3612 or id=3613 or id=3614 or id=3615 or id=3616 or id=3617 or id=3618 or id=3619 or id=3620 or id=3621 or id=3622 or id=3623 or id=3624 or id=3625 or id=3626 or id=3627 or id=3628 or id=3629 or id=3630 or id=3631 or id=3632 or id=3633 or id=3634 or id=3635 or id=3636 or id=3637 or id=3638 or id=3639 or id=3640 or id=3641 or id=3642 or id=3643 or id=3644 or id=3645 or id=3646 or id=3647 or id=3648 or id=3649 or id=3650 or id=3651 or id=3652 or id=3653 or id=3654 or id=3655 or id=3656 or id=3657 or id=3658 or id=3659 or id=3660 or id=3661 or id=3662 or id=3663 or id=3664 or id=3665 or id=3666 or id=3667 or id=3668 or id=3669 or id=3670 or id=3671 or id=3672 or id=3673 or id=3674 or id=3675 or id=3676 or id=3677 or id=3678 or id=3679 or id=3680 or id=3681 or id=3682 or id=3683 or id=3684 or id=3685 or id=3686 or id=3687 or id=3688 or id=3689 or id=3690 or id=3691 or id=3692 or id=3693 or id=3694 or id=3695 or id=3696 or id=3697 or id=3698 or id=3699 or id=3700 or id=3701 or id=3702 or id=3703 or id=3704 or id=3705 or id=3706 or id=3707 or id=3708 or id=3709 or id=3710 or id=3711 or id=3712 or id=3713 or id=3714 or id=3715 or id=3716 or id=3717 or id=3718 or id=3719 or id=3720 or id=3721 or id=3722 or id=3723 or id=3724 or id=3725 or id=3726 or id=3727 or id=3728 or id=3729 or id=3730 or id=3731 or id=3732 or id=3733 or id=3734 or id=3735 or id=3736 or id=3737 or id=3738 or id=3739 or id=3740 or id=3741 or id=3742 or id=3743 or id=3744 or id=3745 or id=3746 or id=3747 or id=3748 or id=3749 or id=3750 or id=3751 or id=3752 or id=3753 or id=3754 or id=3755 or id=3756 or id=3757 or id=3758 or id=3759 or id=3760 or id=3761 or id=3762 or id=3763 or id=3764 or id=3765 or id=3766 or id=3767 or id=3768 or id=3769 or id=3770 or id=3771 or id=3772 or id=3773 or id=3774 or id=3775 or id=3776 or id=3777 or id=3778 or id=3779 or id=3780 or id=3781 or id=3782 or id=3783 or id=3784 or id=3785 or id=3786 or id=3787 or id=3788 or id=3789 or id=3790 or id=3791 or id=3792 or id=3793 or id=3794 or id=3795 or id=3796 or id=3797 or id=3798 or id=3799 or id=3800 or id=3801 or id=3802 or id=3803 or id=3804 or id=3805 or id=3806 or id=3807 or id=3808 or id=3809 or id=3810 or id=3811 or id=3812 or id=3813 or id=3814 or id=3815 or id=3816 or id=3817 or id=3818 or id=3819 or id=3820 or id=3821 or id=3822 or id=3823 or id=3824 or id=3825 or id=3826 or id=3827 or id=3828 or id=3829 or id=3830 or id=3831 or id=3832 or id=3833 or id=3834 or id=3835 or id=3836 or id=3837 or id=3838 or id=3839 or id=3840 or id=3841 or id=3842 or id=3843 or id=3844 or id=3845 or id=3846 or id=3847 or id=3848 or id=3849 or id=3850 or id=3851 or id=3852 or id=3853 or id=3854 or id=3855 or id=3856 or id=3857 or id=3858 or id=3859 or id=3860 or id=3861 or id=3862 or id=3863 or id=3864 or id=3865 or id=3866 or id=3867 or id=3868 or id=3869 or id=3870 or id=3871 or id=3872 or id=3873 or id=3874 or id=3875 or id=3876 or id=3877 or id=3878 or id=3879 or id=3880 or id=3881 or id=3882 or id=3883 or id=3884 or id=3885 or id=3886 or id=3887 or id=3888 or id=3889 or id=3890 or id=3891 or id=3892 or id=3893 or id=3894 or id=3895 or id=3896 or id=3897 or id=3898 or id=3899 or id=3900 or id=3901 or id=3902 or id=3903 or id=3904 or id=3905 or id=3906 or id=3907 or id=3908 or id=3909 or id=3910 or id=3911 or id=3912 or id=3913 or id=3914 or id=3915 or id=3916 or id=3917 or id=3918 or id=3919 or id=3920 or id=3921 or id=3922 or id=3923 or id=3924 or id=3925 or id=3926 or id=3927 or id=3928 or id=3929 or id=3930 or id=3931 or id=3932 or id=3933 or id=3934 or id=3935 or id=3936 or id=3937 or id=3938 or id=3939 or id=3940 or id=3941 or id=3942 or id=3943 or id=3944 or id=3945 or id=3946 or id=3947 or id=3948 or id=3949 or id=3950 or id=3951 or id=3952 or id=3953 or id=3954 or id=3955 or id=3956 or id=3957 or id=3958 or id=3959 or id=3960 or id=3961 or id=3962 or id=3963 or id=3964 or id=3965 or id=3966 or id=3967 or id=3968 or id=3969 or id=3970 or id=3971 or id=3972 or id=3973 or id=3974 or id=3975 or id=3976 or id=3977 or id=3978 or id=3979 or id=3980 or id=3981 or id=3982 or id=3983 or id=3984 or id=3985 or id=3986 or id=3987 or id=3988 or id=3989 or id=3990 or id=3991 or id=3992 or id=3993 or id=3994 or id=3995 or id=3996 or id=3997 or id=3998 or id=3999 or id=4000 or id=4001 or id=4002 or id=4003 or id=4004 or id=4005 or id=4006 or id=4007 or id=4008 or id=4009 or id=4010 or id=4011 or id=4012 or id=4013 or id=4014 or id=4015 or id=4016 or id=4017 or id=4018 or id=4019 or id=4020 or id=4021 or id=4022 or id=4023 or id=4024 or id=4025 or id=4026 or id=4027 or id=4028 or id=4029 or id=4030 or id=4031 or id=4032 or id=4033 or id=4034 or id=4035 or id=4036 or id=4037 or id=4038 or id=4039 or id=4040 or id=4041 or id=4042 or id=4043 or id=4044 or id=4045 or id=4046 or id=4047 or id=4048 or id=4049 or id=4050 or id=4051 or id=4052 or id=4053 or id=4054 or id=4055 or id=4056 or id=4057 or id=4058 or id=4059 or id=4060 or id=4061 or id=4062 or id=4063 or id=4064 or id=4065 or id=4066 or id=4067 or id=4068 or id=4069 or id=4070 or id=4071 or id=4072 or id=4073 or id=4074 or id=4075 or id=4076 or id=4077 or id=4078 or id=4079 or id=4080 or id=4081 or id=4082 or id=4083 or id=4084 or id=4085 or id=4086 or id=4087 or id=4088 or id=4089 or id=4090 or id=4091 or id=4092 or id=4093 or id=4094 or id=4095 or id=4096;
+
+OG-00027, Stack depth limit exceeded
+SQL> drop table if exists t_base_301;
+
+Succeed.
+
+SQL> 
+SQL> set autotrace off;
+
+OFF
+SQL> 
+SQL> drop table if exists t_or2union_1;
+
+Succeed.
+
+SQL> drop table if exists t_or2union_2;
+
+Succeed.
+
+SQL> drop table if exists  t_or_index_1;
+
+Succeed.
+
+SQL> drop table if exists  t_or_index_2;
+
+Succeed.
+
+SQL> alter system set _OPTIM_SUBQUERY_REWRITE = FALSE;
+Succeed.
+
+
+
+

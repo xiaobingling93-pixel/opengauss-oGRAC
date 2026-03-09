@@ -126,6 +126,8 @@ status_t sql_set_segment_pages_hold(mtrl_context_t *ogx, uint32 seg_id, uint32 p
 status_t sql_inherit_pending_buf(sql_cursor_t *cursor, sql_cursor_t *sub_cursor);
 status_t sql_revert_pending_buf(sql_cursor_t *cursor, sql_cursor_t *sub_cursor);
 void sql_free_hash_mtrl(sql_stmt_t *stmt);
+status_t ogsql_make_mtrl_row_for_hash_union(sql_stmt_t *statement, char *pending_buffer,
+    galist_t *col_lst, char* row_buffer);
 #define OGSQL_RELEASE_SEGMENT(stmt, seg)                  \
     do {                                                \
         if ((seg) != OG_INVALID_ID32) {                 \

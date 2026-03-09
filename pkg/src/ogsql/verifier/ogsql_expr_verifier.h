@@ -48,6 +48,7 @@ status_t sql_try_verify_rowscn(sql_verifier_t *verif, expr_node_t *node, bool32 
 status_t sql_try_verify_rownodeid(sql_verifier_t *verf, expr_node_t *node, bool32 *result);
 status_t sql_verify_pl_var(sql_verifier_t *verif, plv_id_t vid, expr_node_t *node);
 og_type_t sql_get_case_expr_compatible_datatype(og_type_t case_datatype, og_type_t expr_datatype);
+void sql_make_rowid_column_node(expr_node_t *node, uint32 col_id, uint32 tab_id, uint32 ancestor);
 
 #ifdef __cplusplus
 }

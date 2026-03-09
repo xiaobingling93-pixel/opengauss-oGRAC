@@ -677,6 +677,7 @@ typedef struct st_connect_by_mtrl_info {
 typedef struct st_query_block_info {
     uint32 origin_id;
     bool32 transformed;
+    bool32 has_no_or2union_flag; // query already has no_or_expand flag or not
     text_t origin_name;
     text_t changed_name;
 } query_block_info_t;
