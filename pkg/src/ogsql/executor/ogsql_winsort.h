@@ -282,11 +282,8 @@ static inline status_t sql_win_aggr_count_alloc(sql_stmt_t *stmt, sql_aggr_type_
     return OG_SUCCESS;
 }
 
-static inline status_t og_win_aggr_sum_alloc(sql_stmt_t *statement, sql_aggr_type_t sql_aggr_type, expr_tree_t *exprtr,
-    sql_cursor_t *cursor, aggr_var_t **aggr_var, mtrl_rowid_t *rid)
+static inline status_t og_win_aggr_sum_alloc(sql_stmt_t *statement, expr_tree_t *exprtr, aggr_var_t **aggr_var)
 {
-    OG_RETURN_IFERR(sql_win_aggr_page_alloc(statement, sql_aggr_type, cursor, aggr_var, sizeof(aggr_sum_t), rid));
-
     aggr_sum_t *data = get_aggr_var_sum(*aggr_var);
     OG_RETVALUE_IFTRUE(data == NULL, OG_ERROR);
 
@@ -338,20 +335,8 @@ static inline status_t sql_win_aggr_alloc(sql_stmt_t *stmt, sql_aggr_type_t aggr
     }
 }
 
-static inline status_t sql_win_aggr_var_alloc(sql_stmt_t *stmt, sql_aggr_type_t aggr_type, sql_cursor_t *cursor,
-    aggr_var_t **aggr_var, og_type_t datatype, mtrl_rowid_t *rid, expr_tree_t *func_expr)
-{
-    if (aggr_type == AGGR_TYPE_COUNT) {
-        OG_RETURN_IFERR(sql_win_aggr_count_alloc(stmt, aggr_type, func_expr, cursor, aggr_var, rid));
-    } else if (aggr_type == AGGR_TYPE_SUM) {
-        OG_RETURN_IFERR(og_win_aggr_sum_alloc(stmt, aggr_type, func_expr, cursor, aggr_var, rid));
-    } else {
-        OG_RETURN_IFERR(sql_win_aggr_alloc(stmt, aggr_type, cursor, aggr_var, rid));
-    }
-    (*aggr_var)->var.is_null = OG_TRUE;
-    (*aggr_var)->var.type = datatype;
-    return OG_SUCCESS;
-}
+status_t sql_win_aggr_var_alloc(sql_stmt_t *stmt, sql_aggr_type_t aggr_type, sql_cursor_t *cursor,
+    aggr_var_t **aggr_var, og_type_t datatype, mtrl_rowid_t *rid, expr_tree_t *func_expr);
 
 static inline status_t sql_win_aggr_append_data_ext(sql_stmt_t *stmt, sql_cursor_t *cursor, aggr_var_t *aggr_var,
     char *data, uint32 size)
