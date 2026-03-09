@@ -342,6 +342,7 @@ def parse_parameter():
             g_opts.log_file = json_data['l_LOG_FILE'].strip()  # -I
             g_opts.running_mode = json_data['M_RUNING_MODE'].strip()  # -M
             g_opts.ignore_pkg_check = True  # -p
+            g_opts.compatibility_mode = json_data.get("DBCOMPATIBILITY", "A").strip()
 
         flags = os.O_RDONLY
         modes = stat.S_IWUSR | stat.S_IRUSR
@@ -2747,7 +2748,7 @@ class Installer:
         input : NA
         output: NA
         """
-        LOGGER.info("Creating database.")
+        LOGGER.info("Creating database with dbcompatibility '%s'." % g_opts.compatibility_mode)
 
         ograc_check_share_logic_ip_isvalid("share", g_opts.share_logic_ip)
 
@@ -2897,7 +2898,15 @@ class Installer:
 
         # execute default sql file
         # modify the sql file for create database
-        sql_file_path = "%s/admin/scripts" % self.install_path
+        if g_opts.compatibility_mode == "A":
+            sql_file_path = "%s/admin/scripts" % self.install_path
+        elif g_opts.compatibility_mode == "B":
+            sql_file_path = "%s/admin/dialect_b_scripts" % self.install_path
+        elif g_opts.compatibility_mode == "C":
+            sql_file_path = "%s/admin/dialect_c_scripts" % self.install_path
+        else:
+            raise Exception("Only Support A or B or C compatibility mode.")
+
         file_name = "create_database.sample.sql"
         if g_opts.running_mode in [OGRACD_IN_CLUSTER]:
             file_name = "create_cluster_database.sample.sql"

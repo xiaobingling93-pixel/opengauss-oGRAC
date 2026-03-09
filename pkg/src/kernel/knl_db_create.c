@@ -60,6 +60,13 @@ static void dbc_init_dbid(knl_session_t *session, knl_database_def_t *def)
     db->ctrl.core.dbid = dbc_generate_dbid(session);
 }
 
+static void dbc_init_dbcompatibility(knl_session_t *session, knl_database_def_t *def)
+{
+    knl_instance_t *kernel = (knl_instance_t *)session->kernel;
+    database_t *db = &kernel->db;
+    db->ctrl.core.dbcompatibility = def->dbcompatibility;
+}
+
 static void dbc_init_scn(knl_session_t *session)
 {
     knl_instance_t *kernel = (knl_instance_t *)session->kernel;
@@ -671,6 +678,7 @@ status_t dbc_create_database(knl_handle_t session, knl_database_def_t *def, bool
     dbc_init_scn(knl_session);
     dbc_init_archivelog(knl_session, def);
     dbc_init_dbid(knl_session, def);
+    dbc_init_dbcompatibility(knl_session, def);
     if (DB_ATTR_CLUSTER(knl_session)) {
         db_init_max_instance(session, def->max_instance);
     } else {

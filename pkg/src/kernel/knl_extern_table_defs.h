@@ -743,6 +743,17 @@ typedef enum en_sys_garbage_table_column {
 #define IX_COL_SYS_GARBAGE_TABLE001_UID            0
 #define IX_COL_SYS_GARBAGE_TABLE001_TABLE            1
 
+/************************************ SYS_ENGINES *************************************************************/
+typedef enum en_sys_engines_columns {
+    SYS_ENGINES_ENGINE = 0,
+    SYS_ENGINES_SUPPORT = 1,
+    SYS_ENGINES_COMMENT = 2,
+    SYS_ENGINES_TRANSACTIONS = 3,
+    SYS_ENGINES_XA = 4,
+    SYS_ENGINES_SAVEPOINTS = 5,
+
+    SYS_ENGINES_COUNT,    // systable column count, must be the last in the struct.
+} en_sys_engines_columns_t;
 
 #ifdef __cplusplus
 }

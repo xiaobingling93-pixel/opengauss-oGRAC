@@ -4879,7 +4879,7 @@ static status_t sql_load_sql_file(knl_handle_t handle, const char *full_name)
     return status;
 }
 
-static status_t sql_get_scripts_name(char *full_name, const char *file_name)
+static status_t sql_get_scripts_name(char *full_name, const char *file_name, const char *script_name)
 {
     char *home = getenv(OG_ENV_HOME);
 
@@ -4898,8 +4898,13 @@ static status_t sql_get_scripts_name(char *full_name, const char *file_name)
         return OG_ERROR;
     }
 
-    PRTS_RETURN_IFERR(snprintf_s(full_name, OG_FILE_NAME_BUFFER_SIZE, OG_FILE_NAME_BUFFER_SIZE - 1,
-        "%s/admin/scripts/%s", home, file_name));
+    if (script_name == NULL) {
+        PRTS_RETURN_IFERR(snprintf_s(full_name, OG_FILE_NAME_BUFFER_SIZE, OG_FILE_NAME_BUFFER_SIZE - 1,
+            "%s/admin/scripts/%s", home, file_name));
+    } else {
+        PRTS_RETURN_IFERR(snprintf_s(full_name, OG_FILE_NAME_BUFFER_SIZE, OG_FILE_NAME_BUFFER_SIZE - 1,
+            "%s/admin/%s/%s", home, script_name, file_name));
+    }
 
     if (!cm_file_exist(full_name)) {
         OG_THROW_ERROR(ERR_FILE_NOT_EXIST, "scripts", file_name);
@@ -4909,15 +4914,20 @@ static status_t sql_get_scripts_name(char *full_name, const char *file_name)
     return OG_SUCCESS;
 }
 
-status_t sql_load_scripts(knl_handle_t handle, const char *file_name, bool8 is_necessary)
+status_t sql_load_scripts(knl_handle_t handle, const char *file_name, bool8 is_necessary, const char *script_name)
 {
     char full_name[OG_FILE_NAME_BUFFER_SIZE] = {'\0'};
 
-    PRTS_RETURN_IFERR(snprintf_s(full_name, OG_FILE_NAME_BUFFER_SIZE, OG_FILE_NAME_BUFFER_SIZE - 1,
-        "%s/admin/scripts/%s", g_instance->home, file_name));
+    if (script_name == NULL) {
+        PRTS_RETURN_IFERR(snprintf_s(full_name, OG_FILE_NAME_BUFFER_SIZE, OG_FILE_NAME_BUFFER_SIZE - 1,
+            "%s/admin/scripts/%s", g_instance->home, file_name));
+    } else {
+        PRTS_RETURN_IFERR(snprintf_s(full_name, OG_FILE_NAME_BUFFER_SIZE, OG_FILE_NAME_BUFFER_SIZE - 1,
+            "%s/admin/%s/%s", g_instance->home, script_name, file_name));
+    }
 
     if (!cm_file_exist(full_name)) {
-        if (sql_get_scripts_name(full_name, file_name) == OG_ERROR) {
+        if (sql_get_scripts_name(full_name, file_name, script_name) == OG_ERROR) {
             if (!is_necessary) {
                 int32 err_code = cm_get_error_code();
                 if (err_code == ERR_FILE_NOT_EXIST) {

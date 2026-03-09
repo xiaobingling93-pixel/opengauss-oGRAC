@@ -466,7 +466,8 @@ typedef enum en_io_type {
     IO_TYPE_COMMIT,
 } io_type_t;
 
-typedef status_t (*knl_load_scripts_t)(knl_handle_t session, const char *file, bool8 is_necessary);
+typedef status_t (*knl_load_scripts_t)(knl_handle_t session, const char *file, bool8 is_necessary,
+                                            const char *script_name);
 typedef status_t (*knl_pl_init_t)(knl_handle_t session);
 typedef status_t (*knl_pl_db_drop_triggers_t)(knl_handle_t knl_session, knl_dictionary_t *dc);
 typedef void (*knl_pl_enable_trigger_t)(knl_handle_t knl_session, void *entry);

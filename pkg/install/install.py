@@ -106,6 +106,9 @@ class Options(object):
         # flag of if install inside docker container
         self.in_container = False
 
+        # compatibility_mode is A or B or C
+        self.compatibility_mode = "A"
+
         # flag of if ograc in the container
         self.ograc_in_container = "0"
 
@@ -511,7 +514,7 @@ def parse_parameter():
         # Parameters are passed into argv. After parsing, they are stored
         # in opts as binary tuples. Unresolved parameters are stored in args.
         opts, args = getopt.getopt(sys.argv[1:],
-                                   "U:R:M:N:OD:Z:C:G:W:cg:sdl:Ppf:m:S:r", ["help", "dbstor", "linktype="])
+                                   "U:R:M:N:OD:Z:C:G:W:cg:sdl:Ppf:m:S:r", ["help", "dbstor", "linktype=", "COMPATIBILITY_MODE="])
         if args:
             print("Parameter input error: " + str(args[0]))
             exit(1)
@@ -543,6 +546,8 @@ def parse_parameter():
             elif _key == "--linktype":
                 g_opts.link_type = _value.strip()
                 g_opts.link_type_from_para = True
+            elif _key == "--COMPATIBILITY_MODE":
+                g_opts.compatibility_mode = _value.strip()
             elif _key == "-d":
                 g_opts.in_container = True
             elif _key == "-p":
@@ -1296,6 +1301,9 @@ class Installer:
 
         self.factor_key = ""
 
+        # a or b or c database
+        self.compatibility_mode = "A"
+
         self.os_type = platform.machine()
         self.have_numactl = check_command('numactl')
         self.numactl_str = ""
@@ -1597,6 +1605,8 @@ class Installer:
                 self.create_db_file = value.strip()
             elif key == '-c':
                 self.close_ssl = True
+            elif key == '--COMPATIBILITY_MODE':
+                self.compatibility_mode = value.strip()
             else:
                 logExit("Parameter input error: %s." % value)
 
@@ -3460,7 +3470,8 @@ class Installer:
         input : NA
         output: NA
         """
-        log("Creating database.", True)
+        
+        log("Creating database with dbcompatibility '%s'." % self.compatibility_mode, True)
         # clean old backup log
         # backup log file before rm data
         self.backup_log_dir = "/tmp/bak_log"
@@ -3507,7 +3518,16 @@ class Installer:
 
         # execute default sql file
         # modify the sql file for create database
-        sql_file_path = "%s/admin/scripts" % self.installPath
+
+        if self.compatibility_mode == "A":
+            sql_file_path = "%s/admin/scripts" % self.installPath
+        elif self.compatibility_mode == "B":
+            sql_file_path = "%s/admin/dialect_b_scripts" % self.installPath
+        elif self.compatibility_mode == "C":
+            sql_file_path = "%s/admin/dialect_c_scripts" % self.installPath
+        else:
+            raise Exception("Only Support A or B or C compatibility mode.")
+
         file_name = "create_database.sample.sql"
         if g_opts.running_mode in [OGRACD_IN_CLUSTER]:
             file_name = "create_cluster_database.sample.sql"

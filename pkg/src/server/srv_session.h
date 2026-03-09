@@ -312,6 +312,7 @@ typedef struct st_session {
     uint16_t total_cursor_num_stack;
     spinlock_t map_lock;
     cm_oamap_t cursor_map;
+    char dbcompatibility;
 } session_t;
 
 typedef status_t (*proc_msg_t)(session_t *sess);

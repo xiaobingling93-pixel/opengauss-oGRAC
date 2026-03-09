@@ -443,6 +443,7 @@ static void srv_init_new_session(cs_pipe_t *pipe, session_t *session)
     pool->hwm++;
     g_instance->kernel.assigned_sessions++;
     cm_spin_unlock(&pool->lock);
+    session->dbcompatibility = session->knl_session.kernel->db.ctrl.core.dbcompatibility;
 
     OG_LOG_DEBUG_INF("init new session %u [private [%u]]", session->knl_session.id, session->priv);
 }
@@ -751,6 +752,7 @@ void srv_deinit_session(session_t *session)
         cm_close_device(df->ctrl->type, &session->knl_session.datafiles[file_id]);
     }
     knl_destroy_se_alcks(session);
+    session->dbcompatibility = session->knl_session.kernel->db.ctrl.core.dbcompatibility;
 
     session->stat = g_stat_info_4_init;
     session->os_prog[0] = '\0';
@@ -984,6 +986,7 @@ static status_t srv_process_command_check(session_t *session, uint32 cmd)
 static status_t srv_process_init_session(session_t *session)
 {
     sql_audit_init(&session->sql_audit);
+    session->dbcompatibility = session->knl_session.kernel->db.ctrl.core.dbcompatibility;
     session->knl_session.status = SESSION_ACTIVE;
     session->knl_session.canceled = OG_FALSE;
     session->exec_prev_stat.stat_level = 0;

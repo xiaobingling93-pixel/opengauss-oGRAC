@@ -165,6 +165,35 @@ static status_t sql_parse_dbca_charset(sql_stmt_t *stmt, knl_database_def_t *def
     return lex_fetch(lex, word);
 }
 
+
+static status_t sql_parse_dbca_with(sql_stmt_t *stmt, knl_database_def_t *def, word_t *word)
+{
+    lex_t *lex = stmt->session->lex;
+
+    if (lex_expected_fetch_word(lex, "dbcompatibility") != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+
+    if (def->dbcompatibility != 0) {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "dbcompatibility is already defined");
+        return OG_ERROR;
+    }
+
+    if (lex_expected_fetch(lex, word) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+
+    if (word->type != WORD_TYPE_STRING) {
+        return OG_ERROR;
+    }
+
+    char dbcompatibility_str[MAX_DBCOMPATIBILITY_STR_LEN] = {0};
+    OG_RETURN_IFERR(cm_text2str((text_t *)&word->text, dbcompatibility_str, MAX_DBCOMPATIBILITY_STR_LEN));
+    def->dbcompatibility = dbcompatibility_str[1];
+
+    return lex_fetch(lex, word);
+}
+
 static status_t sql_try_parse_file_blocksize(lex_t *lex, int32 *blocksize)
 {
     bool32 result = OG_FALSE;
@@ -711,6 +740,10 @@ status_t sql_parse_create_database(sql_stmt_t *stmt, bool32 clustered)
                 status = lex_fetch(stmt->session->lex, &word);
                 break;
 
+            case KEY_WORD_WITH:
+                status = sql_parse_dbca_with(stmt, db_def, &word);
+                break;
+
             default:
                 OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "key word expected but %s found", W2S(&word));
                 return OG_ERROR;
@@ -721,6 +754,9 @@ status_t sql_parse_create_database(sql_stmt_t *stmt, bool32 clustered)
         }
     }
 
+    if (db_def->dbcompatibility == 0) {
+        db_def->dbcompatibility = 'A';
+    }
     db_def->arch_mode = arch_mode;
     status = sql_set_database_default(stmt, db_def, clustered);
     OG_RETURN_IFERR(status);
@@ -2149,12 +2185,23 @@ status_t og_parse_create_database(sql_stmt_t *stmt, knl_database_def_t **def, ch
             case CREATEDB_MAXINSTANCE_OPT:
                 db_def->max_instance = opt->max_instance;
                 break;
+            case CREATEDB_DBCOMPATIBILITY_OPT:
+                db_def->dbcompatibility = opt->dbcompatibility;
+                break;
             default:
                 return OG_ERROR;
         }
         if (status != OG_SUCCESS) {
             return OG_ERROR;
         }
+    }
+
+    if (db_def->dbcompatibility == 0) {
+        db_def->dbcompatibility = 'A';
+    } else if (db_def->dbcompatibility != 'A' && db_def->dbcompatibility != 'B' && db_def->dbcompatibility != 'C') {
+        OG_THROW_ERROR_EX(ERR_SQL_SYNTAX_ERROR, "dbcompatibility %c is unavailable, Only Support A or B or C.",
+            db_def->dbcompatibility);
+        return OG_ERROR;
     }
 
     db_def->arch_mode = arch_mode;

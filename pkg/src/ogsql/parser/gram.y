@@ -255,7 +255,7 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
 %type <name_owner> any_name on_list
 %type <db_opt> createdb_user_opt createdb_controlfile_opt createdb_charset_opt instance_node_opt createdb_instance_opt
                createdb_nologging_opt createdb_system_opt createdb_sysaux_opt createdb_default_opt createdb_maxinstance_opt
-               createdb_opt createdb_archivelog_opt
+               createdb_opt createdb_archivelog_opt createdb_compatibility_opt
 %type <ctrlfile_opt> ctrlfile_opt
 %type <list> controlfiles logfiles instance_node_opts instance_nodes createdb_opts datafiles opt_user_options user_option_list
              tablespace_name_list createts_opts opt_createts_opts index_column_list createidx_opts opt_partition_index_def
@@ -8093,6 +8093,28 @@ createdb_maxinstance_opt:
                 }
         ;
 
+createdb_compatibility_opt:
+            WITH DBCOMPATIBILITY_P opt_equal SCONST
+                {
+                    char* compatibility = $4;
+                    if (compatibility == NULL || strlen(compatibility) != 1) {
+                        parser_yyerror("invalid compatibility value.");
+                    }
+                    cm_str_upper(compatibility);
+                    if (compatibility[0] != 'A' && compatibility[0] != 'B' && compatibility[0] != 'C') {
+                        parser_yyerror("invalid compatibility value.");
+                    }
+                    createdb_opt *opt = NULL;
+                    sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
+                    if (sql_alloc_mem(stmt->context, sizeof(createdb_opt), (void **)&opt) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    opt->type = CREATEDB_DBCOMPATIBILITY_OPT;
+                    opt->dbcompatibility = compatibility[0];
+                    $$ = opt;
+                }
+        ;
+
 createdb_opt:
             createdb_user_opt                                           { $$ = $1; }
             | createdb_controlfile_opt                                  { $$ = $1; }
@@ -8104,6 +8126,7 @@ createdb_opt:
             | createdb_system_opt                                       { $$ = $1; }
             | createdb_instance_opt                                     { $$ = $1; }
             | createdb_maxinstance_opt                                  { $$ = $1; }
+            | createdb_compatibility_opt                                { $$ = $1; }
         ;
 
 createdb_opts:

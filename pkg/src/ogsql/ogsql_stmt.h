@@ -611,7 +611,7 @@ status_t sql_load_first_exec_vars(sql_stmt_t *stmt);
 status_t sql_read_params(sql_stmt_t *stmt);
 status_t sql_fill_null_params(sql_stmt_t *stmt);
 status_t sql_prepare_params(sql_stmt_t *stmt);
-status_t sql_load_scripts(knl_handle_t handle, const char *file_name, bool8 is_necessary);
+status_t sql_load_scripts(knl_handle_t handle, const char *file_name, bool8 is_necessary, const char *script_name);
 void sql_init_session(session_t *sess);
 status_t sql_write_lob(sql_stmt_t *stmt, lob_write_req_t *req);
 status_t sql_read_lob(sql_stmt_t *stmt, void *locator, uint32 offset, void *buf, uint32 size, uint32 *read_size);

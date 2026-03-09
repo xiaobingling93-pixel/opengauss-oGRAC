@@ -2263,9 +2263,16 @@ static status_t dc_build_ex_systables(knl_session_t *session)
 {
     core_ctrl_t *core = &session->kernel->db.ctrl.core;
 
+    char* script_name = NULL;
+    if (session->kernel->db.ctrl.core.dbcompatibility == 'B') {
+        script_name = "dialect_b_scripts";
+    } else if (session->kernel->db.ctrl.core.dbcompatibility == 'C') {
+        script_name = "dialect_c_scripts";
+    }
+
     if (!core->build_completed) {
         session->bootstrap = OG_TRUE;
-        if (g_knl_callback.load_scripts(session, "initdb.sql", OG_TRUE) != OG_SUCCESS) {
+        if (g_knl_callback.load_scripts(session, "initdb.sql", OG_TRUE, script_name) != OG_SUCCESS) {
             return OG_ERROR;
         }
 
@@ -2274,7 +2281,7 @@ static status_t dc_build_ex_systables(knl_session_t *session)
             return OG_ERROR;
         }
 
-        if (g_knl_callback.load_scripts(session, "initview.sql", OG_TRUE) != OG_SUCCESS) {
+        if (g_knl_callback.load_scripts(session, "initview.sql", OG_TRUE, script_name) != OG_SUCCESS) {
             return OG_ERROR;
         }
 
@@ -2282,15 +2289,23 @@ static status_t dc_build_ex_systables(knl_session_t *session)
             return OG_ERROR;
         }
 
-        if (g_knl_callback.load_scripts(session, "initplsql.sql", OG_TRUE) != OG_SUCCESS) {
+        if (g_knl_callback.load_scripts(session, "initplsql.sql", OG_TRUE, script_name) != OG_SUCCESS) {
             return OG_ERROR;
         }
 
-        if (g_knl_callback.load_scripts(session, "initwsr.sql", OG_TRUE) != OG_SUCCESS) {
+        if (g_knl_callback.load_scripts(session, "initwsr.sql", OG_TRUE, script_name) != OG_SUCCESS) {
             return OG_ERROR;
         }
 
-        if (g_knl_callback.load_scripts(session, "initdb_customized.sql", OG_FALSE) != OG_SUCCESS) {
+        if (g_knl_callback.load_scripts(session, "initdb_customized.sql", OG_FALSE, script_name) != OG_SUCCESS) {
+            return OG_ERROR;
+        }
+
+        if (g_knl_callback.load_scripts(session, "initview_customized.sql", OG_FALSE, script_name) != OG_SUCCESS) {
+            return OG_ERROR;
+        }
+
+        if (db_build_ex_systables_customized(session) != OG_SUCCESS) {
             return OG_ERROR;
         }
 

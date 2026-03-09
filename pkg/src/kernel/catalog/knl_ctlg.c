@@ -749,6 +749,26 @@ static status_t db_build_dual(knl_session_t *session, knl_cursor_t *cursor)
     return OG_SUCCESS;
 }
 
+static status_t db_build_engine(knl_session_t *session, knl_cursor_t *cursor)
+{
+    row_assist_t ra;
+    
+    uint32 max_size = session->kernel->attr.max_row_size;
+    row_init(&ra, cursor->buf, max_size, SYS_ENGINES_COUNT);
+    (void)(row_put_str(&ra, "default"));
+    (void)(row_put_str(&ra, "YES"));
+    (void)(row_put_str(&ra, "DEFAULT"));
+    (void)(row_put_str(&ra, "YES"));
+    (void)(row_put_str(&ra, "YES"));
+    (void)(row_put_str(&ra, "YES"));
+    
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_ENGINES_ID, OG_INVALID_ID32);
+    if (OG_SUCCESS != knl_internal_insert(session, cursor)) {
+        return OG_ERROR;
+    }
+    return OG_SUCCESS;
+}
+
 /* in-build role : connect */
 static status_t db_build_sys_roles(knl_session_t *session, knl_cursor_t *cursor)
 {
@@ -902,6 +922,27 @@ status_t db_build_ex_systables(knl_session_t *session)
     if (db_build_sys_tenants(session, cursor) != OG_SUCCESS) {
         CM_RESTORE_STACK(session->stack);
         return OG_ERROR;
+    }
+
+    CM_RESTORE_STACK(session->stack);
+    knl_commit(session);
+
+    return OG_SUCCESS;
+}
+
+status_t db_build_ex_systables_customized(knl_session_t *session)
+{
+    knl_cursor_t *cursor = NULL;
+    CM_SAVE_STACK(session->stack);
+    cursor = knl_push_cursor(session);
+    knl_set_session_scn(session, OG_INVALID_ID64);
+
+    if (session->kernel->db.ctrl.core.dbcompatibility == 'B') {
+        if (db_build_engine(session, cursor) != OG_SUCCESS) {
+            CM_RESTORE_STACK(session->stack);
+            return OG_ERROR;
+        }
+    } else if (session->kernel->db.ctrl.core.dbcompatibility == 'C') {
     }
 
     CM_RESTORE_STACK(session->stack);

@@ -45,6 +45,7 @@ extern "C" {
 
 #define DB_MAX_NAME_LEN 32
 #define SYSTEM_FILE_MIN_SIZE SIZE_M(80)
+#define MAX_DBCOMPATIBILITY_STR_LEN 3
 
 status_t sql_parse_create_database(sql_stmt_t *stmt, bool32 clustered);
 status_t sql_create_database_lead(sql_stmt_t *stmt);
