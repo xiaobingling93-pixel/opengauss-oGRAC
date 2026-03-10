@@ -1035,6 +1035,7 @@ bool32 chk_lnnvl_unsupport_cmp_type(cond_node_t *cond)
         case CMP_TYPE_REGEXP_LIKE:
         case CMP_TYPE_IS_JSON:
         case CMP_TYPE_IS_NOT_JSON:
+        case CMP_TYPE_NULL_CMP_OP:
             return OG_FALSE;
         default:
             return OG_TRUE;

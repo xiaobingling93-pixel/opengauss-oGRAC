@@ -140,13 +140,30 @@ extern int yyparse(yyscan_t yyscanner);
  */
 #define og_yyget_extra(yyscanner) (*((base_yy_extra_type**)(yyscanner)))
 
+typedef int (*core_yylex_func)(core_YYSTYPE*, YYLTYPE*, core_yyscan_t);
+
 /* from parser.c */
+extern int base_yylex_common(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner, core_yylex_func yylex_func);
 extern int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner);
+extern int a_base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner);
+extern int b_base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner);
+extern int c_base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner);
 
 /* from gram.y */
 extern void parser_init(base_yy_extra_type* yyext);
 extern int base_yyparse(core_yyscan_t yyscanner);
 
+extern void a_parser_init(base_yy_extra_type* yyext);
+extern int a_base_yyparse(core_yyscan_t yyscanner);
+extern void a_scanner_finish(core_yyscan_t yyscanner);
+
+extern void b_parser_init(base_yy_extra_type* yyext);
+extern int b_base_yyparse(core_yyscan_t yyscanner);
+extern void b_scanner_finish(core_yyscan_t yyscanner);
+
+extern void c_parser_init(base_yy_extra_type* yyext);
+extern int c_base_yyparse(core_yyscan_t yyscanner);
+extern void c_scanner_finish(core_yyscan_t yyscanner);
 #endif
 
 typedef struct flex_mem_header {

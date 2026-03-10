@@ -105,6 +105,8 @@ static interval_unit_t get_interval_unit(interval_unit_order_t order);
 static interval_unit_t generate_interval_unit(interval_unit_order_t from, interval_unit_order_t to);
 static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_t *alter_idx_act, knl_alindex_def_t *def);
 
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "gram-dialect-prologue.y.h"*/
 %}
 
 %define api.pure
@@ -311,6 +313,9 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
 %token            LEX_ERROR_TOKEN
 %token            TYPECAST ORA_JOINOP DOT_DOT COLON_EQUALS PARA_EQUALS SET_IDENT_SESSION SET_IDENT_GLOBAL NULLS_FIRST NULLS_LAST
 %token <str>      SIZE_B SIZE_KB SIZE_MB SIZE_GB SIZE_TB SIZE_PB SIZE_EB
+%token            DIALECT_A_FORMAT_SQL
+%token            DIALECT_B_FORMAT_SQL
+%token            DIALECT_C_FORMAT_SQL
 
 %token <keyword> ABORT_P ABSENT ABSOLUTE_P ACCESS ACCOUNT ACTION ADD_P ADMIN ADMINISTER AFTER
     AGGREGATE ALGORITHM ALL ALSO ALTER ALWAYS ANALYSE ANALYZE AND ANY APP APPEND APPENDONLY APPLY ARCHIVE_P ARCHIVELOG ARRAY AS ASC ASF ASOF_P
@@ -506,6 +511,10 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
              SEPARATOR_P AUTO_INCREMENT COMMENT APPENDONLY CACHE CHARSET COMPRESS
              ENABLE_P DISABLE_P INITRANS LOB LOGGING MAXTRANS NOCACHE NOCOMPRESS
              PCTFREE STORAGE SYSTEM_P TABLESPACE CHARACTER
+
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "gram-dialect-nonassoc-ident-tokens"*/
+
 %left        '|'    /* OPER_TYPE_BITOR */
 %left        '^'    /* OPER_TYPE_BITXOR */
 %left        '&'    /* OPER_TYPE_BITAND */
@@ -529,6 +538,9 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
  */
 %left        NATURAL INNER_JOIN JOIN_KEY LEFT_KEY RIGHT_KEY FULL_KEY CROSS_JOIN
 %nonassoc    ON RETURN SQL_CALC_FOUND_ROWS BODY_P IF_P NOLOGGING IGNORE   /* handle table_ref JOIN table_ref JOIN table_ref ON join_qual  */
+
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "gram-dialect-decl.y"*/
 
 %%
 /*
@@ -2457,6 +2469,8 @@ cond_node:
                     node->cmp->type = CMP_TYPE_GREAT_EQUAL;
                 } else if (strcmp($2, "<=") == 0) {
                     node->cmp->type = CMP_TYPE_LESS_EQUAL;
+                } else if (strcmp($2, "<=>") == 0) {
+                    node->cmp->type = CMP_TYPE_NULL_CMP_OP;
                 }
 
                 node->cmp->left = $1;
@@ -2599,6 +2613,8 @@ cond_node:
                     node->cmp->type = $3 ? CMP_TYPE_GREAT_EQUAL_ANY : CMP_TYPE_GREAT_EQUAL_ALL;
                 } else if (strcmp($2, "<=") == 0) {
                     node->cmp->type = $3 ? CMP_TYPE_LESS_EQUAL_ANY : CMP_TYPE_LESS_EQUAL_ALL;
+                } else if (strcmp($2, "<=>") == 0) {
+                    node->cmp->type = CMP_TYPE_NULL_CMP_OP;
                 }
 
                 node->cmp->left = $1;
@@ -2627,6 +2643,8 @@ cond_node:
                     node->cmp->type = $3 ? CMP_TYPE_GREAT_EQUAL_ANY : CMP_TYPE_GREAT_EQUAL_ALL;
                 } else if (strcmp($2, "<=") == 0) {
                     node->cmp->type = $3 ? CMP_TYPE_LESS_EQUAL_ANY : CMP_TYPE_LESS_EQUAL_ALL;
+                } else if (strcmp($2, "<=>") == 0) {
+                    node->cmp->type = CMP_TYPE_NULL_CMP_OP;
                 }
 
                 node->cmp->left = $1;
@@ -12761,6 +12779,9 @@ reserved_keyword:
             | LIBRARY
         ;
 
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "gram-dialect-rule.y"*/
+
 %%
 
 static void
@@ -12768,6 +12789,8 @@ base_yyerror(YYLTYPE *yylloc, core_yyscan_t yyscanner, const char *msg)
 {
     scanner_yyerror(msg, yyscanner);
 }
+
+/*$$exclude in dialect begin*/
 
 /* parser_init()
  * Initialize to parse one query string
@@ -12780,6 +12803,7 @@ parser_init(base_yy_extra_type *yyext)
     yyext->core_yy_extra.paren_depth = 0;
 }
 
+/*$$exclude in dialect end*/
 
 static status_t column_list_to_column_pairs(sql_stmt_t *stmt, galist_t *colname_list, galist_t **pairs)
 {
@@ -13054,6 +13078,9 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
 #undef yylex
 
 #define SCANINC
+
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "gram-dialect-epilogue.y.c"*/
 
 #ifdef SCANINC
 #include "scan.inc"

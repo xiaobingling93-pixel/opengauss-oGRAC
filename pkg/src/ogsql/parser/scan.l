@@ -30,6 +30,8 @@
  * -------------------------------------------------------------------------
  */
 
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "scan-dialect-prologue-top.l.h"*/
 
 #include <ctype.h>
 #include <unistd.h>
@@ -38,6 +40,7 @@
 #include "scansup.h"
 #include "ogsql_self_func.h"
 
+/*$$exclude in dialect begin*/
 #define OG_KEYWORD(kwname, value, category) value,
 
 const uint16 ScanKeywordTokens[] = {
@@ -45,6 +48,7 @@ const uint16 ScanKeywordTokens[] = {
 };
 
 #undef OG_KEYWORD
+/*$$exclude in dialect end*/
 
 /*
  * Set the type of YYSTYPE.
@@ -133,7 +137,7 @@ static uint32 surrogate_pair_to_codepoint(uint32 first, uint32 second);
 static unsigned char* unicode_to_utf8(uint32 c, unsigned char* utf8string);
 static status_t addunicode(uint32 c, yyscan_t yyscanner);
 static int pg_mblen(const char* mbstr);
-static status_t handle_float_overflow(char *token, core_yyscan_t yyscanner, char **result);
+status_t handle_float_overflow(char *token, core_yyscan_t yyscanner, char **result);
 static void update_current_location(char *cur_pos, char *origin_str, lex_location_t *loc, bool8 multi_line_sql);
 static void flex_alloc_mem(void *context, yy_size_t size, void **buf);
 static bool32 need_ignore_for_func(sql_stmt_t *stmt, char* ident, int len);
@@ -160,6 +164,10 @@ extern void core_yyset_column(int column_no, yyscan_t yyscanner);
  * to exclude the PG-specific logic.
  */
 #define CT_YYLEX
+
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "scan-dialect-prologue.l.h"*/
+
 %}
 
 %option reentrant
@@ -447,7 +455,13 @@ other            .
  *  Also whitespace (comment) must appear before operator.
  */
 
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "scan-dialect-decl.l"*/
+
 %%
+
+ /* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+ /*$$include "scan-dialect-rule.l"*/
 
 {whitespace_only}    {
                     /* ignore */
@@ -1269,6 +1283,11 @@ other            .
 #undef yyleng
 #define yyleng  (((struct yyguts_t *) yyscanner)->yyleng_r)
 
+
+/* Please note that the following line will be replaced with the contents of given file name even if with starting with a comment */
+/*$$include "scan-dialect-epilogue.l.c"*/
+
+/*$$exclude in dialect begin*/
 /*
  * scanner_yyerror
  *        Report a lexer or grammar error.
@@ -1287,6 +1306,7 @@ scanner_yyerror(const char *message, core_yyscan_t yyscanner)
     OG_SRC_THROW_ERROR(yylloc->loc, ERR_SQL_SYNTAX_ERROR, message);
     return;
 }
+/*$$exclude in dialect end*/
 
 /*
  * Called before any actual parsing is done
@@ -1311,7 +1331,7 @@ static int ct_yylex_init(yyscan_t* ptr_yy_globals, sql_stmt_t *stmt)
     return yy_init_globals(*ptr_yy_globals);
 }
 
-
+/*$$exclude in dialect begin*/
 core_yyscan_t
 scanner_init(const sql_text_t *sql,
              core_yy_extra_type *yyext,
@@ -1385,7 +1405,7 @@ void
 scanner_finish(core_yyscan_t yyscanner)
 {
 }
-
+/*$$exclude in dialect end*/
 
 static void
 addlit(char *ytext, int yleng, core_yyscan_t yyscanner)
@@ -1463,6 +1483,7 @@ process_integer_literal(const char *token, YYSTYPE *lval, core_yyscan_t yyscanne
     return ICONST;
 }
 
+/*$$exclude in dialect begin*/
 /* prejudge whether float const overflow */
 status_t 
 handle_float_overflow(char *token, core_yyscan_t yyscanner, char **result)
@@ -1482,6 +1503,7 @@ handle_float_overflow(char *token, core_yyscan_t yyscanner, char **result)
     }
     return OG_SUCCESS;
 }
+/*$$exclude in dialect end*/
 
 static uint32
 hexval(unsigned char c)
@@ -1764,6 +1786,7 @@ static void flex_alloc_mem(void *context, yy_size_t size, void **buf)
     *buf = FLEX_MEM_GET_POINTER(ptr);
 }
 
+/*$$exclude in dialect begin*/
 void *
 core_yyalloc(yy_size_t bytes, core_yyscan_t yyscanner)
 {
@@ -1800,6 +1823,7 @@ int ct_yyget_leng(core_yyscan_t yyscanner)
 {
     return ((struct yyguts_t *) yyscanner)->yyleng_r;
 }
+/*$$exclude in dialect end*/
 
 static void update_current_location(char *cur_pos, char *origin_str, lex_location_t *loc, bool8 multi_line_sql)
 {

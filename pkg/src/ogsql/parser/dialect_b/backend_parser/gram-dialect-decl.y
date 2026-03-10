@@ -1,0 +1,1 @@
+%type <res>  b_stmtmulti B_CreateUserStmt
