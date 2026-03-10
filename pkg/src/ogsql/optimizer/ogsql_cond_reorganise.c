@@ -304,8 +304,10 @@ static bool32 og_compare_cond_types(const cond_node_t *cond1, const cond_node_t 
 static bool32 og_check_cmp_join_cond(const cond_check_ctx_t *ctx, int32 *result)
 {
     bool32 cmp1_is_equal = (ctx->cmp1->type == CMP_TYPE_EQUAL);
-    bool32 l1_is_col_node = (ctx->l1->root->type == EXPR_NODE_COLUMN);
-    bool32 r1_is_col_node = (ctx->r1->root->type == EXPR_NODE_COLUMN);
+    bool32 l1_nonnull = (ctx->l1 != NULL);
+    bool32 r1_nonnull = (ctx->r1 != NULL);
+    bool32 l1_is_col_node = (l1_nonnull && ctx->l1->root->type == EXPR_NODE_COLUMN);
+    bool32 r1_is_col_node = (r1_nonnull && ctx->r1->root->type == EXPR_NODE_COLUMN);
     bool32 cmp1_join_cond_valid = (cmp1_is_equal && l1_is_col_node && r1_is_col_node);
 
     if (cmp1_join_cond_valid) {
@@ -314,8 +316,10 @@ static bool32 og_check_cmp_join_cond(const cond_check_ctx_t *ctx, int32 *result)
     }
 
     bool32 cmp2_is_equal = (ctx->cmp2->type == CMP_TYPE_EQUAL);
-    bool32 l2_is_col_node = (ctx->l2->root->type == EXPR_NODE_COLUMN);
-    bool32 r2_is_col_node = (ctx->r2->root->type == EXPR_NODE_COLUMN);
+    bool32 l2_nonnull = (ctx->l2 != NULL);
+    bool32 r2_nonnull = (ctx->r2 != NULL);
+    bool32 l2_is_col_node = (l2_nonnull && ctx->l2->root->type == EXPR_NODE_COLUMN);
+    bool32 r2_is_col_node = (r2_nonnull && ctx->r2->root->type == EXPR_NODE_COLUMN);
     bool32 cmp2_join_cond_valid = (cmp2_is_equal && l2_is_col_node && r2_is_col_node);
 
     if (cmp2_join_cond_valid) {

@@ -32,6 +32,19 @@ A            B
 0 rows fetched.
 
 SQL> 
+SQL> select * from sse_t1
+  2 where
+  3 (
+  4     exists (select a from sse_t2 where a > 1) and
+  5     (a) in (select a from sse_t2 where a > 2)
+  6 );
+
+A            B           
+------------ ------------
+
+0 rows fetched.
+
+SQL> 
 SQL> --error case
 SQL> select * from sse_t1
   2 where  
