@@ -57,6 +57,7 @@ status_t og_get_join_cond_from_table_cond(sql_stmt_t *statement, sql_array_t *l_
                                           cond_tree_t *ctree, bilist_t *jcond_blst);
 status_t ogsql_optimize_logically(sql_stmt_t *statement);
 status_t og_create_sqltable(sql_stmt_t *statement, sql_query_t *qry, sql_select_t *select);
+status_t ogsql_apply_rule_set_2(sql_stmt_t *statement, sql_query_t *qry);
 
 #ifdef __cplusplus
 }

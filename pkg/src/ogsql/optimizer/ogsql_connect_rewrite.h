@@ -34,6 +34,7 @@ extern "C" {
 status_t sql_connect_optimizer(sql_stmt_t *stmt, sql_query_t *query);
 status_t sql_generate_start_query(sql_stmt_t *stmt, sql_query_t *query);
 status_t sql_connectby_push_down(sql_stmt_t *stmt, sql_query_t *query);
+status_t og_transf_connect_by_cond(sql_stmt_t *statement, sql_query_t *query);
 
 #ifdef __cplusplus
 }
