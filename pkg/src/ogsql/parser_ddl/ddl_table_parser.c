@@ -35,6 +35,7 @@
 #include "srv_param_common.h"
 #include "ogsql_transform_assist.h"
 #include "scanner.h"
+#include "ogsql_transform.h"
 
 static inline bool8 sql_table_has_special_char(text_t *name)
 {
@@ -642,6 +643,8 @@ static status_t sql_parse_as_select(sql_stmt_t *stmt, knl_table_def_t *def)
     // 1.check whether columns in select clause match that in column definition clause
     // 2.when with no column definition clause, make sure all result column has an alias
     OG_RETURN_IFERR(sql_verify_columns(stmt, def));
+
+    OG_RETURN_IFERR(ogsql_optimize_logic_select(stmt, select_ctx));
 
     def->create_as_select = OG_TRUE;
     return OG_SUCCESS;
@@ -1632,6 +1635,8 @@ status_t og_parse_create_table(sql_stmt_t *stmt, knl_table_def_t **table_def, bo
         // 1.check whether columns in select clause match that in column definition clause
         // 2.when with no column definition clause, make sure all result column has an alias
         OG_RETURN_IFERR(sql_verify_columns(stmt, def));
+
+        OG_RETURN_IFERR(ogsql_optimize_logic_select(stmt, select_ctx));
 
         def->create_as_select = OG_TRUE;
     }

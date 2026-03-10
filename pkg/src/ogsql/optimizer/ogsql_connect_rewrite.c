@@ -27,6 +27,8 @@
 #include "ogsql_plan.h"
 #include "ogsql_select_parser.h"
 #include "srv_instance.h"
+#include "ogsql_cond_rewrite.h"
+#include "ogsql_optim_common.h"
 
 status_t sql_generate_start_query(sql_stmt_t *stmt, sql_query_t *query)
 {
@@ -97,3 +99,102 @@ static inline void clear_table_cbo_filter(sql_query_t *query)
     vmc_free(query->vmc);
 }
 
+static status_t handle_sub_qry_ssa(sql_query_t *qry, sql_query_t *sub_qry)
+{
+    CM_POINTER2(qry, sub_qry);
+    OG_RETURN_IFERR(sql_array_concat(&qry->ssa, &sub_qry->ssa));
+    sql_array_reset(&sub_qry->ssa);
+    return OG_SUCCESS;
+}
+
+static status_t og_tranforms_query_4_connectby(sql_stmt_t *statement, sql_query_t *qry)
+{
+    CM_POINTER(qry);
+    if (sql_generate_start_query(statement, qry) != OG_SUCCESS) {
+        OG_LOG_RUN_ERR("generate start query failed");
+        return OG_ERROR;
+    }
+    sql_query_t *sub_qry = qry->s_query;
+    // handle ssa
+    OG_RETURN_IFERR(handle_sub_qry_ssa(sub_qry, qry));
+    uint32 ssa_cnt = sub_qry->ssa.count;
+    if (ogsql_apply_rule_set_2(statement, sub_qry) != OG_SUCCESS) {
+        OG_LOG_RUN_ERR("transform phase 2 for sub_qry failed");
+        return OG_ERROR;
+    }
+    OG_RETURN_IFERR(handle_sub_qry_ssa(qry, sub_qry));
+    if (sub_qry->ssa.count < ssa_cnt) {
+        OG_RETURN_IFERR(sql_update_query_ssa(statement, qry));
+    }
+
+    qry->start_with_cond = sub_qry->join_assist.outer_node_count == 0 ? sub_qry->cond : sub_qry->filter_cond;
+    sub_qry->cond_has_acstor_col = sql_cond_has_acstor_col(statement, sub_qry->cond, sub_qry);
+
+    return OG_SUCCESS;
+}
+
+static status_t push_start_with_cond(sql_stmt_t *statement, sql_query_t *qry)
+{
+    CM_POINTER2(statement, qry);
+    cond_node_t *tmp_cond = NULL;
+    OG_RETURN_IFERR(sql_clone_cond_node(statement->context, qry->cond->root, &tmp_cond, sql_alloc_mem));
+    OG_RETURN_IFERR(sql_add_cond_node(qry->start_with_cond, tmp_cond));
+    try_eval_logic_and(qry->start_with_cond->root);
+    return OG_SUCCESS;
+}
+
+static status_t push_connect_by_cond(sql_query_t *qry)
+{
+    CM_POINTER(qry);
+    OG_RETURN_IFERR(sql_add_cond_node(qry->connect_by_cond, qry->cond->root));
+    try_eval_logic_and(qry->connect_by_cond->root);
+    qry->cond = NULL;
+    return OG_SUCCESS;
+}
+
+static status_t og_push_cond_2_connect_by(sql_stmt_t *statement, sql_query_t *qry)
+{
+    CM_POINTER(qry);
+    OG_RETSUC_IFTRUE(qry->cond == NULL || qry->cond->root == NULL);
+    OG_RETSUC_IFTRUE(qry->cond->root->type == COND_NODE_TRUE);
+
+    if (qry->start_with_cond == NULL) {
+        OG_RETURN_IFERR(sql_create_cond_tree(statement->context, &qry->start_with_cond));
+    }
+
+    OG_RETURN_IFERR(push_start_with_cond(statement, qry));
+
+    OG_RETURN_IFERR(push_connect_by_cond(qry));
+
+    return OG_SUCCESS;
+}
+
+static status_t og_handle_subslect_in_start_with(sql_stmt_t *statement, sql_query_t *qry)
+{
+    cols_used_t cols_used;
+    init_cols_used(&cols_used);
+    OG_RETSUC_IFTRUE(qry->start_with_cond == NULL);
+    sql_collect_cols_in_cond(qry->start_with_cond, &cols_used);
+    // if trees has subselect ,need ssa tranform early for connect by
+    if (HAS_SUBSLCT(&cols_used)) {
+        OG_RETURN_IFERR(og_tranforms_query_4_connectby(statement, qry));
+    }
+
+    return OG_SUCCESS;
+}
+
+status_t og_transf_connect_by_cond(sql_stmt_t *statement, sql_query_t *qry)
+{
+    CM_POINTER(qry);
+    OG_RETSUC_IFTRUE(qry->connect_by_cond == NULL);
+    OG_RETSUC_IFTRUE(qry->cb_mtrl_info != NULL);
+    // must let start_with_cond and connect_by_cond has query->cond
+    if (og_push_cond_2_connect_by(statement, qry) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+
+    if (is_query_tables_all_normal(qry)) {
+        OG_RETURN_IFERR(og_handle_subslect_in_start_with(statement, qry));
+    }
+    return OG_SUCCESS;
+}
