@@ -148,6 +148,7 @@ typedef enum en_sys_table_id {
     SYS_GARBAGE_TABLE_ID = 1044,
     SYS_TABLEMETA_DIFF_ID = 1045,
     SYS_COLUMNMETA_HIS_ID = 1046,
+    SYS_ENGINES_ID = 1047,
     SYS_TABLE_COUNT
 } sys_table_id_t;
 
@@ -350,6 +351,7 @@ static inline bool32 db_in_switch(switch_ctrl_t *ctrl)
 }
 
 status_t db_build_ex_systables(knl_session_t *session);
+status_t db_build_ex_systables_customized(knl_session_t *session);
 status_t db_build_completed(knl_session_t *session);
 
 status_t db_analyze_schema(knl_session_t *session, knl_analyze_schema_def_t *def);

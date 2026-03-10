@@ -15,6 +15,16 @@ set(LIBRARY_OUTPUT_PATH ${OGRACDB_LIB})
 MESSAGE(STATUS ${DD_OG_LIB_VERSION})
 MESSAGE(STATUS ${DD_CT_LIB_VER_APINAME})
 
+execute_process(
+    COMMAND sh -c "cp -rn ${CMAKE_CURRENT_SOURCE_DIR}/admin/scripts/* ${CMAKE_CURRENT_SOURCE_DIR}/admin/dialect_b_scripts/"
+	COMMAND sh -c "cp -rn ${CMAKE_CURRENT_SOURCE_DIR}/admin/scripts/* ${CMAKE_CURRENT_SOURCE_DIR}/admin/dialect_c_scripts/"
+    RESULT_VARIABLE RET_RESULT
+)
+
+if(RET_RESULT)
+    message(FATAL_ERROR "Failed to copy common file from scripts to dialect_scripts.")
+endif() 	
+
 if (UNIX)
     add_compile_definitions(WSEC_COMPILE_CAC_OPENSSL)
     add_compile_definitions(WSEC_USE_OPENSSL_110)

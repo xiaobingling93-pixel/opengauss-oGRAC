@@ -174,7 +174,8 @@ typedef enum createdb_opt_type {
     CREATEDB_INSTANCE_NODE_UNDO_OPT,
     CREATEDB_INSTANCE_NODE_LOGFILE_OPT,
     CREATEDB_INSTANCE_NODE_TEMPORARY_OPT,
-    CREATEDB_INSTANCE_NODE_NOLOGGING_OPT
+    CREATEDB_INSTANCE_NODE_NOLOGGING_OPT,
+    CREATEDB_DBCOMPATIBILITY_OPT
 } createdb_opt_type;
 
 typedef struct createdb_user {
@@ -201,6 +202,7 @@ typedef struct createdb_opt {
         archive_mode_t archivelog_enable;
         createdb_space space;
         uint32 max_instance;
+        char dbcompatibility;
     };
 } createdb_opt;
 

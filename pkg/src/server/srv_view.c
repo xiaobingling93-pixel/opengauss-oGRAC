@@ -318,6 +318,7 @@ static knl_column_t g_database_columns[] = {
     { 37, "MIN_SCN",            0, 0, OG_TYPE_BIGINT,  sizeof(uint64),         0, 0, OG_FALSE, 0, { 0 } },
     { 38, "ARCHIVELOG_SIZE",    0, 0, OG_TYPE_BIGINT,  sizeof(uint64),         0, 0, OG_FALSE, 0, { 0 } },
     { 39, "DDL_EXEC_STATUS",    0, 0, OG_TYPE_STRING,  OG_DYNVIEW_DDL_STA_LEN, 0, 0, OG_FALSE, 0, { 0 } },
+    { 40, "DB_COMPATIBILITY",   0, 0, OG_TYPE_VARCHAR, 1,                      0, 0, OG_TRUE,  0, { 0 } },
 };
 
 static knl_column_t g_repl_status_columns[] = {
@@ -2755,6 +2756,7 @@ static status_t vw_database_fetch(knl_handle_t session, knl_cursor_t *cursor)
         cm_reset_error();
     }
     OG_RETURN_IFERR(row_put_str(&row, get_ddl_exec_stat_str(ddl_exec_stat)));
+    OG_RETURN_IFERR(row_put_str(&row, &db->ctrl.core.dbcompatibility));
     cm_decode_row((char *)cursor->row, cursor->offsets, cursor->lens, &cursor->data_size);
     cursor->rowid.vmid++;
 

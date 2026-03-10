@@ -287,6 +287,7 @@ typedef struct st_knl_database_def {
     knl_device_def_t dwa_dev;
     galist_t nodes;       // node list
     uint32 max_instance;  // max instance number
+    char dbcompatibility;
 } knl_database_def_t;
 
 status_t knl_create_database(knl_handle_t session, knl_database_def_t *def, bool32 clustered);

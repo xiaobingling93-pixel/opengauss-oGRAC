@@ -8,6 +8,7 @@ BUILD_ARGS=""
 PATCH="" # 是否在oGRAC中创建元数据
 BUILD_TYPE="release"
 USER="ogracdba"
+COMPATIBILITY_MODE="A"
 
 function prepare() {
   echo "Prepare env start."
@@ -39,6 +40,13 @@ function compile() {
     fi
 }
 
+function check_compatibility_mode() {
+    if [ "$COMPATIBILITY_MODE" != "A" ] && [ "$COMPATIBILITY_MODE" != "B" ] && [ "$COMPATIBILITY_MODE" != "C" ]; then
+        echo "Error: compatibility mode only support A, B or C."
+        exit 2
+    fi
+}
+
 function clean() {
     kill -9 $(pidof ogracd) > /dev/null 2>&1
     kill -9 $(pidof cms) > /dev/null 2>&1
@@ -63,7 +71,7 @@ function install() {
     python3 install.py -U ${USER}:${USER} -R /home/${USER}/install \
     -D /home/${USER}/data -l /home/${USER}/logs/install.log \
     -M ${run_mode} -Z _LOG_LEVEL=255 -N 0 -W 192.168.0.1 -g \
-    withoutroot -d -c -Z _SYS_PASSWORD=huawei@1234 -Z SESSIONS=1000
+    withoutroot -d -c --COMPATIBILITY_MODE=${COMPATIBILITY_MODE} -Z _SYS_PASSWORD=huawei@1234 -Z SESSIONS=1000
     if [[ $? -ne 0  ]]; then
         echo "install oGRAC failed."
         exit 1
@@ -75,12 +83,13 @@ function usage() {
     echo 'Options:'
     echo '  -b, --build_type=<type>       Build type, default is release.'
     echo '  -u, --user=<user>             User name, default is ogracdba.'
+    echo '  -c, --compatibility=<dbcompatibility>        compatibility mode, default is A.'
     echo '  -h, --help                    Display thishelp and exit.'
 }
 
 function parse_params()
 {
-    ARGS=$(getopt -o b:u: --long build_type:,user:, -n "$0" -- "$@")
+    ARGS=$(getopt -o b:u:c: --long build_type:,user:, -n "$0" -- "$@")
     if [ $? != 0 ]; then
         echo "Terminating..."
         exit 1
@@ -95,6 +104,11 @@ function parse_params()
                 ;;
             -u | --user)
                 USER=$2
+                shift 2
+                ;;
+            -c | --compatibility)
+                COMPATIBILITY_MODE=$2
+                check_compatibility_mode
                 shift 2
                 ;;
             --)
