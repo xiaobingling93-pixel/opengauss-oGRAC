@@ -75,6 +75,28 @@ bool32 og_hint_choose_join_way(sql_join_node_t *jnode, join_cond_t *jcond, bool3
     }
 }
 
+bool has_join_hint_id(hint_info_t *hint_info)
+{
+    if (hint_info == NULL) {
+        return OG_FALSE;
+    } else {
+        galist_t *items = hint_info->items;
+        hint_item_t *hint_item = NULL;
+        int i = 0;
+        while (i < items->count) {
+            hint_item = (hint_item_t *)cm_galist_get(items, i);
+            if (HINT_JOIN_ID_GET(hint_item)) {
+                break;
+            }
+            i++;
+        }
+        if (i == items->count) {
+            return OG_FALSE;
+        }
+    }
+    return OG_TRUE;
+}
+
 #ifdef __cplusplus
 }
 #endif

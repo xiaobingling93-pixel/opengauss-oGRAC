@@ -33,6 +33,7 @@
 #include "ogsql_cbo_cost.h"
 #include "ogsql_join_path.h"
 #include "plan_join_merge.h"
+#include "plan_hint.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,6 +45,8 @@ static status_t sql_init_join_ids(sql_join_node_t *join_node, join_tbl_bitmap_t 
     join_tbl_bitmap_t *inner_join_rels, join_assist_t *join_ass, join_tbl_bitmap_t* leftids,
     join_tbl_bitmap_t* left_inners, join_tbl_bitmap_t* rightids, join_tbl_bitmap_t* right_inners,
     join_tbl_bitmap_t* nonnullable_rels, sql_join_type_t join_type, bool32* isok);
+bool32 og_check_can_merge_join(sql_join_table_t *jtbl1, sql_join_table_t *jtbl2,
+    sql_join_type_t jointype, galist_t *restricts);
 
 status_t sql_generate_join_assist_new(sql_stmt_t *stmt, plan_assist_t *pa, join_assist_t *ja)
 {
@@ -2096,13 +2099,153 @@ static status_t sql_add_nestloop_path_single(join_assist_t *ja, sql_join_table_t
     return OG_SUCCESS;
 }
 
+bool32 check_table_in_leading_list_by_id(galist_t *list, sql_table_t *tab, uint32 *pos_id)
+{
+    for (uint32 i = 0; i < list->count; i++) {
+        sql_table_t *tmp_tab = *(sql_table_t **)cm_galist_get(list, i);
+        if (tab->id == tmp_tab->id) {
+            *pos_id = i;
+            return OG_TRUE;
+        }
+    }
+    return OG_FALSE;
+}
+
+/*
+* function:Checking if sql have leading hint
+* return: True indicates that this path can create. false indicates that this path will be discarded.
+* description: The rule for whether a path can be generated between nodes is whether the nodes have
+* connectivity based on their specified ordering. For example, table t1,t2,t3 and leading(t2 t1 t3),
+* t2 and t1 have connectivity, t2 and t3 have no connectivity, t1 and t3 have connectivity. In summary,
+* if right node is in leading hint, so the leftmost child member of the right node must be to the right
+* of the rightmost child member of the left node, if left node is in leading hint, the right most child
+* member of the left node must be to the left of the leftmost child member of the right node.
+*/
+bool32 check_apply_hint_leading(join_assist_t *ja, sql_join_path_t* jpath)
+{
+    if (jpath->type == JOIN_TYPE_NONE) {
+        return OG_TRUE;
+    }
+
+    sql_join_path_t* outer_path = jpath->left;
+    sql_join_path_t* inner_path = jpath->right;
+    
+    hint_info_t *info = ja->pa->query->hint_info;
+    if (!HAS_SPEC_TYPE_HINT(info, JOIN_HINT, HINT_KEY_WORD_LEADING)) {
+        return OG_TRUE;
+    }
+
+    sql_table_t *table = NULL;
+    sql_table_t *pre_seq_table = NULL;
+    sql_table_t *pre_hint_seq_table = NULL;
+
+    if (inner_path->tables.count == 1) {
+        table = (sql_table_t *)sql_array_get(&inner_path->tables, 0);
+    } else {
+        table = (sql_table_t *)sql_array_get(&inner_path->left->tables, 0);
+    }
+
+    if (outer_path->tables.count == 1) {
+        pre_seq_table = (sql_table_t *)sql_array_get(&outer_path->tables, 0);
+    } else {
+        int table_count = (&outer_path->right->tables)->count;
+        pre_seq_table = (sql_table_t *)sql_array_get(&outer_path->right->tables, table_count - 1);
+    }
+
+    uint32 pos_id = 0;
+    uint32 pre_pos_id = 0;
+    galist_t *l = (galist_t *)(info->args[ID_HINT_LEADING]);
+    if (check_table_in_leading_list_by_id(l, table, &pos_id)) {
+        if (pos_id == 0) {
+            return OG_FALSE;
+        } else {
+            pre_pos_id = pos_id - 1;
+            pre_hint_seq_table = ((sql_table_t*)(((sql_table_hint_t *)cm_galist_get(l, pre_pos_id))->table));
+            if (pre_seq_table == pre_hint_seq_table) {
+                return OG_TRUE;
+            }
+            return OG_FALSE;
+        }
+    }
+
+    if (check_table_in_leading_list_by_id(l, pre_seq_table, &pre_pos_id)) {
+        if (pre_pos_id == (l->count - 1)) {
+            if (check_table_in_leading_list_by_id(l, table, &pos_id)) {
+                return OG_FALSE;
+            }
+            return OG_TRUE;
+        } else {
+            pos_id = pre_pos_id + 1;
+            pre_hint_seq_table = ((sql_table_t*)(((sql_table_hint_t *)cm_galist_get(l, pos_id))->table));
+            if (table == pre_hint_seq_table) {
+                return OG_TRUE;
+            }
+            return OG_FALSE;
+        }
+    }
+
+    return OG_TRUE;
+}
+ 	 
+bool32 check_apply_join_hint_conflict(sql_join_table_t *jtable1, sql_join_table_t *jtable2,
+    sql_join_type_t jointype, galist_t* restricts, join_hint_key_wid_t join_hint_type)
+{
+    if (join_hint_type == HINT_KEY_WORD_USE_MERGE && !og_check_can_merge_join(jtable1, jtable2, jointype, restricts)) {
+        return OG_TRUE;
+    }
+
+    if (join_hint_type == HINT_KEY_WORD_USE_NL && !g_instance->sql.enable_nestloop_join) {
+        return OG_TRUE;
+    }
+
+    if (join_hint_type == HINT_KEY_WORD_USE_HASH && !g_instance->sql.enable_hash_join) {
+        return OG_TRUE;
+    }
+
+    return OG_FALSE;
+}
+
+/*
+* function: That innerpath match hint join type as join rule.
+* special condition: hint use_nl(t1 t2), the condition which t1 join (t3 join t2) by any join will
+* return OG_FALSE because t3 is not match hint rule as innerpath.
+*/
+bool32 check_apply_join_hint(sql_join_node_t *innerpath, uint64 hint_key, bool *match_hint,
+ 	                                join_hint_key_wid_t *join_hint_type)
+{
+    sql_table_t *table = NULL;
+    
+    if (innerpath->tables.count == 1) {
+        table = (sql_table_t *)sql_array_get(&innerpath->tables, 0);
+    } else {
+        table = (sql_table_t *)sql_array_get(&innerpath->left->tables, 0);
+    }
+
+    if (table->hint_info != NULL) {
+        *join_hint_type = HINT_JOIN_METHOD_GET(table->hint_info);
+        if (hint_key == *join_hint_type) {
+            *match_hint = true;
+        } else {
+            *match_hint = false;
+        }
+        return OG_TRUE;
+    }
+
+    return OG_FALSE;
+}
+
 static status_t sql_build_nestloop_path(join_assist_t *ja, sql_join_type_t jointype, sql_join_table_t *jtable,
     sql_join_node_t *outerpath, sql_join_node_t *innerpath, special_join_info_t *sjoininfo, galist_t* restricts,
     join_tbl_bitmap_t *param_source_rels)
 {
+    hint_info_t *info = ja->pa->query->hint_info;
     if (outerpath == NULL || innerpath == NULL) {
-        OG_LOG_RUN_ERR("path is NULL");
-        return OG_ERROR;
+        if (HAS_SPEC_TYPE_HINT(info, JOIN_HINT, HINT_KEY_WORD_LEADING)) {
+            return OG_SUCCESS;
+        } else {
+            OG_LOG_RUN_ERR("path is NULL");
+            return OG_ERROR;
+        }
     }
 
     sql_join_node_t temp_path;
@@ -2131,6 +2274,9 @@ static status_t sql_build_nestloop_path(join_assist_t *ja, sql_join_type_t joint
     }
     
     sql_join_node_t* path = NULL;
+    bool match_hint = false;
+    join_hint_key_wid_t join_hint_type;
+
     OG_RETURN_IFERR(sql_alloc_mem(ja->stmt->context, sizeof(sql_join_node_t), (void **)&path));
     uint32 count = outerpath->tables.count + innerpath->tables.count;
     OG_RETURN_IFERR(sql_create_array(ja->stmt->context, &path->tables, "JOIN TABLES", count));
@@ -2138,6 +2284,21 @@ static status_t sql_build_nestloop_path(join_assist_t *ja, sql_join_type_t joint
     path->left = outerpath;
     path->right = innerpath;
     path->outer_rels = outer_rels;
+
+    // leading check
+    if (!check_apply_hint_leading(ja, path)) {
+        return OG_SUCCESS;
+    }
+
+    // nl hint check
+    if (has_join_hint_id(info) &&
+        check_apply_join_hint(innerpath, HINT_KEY_WORD_USE_NL, &match_hint, &join_hint_type)) {
+        if (!match_hint &&
+            (!check_apply_join_hint_conflict(outerpath->parent, innerpath->parent,
+            jointype, restricts, join_hint_type))) {
+            return OG_SUCCESS;
+        }
+    }
 
     switch (jointype) {
         case JOIN_TYPE_CROSS:
@@ -2263,10 +2424,17 @@ static status_t sql_build_hashjoin_path(join_assist_t *ja, sql_join_table_t *jta
     join_tbl_bitmap_t *param_source_rels, special_join_info_t *sjoininfo)
 {
     join_tbl_bitmap_t outer_rels;
-
+    bool match_hint = false;
+    join_hint_key_wid_t join_hint_type;
+    
+    hint_info_t *info = ja->pa->query->hint_info;
     if (outer_path == NULL || inner_path == NULL) {
-        OG_LOG_RUN_ERR("path is NULL");
-        return OG_ERROR;
+        if (HAS_SPEC_TYPE_HINT(info, JOIN_HINT, HINT_KEY_WORD_LEADING)) {
+            return OG_SUCCESS;
+        } else {
+            OG_LOG_RUN_ERR("path is NULL");
+            return OG_ERROR;
+        }
     }
 
     if (ja->join_cond == NULL && ja->filter == NULL) {
@@ -2304,6 +2472,21 @@ static status_t sql_build_hashjoin_path(join_assist_t *ja, sql_join_table_t *jta
     path->right = inner_path;
     path->join_cond = ja->join_cond;
     path->filter = ja->filter;
+
+    // leading check
+    if (!check_apply_hint_leading(ja, path)) {
+        return OG_SUCCESS;
+    }
+
+    // hash hint check
+    if (has_join_hint_id(info) &&
+        check_apply_join_hint(inner_path, HINT_KEY_WORD_USE_HASH, &match_hint, &join_hint_type)) {
+        if (!match_hint &&
+            (!check_apply_join_hint_conflict(outer_path->parent, inner_path->parent,
+            jointype, restricts, join_hint_type))) {
+            return OG_SUCCESS;
+        }
+    }
 
     path->cost.startup_cost =  temp_path_p->cost.startup_cost;
     path->cost.cost =  temp_path_p->cost.cost;

@@ -28,6 +28,7 @@
 #include "plan_join.h"
 #include "plan_scan.h"
 #include "table_parser.h"
+#include "plan_hint.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -444,6 +445,18 @@ static status_t sql_build_merge_path(join_assist_t *ja, sql_join_type_t jointype
     sql_join_node_t *outerpath, sql_join_node_t *innerpath, special_join_info_t *sjoininfo, galist_t *restricts,
     join_tbl_bitmap_t *param_source_rels, bool outerpath_requires_reorder, bool innerpath_requires_reorder)
 {
+    bool match_hint = false;
+    join_hint_key_wid_t join_hint_type;
+    hint_info_t *info = ja->pa->query->hint_info;
+    if (outerpath == NULL || innerpath == NULL) {
+        if (HAS_SPEC_TYPE_HINT(info, JOIN_HINT, HINT_KEY_WORD_LEADING)) {
+            return OG_SUCCESS;
+        } else {
+            OG_LOG_RUN_ERR("path is NULL");
+            return OG_ERROR;
+        }
+    }
+
     join_oper_t oper = get_oper_type_4_merge_join(jointype);
     OG_RETVALUE_IFTRUE(oper == JOIN_OPER_NONE, OG_ERROR);
     galist_t *outer_sort_keys = NULL;
@@ -492,6 +505,21 @@ static status_t sql_build_merge_path(join_assist_t *ja, sql_join_type_t jointype
     path->path_keys = path_keys;
     path->type = jointype;
     path->oper = oper;
+
+    // leading check
+    if (!check_apply_hint_leading(ja, path)) {
+        return OG_SUCCESS;
+    }
+
+    // merge hint check
+    if (has_join_hint_id(info) &&
+        check_apply_join_hint(innerpath, HINT_KEY_WORD_USE_MERGE, &match_hint, &join_hint_type)) {
+        if (!match_hint &&
+            (!check_apply_join_hint_conflict(outerpath->parent, innerpath->parent,
+            jointype, restricts, join_hint_type))) {
+            return OG_SUCCESS;
+        }
+    }
 
     /* if outer rel provides some but not all of the inner rel's paramterization, build ok. */
     if (!sql_bitmap_empty(&path->outer_rels) && !sql_bitmap_overlap(&path->outer_rels, param_source_rels) &&

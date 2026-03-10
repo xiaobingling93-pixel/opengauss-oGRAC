@@ -237,5 +237,11 @@ bool32 match_joininfo_to_indexcol(sql_stmt_t *stmt, sql_table_t *table, tbl_join
 status_t sql_jtable_add_path(sql_stmt_t *stmt, sql_join_table_t *jtable, sql_join_path_t* jpath);
 bool sql_add_path_precheck(sql_join_table_t *jtable, double startup_cost, double total_cost);
 status_t sql_build_join_cond_tree(join_assist_t *ja, galist_t* restricts, sql_join_type_t jointype);
+bool32 check_table_in_leading_list_by_id(galist_t *list, sql_table_t *tab, uint32 *pos_id);
+bool32 check_apply_hint_leading(join_assist_t *ja, sql_join_path_t* jpath);
+bool32 check_apply_join_hint_conflict(sql_join_table_t *jtable1, sql_join_table_t *jtable2,
+    sql_join_type_t jointype, galist_t* restricts, join_hint_key_wid_t join_hint_type);
+bool32 check_apply_join_hint(sql_join_node_t *innerpath, uint64 hint_key, bool *match_hint,
+ 	                            join_hint_key_wid_t *join_hint_type);
 
 #endif

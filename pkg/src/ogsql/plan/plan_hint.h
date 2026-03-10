@@ -33,6 +33,7 @@ extern "C" {
 
 bool32 og_hint_choose_join_way(sql_join_node_t *join_node, join_cond_t *join_cond, bool32 is_select,
                                join_oper_t *jop);
+bool has_join_hint_id(hint_info_t *info);
 
 #ifdef __cplusplus
 }
