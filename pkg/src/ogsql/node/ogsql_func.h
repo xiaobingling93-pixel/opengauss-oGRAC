@@ -535,6 +535,8 @@ uint32 sql_get_lob_var_length(variant_t *var);
 bool32 sql_verify_lob_func_args(og_type_t datatype);
 status_t sql_func_page2masterid(sql_stmt_t *stmt, expr_node_t *func, variant_t *result);
 status_t sql_verify_page2masterid(sql_verifier_t *verifier, expr_node_t *func);
+bool32 check_func_with_sort_items(expr_node_t *node);
+
 #ifdef __cplusplus
 }
 #endif

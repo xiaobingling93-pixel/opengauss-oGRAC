@@ -46,6 +46,20 @@ extern "C" {
 
 #define SQL_FUNC_COUNT ELEMENT_COUNT(g_func_tab)
 
+static inline bool32 is_sort_aggr(uint32 func_id)
+{
+    return func_id == ID_FUNC_ITEM_CUME_DIST || func_id == ID_FUNC_ITEM_DENSE_RANK ||
+           func_id == ID_FUNC_ITEM_RANK || func_id == ID_FUNC_ITEM_GROUP_CONCAT ||
+           func_id == ID_FUNC_ITEM_LISTAGG || func_id == ID_FUNC_ITEM_MEDIAN;
+}
+
+static inline bool32 is_calcu_aggr_function(uint32 func_id)
+{
+    return func_id == ID_FUNC_ITEM_AVG || func_id == ID_FUNC_ITEM_COUNT || func_id == ID_FUNC_ITEM_COVAR_POP ||
+           func_id == ID_FUNC_ITEM_COVAR_SAMP || func_id == ID_FUNC_ITEM_MAX || func_id == ID_FUNC_ITEM_MIN ||
+           func_id == ID_FUNC_ITEM_STDDEV || func_id == ID_FUNC_ITEM_SUM || func_id == ID_FUNC_ITEM_VARIANCE;
+}
+
 /*
  * **NOTE:**
  * 1. The function must be arranged by alphabetical ascending order.
@@ -701,6 +715,25 @@ status_t sql_verify_page2masterid(sql_verifier_t *verifier, expr_node_t *func)
     func->size = cm_get_datatype_strlen(func->argument->root->datatype, func->argument->root->size);
 
     return OG_SUCCESS;
+}
+
+bool32 check_func_with_sort_items(expr_node_t *exprn)
+{
+    if (exprn->type != EXPR_NODE_FUNC) {
+        return OG_FALSE;
+    }
+
+    uint32 func_id = exprn->value.v_func.func_id;
+
+    if (is_sort_aggr(func_id)) {
+        return exprn->sort_items != NULL && exprn->sort_items->count > 0;
+    }
+
+    if (is_calcu_aggr_function(func_id)) {
+        return exprn->sort_items != NULL && exprn->sort_items->count > 0;
+    }
+
+    return OG_FALSE;
 }
 
 #ifdef __cplusplus

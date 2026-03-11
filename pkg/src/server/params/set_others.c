@@ -1010,6 +1010,12 @@ status_t sql_notify_als_semi2inner(void *se, void *item, char *value)
     return sql_notify_als_bool(se, item, value);
 }
 
+status_t sql_notify_als_in_transform(void *se, void *item, char *value)
+{
+    g_instance->sql.enable_in_transform = (bool32)value[0];
+    return sql_notify_als_bool(se, item, value);
+}
+
 status_t sql_notify_als_sample_size(void *se, void *item, char *value)
 {
     int64 val_int64;

@@ -981,8 +981,11 @@ config_item_t g_parameters[] = {
     { "_OPTIM_SEMI2INNER", OG_TRUE, ATTR_NONE, "TRUE", NULL, NULL, "-", "FALSE,TRUE", "OG_TYPE_BOOLEAN", NULL,
       PARAM_OPTIM_SEMI2INNER, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_bool, sql_notify_als_semi2inner,
       sql_notify_als_bool, NULL },
-     { "_OPTIM_PRED_PUSHDOWN", OG_TRUE, ATTR_NONE, "TRUE", NULL, NULL, "-", "FALSE,TRUE", "OG_TYPE_BOOLEAN", NULL,
+    { "_OPTIM_PRED_PUSHDOWN", OG_TRUE, ATTR_NONE, "TRUE", NULL, NULL, "-", "FALSE,TRUE", "OG_TYPE_BOOLEAN", NULL,
       PARAM_OPTIM_PRED_PUSHDOWN, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_bool, sql_notify_als_pred_pushdown,
+      sql_notify_als_bool, NULL },
+    { "_OPTIM_IN_TRANSFORM", OG_TRUE, ATTR_NONE, "TRUE", NULL, NULL, "-", "FALSE,TRUE", "CT_TYPE_BOOLEAN", NULL,
+      PARAM_OPTIM_IN_TRANSFORM, EFFECT_IMMEDIATELY, CFG_INS, sql_verify_als_bool, sql_notify_als_in_transform,
       sql_notify_als_bool, NULL },
     // ctrl info backup parameter
     { "CTRLLOG_BACKUP_LEVEL", OG_TRUE, ATTR_NONE, "NONE", NULL, NULL, "-", "NONE,TYPICAL,FULL", "OG_TYPE_VARCHAR",

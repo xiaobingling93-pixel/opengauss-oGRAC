@@ -213,6 +213,7 @@ status_t srv_load_optim_params(void)
     OG_RETURN_IFERR(srv_get_param_bool32("_OPTIM_FUNC_INDEX_SCAN_ONLY", &sql->enable_func_idx_only));
     OG_RETURN_IFERR(srv_get_param_bool32("_OPTIM_INDEX_COND_PRUNING", &sql->enable_index_cond_pruning));
     OG_RETURN_IFERR(srv_get_param_bool32("_OPTIM_SIMPLIFY_EXISTS_SUBQ", &sql->enable_exists_transform));
+    OG_RETURN_IFERR(srv_get_param_bool32("_OPTIM_IN_TRANSFORM", &sql->enable_in_transform));
     OG_RETURN_IFERR(srv_get_param_bool32("_OPTIM_ADAPTIVE_FULL_OUTER_JOIN", &sql->enable_nl_full_opt));
     OG_RETURN_IFERR(srv_get_param_bool32("_OPTIM_SUBQUERY_REWRITE", &sql->enable_subquery_rewrite));
     OG_RETURN_IFERR(srv_get_param_bool32("_OPTIM_SEMI2INNER", &sql->enable_semi2inner));

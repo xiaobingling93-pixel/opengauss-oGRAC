@@ -28,6 +28,9 @@
 #include "srv_instance.h"
 #include "ogsql_table_func.h"
 #include "dml_parser.h"
+#include "ogsql_winsort.h"
+#include "ogsql_func.h"
+#include "ogsql_verifier_common.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -1361,6 +1364,7 @@ static void sql_get_normal_column_desc(sql_verifier_t *verif, rs_column_t *rs_co
     knl_column_t *knl_col = NULL;
     bool32 always_null = OG_FALSE;
     bool32 nullable = OG_FALSE;
+    bool32 strict_nullable = OG_FALSE;
 
     // In a sub-select, and reference to parent query
     // precision,scale,nullable derivation have no use
@@ -1375,10 +1379,14 @@ static void sql_get_normal_column_desc(sql_verifier_t *verif, rs_column_t *rs_co
         case SUBSELECT_AS_TABLE:
         case VIEW_AS_TABLE:
         case WITH_AS_TABLE:
-            sub_columns = table->select_ctx->first_query->rs_columns;
+        case JSON_TABLE:
+            sub_columns = (table->type != JSON_TABLE) ? table->select_ctx->first_query->rs_columns :
+                &table->json_table_info->columns;
             sub_col = (rs_column_t *)cm_galist_get(sub_columns, rs_col->v_col.col);
             nullable = always_null || table->rs_nullable || OG_BIT_TEST(sub_col->rs_flag, RS_NULLABLE);
+            strict_nullable = always_null || table->rs_nullable || OG_BIT_TEST(sub_col->rs_flag, RS_STRICT_NULLABLE);
             RS_SET_FLAG(nullable, rs_col, RS_NULLABLE);
+            RS_SET_FLAG(strict_nullable, rs_col, RS_STRICT_NULLABLE);
             RS_SET_FLAG(OG_BIT_TEST(sub_col->rs_flag, RS_HAS_QUOTE), rs_col, RS_HAS_QUOTE);
             RS_SET_FLAG(OG_BIT_TEST(sub_col->rs_flag, RS_IS_SERIAL), rs_col, RS_IS_SERIAL);
             break;
@@ -1392,14 +1400,7 @@ static void sql_get_normal_column_desc(sql_verifier_t *verif, rs_column_t *rs_co
             }
             nullable = always_null || table->rs_nullable || knl_col->nullable;
             RS_SET_FLAG(nullable, rs_col, RS_NULLABLE);
-            break;
-
-        case JSON_TABLE:
-            sub_columns = &table->json_table_info->columns;
-            sub_col = (rs_column_t *)cm_galist_get(sub_columns, rs_col->v_col.col);
-            RS_SET_FLAG(OG_TRUE, rs_col, RS_NULLABLE);
-            RS_SET_FLAG(OG_BIT_TEST(sub_col->rs_flag, RS_HAS_QUOTE), rs_col, RS_HAS_QUOTE);
-            RS_SET_FLAG(OG_BIT_TEST(sub_col->rs_flag, RS_IS_SERIAL), rs_col, RS_IS_SERIAL);
+            RS_SET_FLAG(nullable, rs_col, RS_STRICT_NULLABLE);
             break;
 
         case NORMAL_TABLE:
@@ -1407,6 +1408,7 @@ static void sql_get_normal_column_desc(sql_verifier_t *verif, rs_column_t *rs_co
             knl_col = knl_get_column(table->entry->dc.handle, rs_col->v_col.col);
             nullable = always_null || table->rs_nullable || knl_col->nullable;
             RS_SET_FLAG(nullable, rs_col, RS_NULLABLE);
+            RS_SET_FLAG(nullable, rs_col, RS_STRICT_NULLABLE);
             RS_SET_FLAG(KNL_COLUMN_HAS_QUOTE(knl_col), rs_col, RS_HAS_QUOTE);
             RS_SET_FLAG(KNL_COLUMN_IS_SERIAL(knl_col), rs_col, RS_IS_SERIAL);
             break;
@@ -1461,6 +1463,7 @@ static status_t sql_gen_rs_column(sql_verifier_t *verif, query_column_t *column,
         OG_BIT_RESET(rs_col->rs_flag, RS_SINGLE_COL);
         rs_col->expr = column->expr;
         OG_BIT_SET(rs_col->rs_flag, RS_NULLABLE);
+        return ogsql_set_rs_strict_null_flag(verif, rs_col);
     }
 
     return OG_SUCCESS;

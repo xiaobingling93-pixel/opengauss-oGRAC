@@ -3533,6 +3533,9 @@ status_t visit_expr_node(visit_assist_t *visit_ass, expr_node_t **node, visit_fu
             return visit_expr_node(visit_ass, &(*node)->right, visit_func);
 
         case EXPR_NODE_ARRAY:
+            if (visit_ass->excl_flags & VA_EXCL_ARRAY) {
+                return visit_func(visit_ass, node);
+            }
             return visit_expr_tree(visit_ass, (*node)->argument, visit_func);
 
         case EXPR_NODE_FUNC:

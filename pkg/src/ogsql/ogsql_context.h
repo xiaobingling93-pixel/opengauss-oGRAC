@@ -283,7 +283,8 @@ typedef struct st_opt_param_bool {
     uint64 enable_winmagic_rewrite : 1;
     uint64 enable_subquery_rewrite : 1;
     uint64 enable_semi2inner : 1;
-    uint64 reserved : 41;
+    uint64 enable_in_transform : 1;
+    uint64 reserved : 40;
 } opt_param_bool_t;
 
 typedef struct st_opt_param_info {
@@ -795,6 +796,8 @@ typedef enum en_rs_column_type {
 #define RS_HAS_GROUPING 0x0080
 #define RS_IS_SERIAL    0x0100
 #define RS_IS_REWRITE   0x0200
+// RS_STRICT_NULLABLE needs to check the involved expression types
+#define RS_STRICT_NULLABLE  0x0400
 
 #define RS_SET_FLAG(_set_, _rs_col_, _flag_)         \
     if ((_set_)) {                                   \
