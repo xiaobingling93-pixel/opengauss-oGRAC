@@ -108,6 +108,10 @@ static bool32 cbo_get_index_skip_flag(sql_stmt_t *stmt, cbo_index_choose_assist_
 
     dc_entity_t *entity = DC_ENTITY(&table->entry->dc);
     uint16 leading_col = ca->index->columns[0];
+    /* no support to function index */
+    if (leading_col >= DC_VIRTUAL_COL_START) {
+        return OG_FALSE;
+    }
     /* cal num_disdinct: the number of unique value according to this column */
     cbo_stats_column_t *column_stats = cbo_get_column_stats(stats_info->cbo_table_stats, leading_col);
     uint64 num_dist = (column_stats == NULL ? OG_INVALID_ID64 : column_stats->num_distinct);
