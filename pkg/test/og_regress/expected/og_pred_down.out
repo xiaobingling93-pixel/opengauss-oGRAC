@@ -456,21 +456,19 @@ SQL> EXPLAIN SELECT * FROM (SELECT DISTINCT c1, c2, c3 FROM (SELECT DISTINCT c1,
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
------------------------------------------------------------------------------------------------------------
-| Id | Operation                         | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
------------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT                  |       |             | 1    | 17   | 0         |       |        |
-| 1  |     SUBSELECT                     | SYS   | SUB_Q1      | 1    | 17   | 0         |       |        |
-| 2  |       HASH DISTINCT               |       |             | 1    | 17   | 0         |       |        |
-| 3  |           SUBSELECT               | SYS   | SUB_Q2      | 1    | 9    | 0         |       |        |
-| 4  |             HASH DISTINCT         |       |             | 1    | 9    | 0         |       |        |
-| 5  |                 TABLE ACCESS FULL | SYS   | PRED_DOWN_1 | 1    | 1    | 0         |       |        |
------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost | StartCost | Bytes | Remark |
+-----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 1    | 9    | 0         |       |        |
+| 1  |     SUBSELECT               | SYS   | SUB_Q1      | 1    | 9    | 0         |       |        |
+| 2  |       HASH DISTINCT         |       |             | 1    | 9    | 0         |       |        |
+| 3  |           TABLE ACCESS FULL | SYS   | PRED_DOWN_1 | 1    | 1    | 0         |       |        |
+-----------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    5 - filter: C2 = 'AA' AND C3 = TRUE AND C1 < 3              
+    3 - filter: C1 < 3 AND C3 = TRUE AND C2 = 'AA'              
 
-13 rows fetched.
+11 rows fetched.
 
 SQL> SELECT * FROM (SELECT DISTINCT c1, c2, c3 FROM (SELECT DISTINCT c1, c2, c3, c4 FROM PRED_DOWN_1 WHERE c1 < 3) sub_q2 WHERE c3=TRUE) sub_q1 WHERE c2 = 'AA';
 

@@ -43,6 +43,7 @@
 #include "ogsql_connect_rewrite.h"
 #include "ogsql_connect_rewrite.h"
 #include "ogsql_in2exists.h"
+#include "ogsql_distinct_rewrite.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -231,6 +232,7 @@ status_t ogsql_apply_rule_set_2(sql_stmt_t *statement, sql_query_t *qry)
     // 19. transform condition order.
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_cond_reorder);
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_eliminate_proj_col);
+    OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_eliminate_distinct);
     return OG_SUCCESS;
 }
 
