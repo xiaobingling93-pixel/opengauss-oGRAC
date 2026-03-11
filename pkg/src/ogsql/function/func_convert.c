@@ -1546,14 +1546,25 @@ static status_t sql_check_num_fmt(const text_t *fmt_text, bool32 *is_hex_fmt)
     return OG_SUCCESS;
 }
 
-static inline status_t sql_hex_text2dec(const text_t *num_text, const text_t *fmt, dec8_t *dec)
+static status_t sql_hex_text2dec(const text_t *num_text, const text_t *fmt, dec8_t *dec)
 {
     if (fmt->len < num_text->len || (CM_TEXT_FIRST(fmt) == '0' && fmt->len > num_text->len)) {
         OG_THROW_ERROR(ERR_INVALID_NUMBER, "");
         return OG_ERROR;
     }
+    status_t hex_status = cm_hext_to_dec(num_text, dec);
+    if (hex_status == OG_SUCCESS) {
+        return OG_SUCCESS;
+    }
+    text_t trimmed = *num_text;
+    cm_trim_text(&trimmed);
+    status_t dec_status = cm_text_to_dec(&trimmed, dec);
+    if (dec_status == OG_SUCCESS) {
+        return OG_SUCCESS;
+    }
 
-    return cm_hext_to_dec(num_text, dec);
+    OG_THROW_ERROR(ERR_INVALID_NUMBER, cm_get_num_errinfo(NERR_UNEXPECTED_CHAR));
+    return OG_ERROR;
 }
 
 /**
