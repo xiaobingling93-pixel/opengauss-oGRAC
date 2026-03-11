@@ -76,8 +76,9 @@ status_t sql_create_temp_list(sql_stmt_t *stmt, galist_t **list)
     return OG_SUCCESS;
 }
 
-static inline void get_next_token_without_yy(int *lookahead_len, struct base_yy_lookahead *lookaheads, int *next_token,
-    int *next_yyleng, YYSTYPE *lvalp, YYLTYPE *llocp, yyscan_t yyscanner, char *scanbuf)
+static inline void get_next_token_without_yy(int *lookahead_len, struct base_yy_lookahead *lookaheads,
+    int *next_token, int *next_yyleng, YYSTYPE *lvalp, YYLTYPE *llocp, yyscan_t yyscanner, char *scanbuf,
+    core_yylex_func yylex_func_hook)
 {
     if (*lookahead_len) {
         struct base_yy_lookahead lookahead = lookaheads[(*lookahead_len) - 1];
@@ -89,18 +90,20 @@ static inline void get_next_token_without_yy(int *lookahead_len, struct base_yy_
         scanbuf[lookahead.yylloc.offset + lookahead.yyleng] = '\0';
         (*lookahead_len)--;
     } else {
-        *next_token = core_yylex(&(lvalp->core_yystype), llocp, yyscanner);
+        core_yylex_func yylex_func = yylex_func_hook == NULL ? core_yylex : yylex_func_hook;
+        *next_token = yylex_func(&(lvalp->core_yystype), llocp, yyscanner);
         *next_yyleng = ct_yyget_leng(yyscanner);
     }
 }
 
 static inline void get_next_token(int *lookahead_len, struct base_yy_lookahead *lookaheads, int *next_token,
     int *next_yyleng, YYSTYPE *lvalp, YYLTYPE *llocp, yyscan_t yyscanner, char *scanbuf, core_YYSTYPE *cur_yylval,
-    YYLTYPE *cur_yylloc)
+    YYLTYPE *cur_yylloc, core_yylex_func yylex_func)
 {
     *cur_yylval = lvalp->core_yystype;
     *cur_yylloc = *llocp;
-    get_next_token_without_yy(lookahead_len, lookaheads, next_token, next_yyleng, lvalp, llocp, yyscanner, scanbuf);
+    get_next_token_without_yy(lookahead_len, lookaheads, next_token, next_yyleng, lvalp, llocp, yyscanner,
+                              scanbuf, yylex_func);
 }
 
 static inline void set_lookahead_token(int *lookahead_len, struct base_yy_lookahead *lookaheads, int *next_token,
@@ -163,7 +166,7 @@ static void set_lookahead_three_token(int *lookahead_len, struct base_yy_lookahe
     *llocp = cur_yylloc_1;
 }
 
-int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
+int base_yylex_common(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner, core_yylex_func yylex_func_hook)
 {
     base_yy_extra_type* yyextra = og_yyget_extra(yyscanner);
     char* scanbuf = yyextra->core_yy_extra.scanbuf;
@@ -188,6 +191,8 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
     core_YYSTYPE core_yystype_3;
     YYLTYPE cur_yylloc_3 = {{0, 0}, 0};
 
+    core_yylex_func yylex_func = yylex_func_hook == NULL ? core_yylex : yylex_func_hook;
+        
     /* Get next token --- we might already have it */
     if (yyextra->lookahead_len != 0) {
         const struct base_yy_lookahead lookahead = lookaheads[yyextra->lookahead_len - 1];
@@ -199,7 +204,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
         scanbuf[lookahead.yylloc.offset + lookahead.yyleng] = '\0';
         yyextra->lookahead_len--;
     } else {
-        cur_token = core_yylex(&(lvalp->core_yystype), llocp, yyscanner);
+        cur_token = yylex_func(&(lvalp->core_yystype), llocp, yyscanner);
         cur_yyleng = ct_yyget_leng(yyscanner);
     }
 
@@ -210,7 +215,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
              * ABSENT ON must be reduced to one token
              */
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case ON:
                     cur_token = ABSENT_ON;
@@ -231,7 +236,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
              * NULLS FIRST and NULLS LAST must be reduced to one token
              */
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case FIRST_P:
                     cur_token = NULLS_FIRST;
@@ -252,7 +257,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case WITH:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case TIME:
                     cur_token = WITH_TIME;
@@ -273,7 +278,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case WITHOUT:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case TIME:
                     cur_token = WITHOUT_TIME;
@@ -294,7 +299,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case PIVOT:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case '(':
                     cur_token = PIVOT_TOK;
@@ -312,7 +317,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case UNPIVOT:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case '(':
                     cur_token = UNPIVOT_TOK;
@@ -336,7 +341,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case CONNECT:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case BY:
                     cur_token = CONNECT_BY;
@@ -354,7 +359,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case START:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case WITH:
                     cur_token = START_WITH;
@@ -372,7 +377,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case PARTITION:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case FOR:
                     cur_token = PARTITION_FOR;
@@ -390,7 +395,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case SUBPARTITION:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case FOR:
                     cur_token = SUBPARTITION_FOR;
@@ -408,7 +413,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case ORDER:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case SIBLINGS:
                     cur_token = ORDER_SIBLINGS;
@@ -426,7 +431,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case ERROR_P:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             core_yystype_1 = cur_yylval;
             cur_yylloc_1 = cur_yylloc;
             cur_yyleng_1 = cur_yyleng;
@@ -435,7 +440,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             switch (next_token) {
                 case ON:
                     get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner,
-                        scanbuf, &cur_yylval, &cur_yylloc);
+                        scanbuf, &cur_yylval, &cur_yylloc, yylex_func);
                     core_yystype_2 = cur_yylval;
                     cur_yylloc_2 = cur_yylloc;
                     next_token_2 = next_token;
@@ -467,7 +472,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case NULL_P:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             core_yystype_1 = cur_yylval;
             cur_yylloc_1 = cur_yylloc;
             cur_yyleng_1 = cur_yyleng;
@@ -476,7 +481,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             switch (next_token) {
                 case ON:
                     get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner,
-                        scanbuf, &cur_yylval, &cur_yylloc);
+                        scanbuf, &cur_yylval, &cur_yylloc, yylex_func);
                     core_yystype_2 = cur_yylval;
                     cur_yylloc_2 = cur_yylloc;
                     next_token_2 = next_token;
@@ -513,7 +518,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
              * in JSON function parsing
              */
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner,
-                        scanbuf, &cur_yylval, &cur_yylloc);
+                        scanbuf, &cur_yylval, &cur_yylloc, yylex_func);
             core_yystype_1 = cur_yylval;
             cur_yylloc_1 = cur_yylloc;
             cur_yyleng_1 = cur_yyleng;
@@ -522,7 +527,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             switch (next_token) {
                 case ON:
                     get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner,
-                        scanbuf, &cur_yylval, &cur_yylloc);
+                        scanbuf, &cur_yylval, &cur_yylloc, yylex_func);
                     core_yystype_2 = cur_yylval;
                     cur_yylloc_2 = cur_yylloc;
                     next_token_2 = next_token;
@@ -543,7 +548,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
                     break;
                 case ARRAY:
                     get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner,
-                        scanbuf, &cur_yylval, &cur_yylloc);
+                        scanbuf, &cur_yylval, &cur_yylloc, yylex_func);
                     core_yystype_2 = cur_yylval;
                     cur_yylloc_2 = cur_yylloc;
                     next_token_2 = next_token;
@@ -551,7 +556,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
                     switch (next_token) {
                         case ON:
                             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp,
-                                yyscanner, scanbuf, &cur_yylval, &cur_yylloc);
+                                yyscanner, scanbuf, &cur_yylval, &cur_yylloc, yylex_func);
                             core_yystype_3 = cur_yylval;
                             cur_yylloc_3 = cur_yylloc;
                             next_token_3 = next_token;
@@ -578,7 +583,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
                     break;
                 case OBJECT_P:
                     get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner,
-                        scanbuf, &cur_yylval, &cur_yylloc);
+                        scanbuf, &cur_yylval, &cur_yylloc, yylex_func);
                     core_yystype_2 = cur_yylval;
                     cur_yylloc_2 = cur_yylloc;
                     next_token_2 = next_token;
@@ -586,7 +591,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
                     switch (next_token) {
                         case ON:
                             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp,
-                                yyscanner, scanbuf, &cur_yylval, &cur_yylloc);
+                                yyscanner, scanbuf, &cur_yylval, &cur_yylloc, yylex_func);
                             core_yystype_3 = cur_yylval;
                             cur_yylloc_3 = cur_yylloc;
                             next_token_3 = next_token;
@@ -622,7 +627,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case CROSS:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case JOIN:
                     cur_token = CROSS_JOIN;
@@ -640,7 +645,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case INNER_P:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case JOIN:
                     cur_token = INNER_JOIN;
@@ -658,7 +663,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case JOIN:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case JOIN:
                 case '.':
@@ -679,7 +684,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case LEFT:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case JOIN:
                 case OUTER_P:
@@ -698,7 +703,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case RIGHT:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case JOIN:
                 case OUTER_P:
@@ -717,7 +722,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case FULL:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case JOIN:
                 case OUTER_P:
@@ -736,7 +741,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case FOREIGN:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             switch (next_token) {
                 case KEY:
                     cur_token = FOREIGN_KEY;
@@ -754,7 +759,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case EXECUTE:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             core_yystype_1 = cur_yylval;
             cur_yylloc_1 = cur_yylloc;
             cur_yyleng_1 = cur_yyleng;
@@ -763,7 +768,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             switch (next_token) {
                 case ON:
                     get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner,
-                        scanbuf, &cur_yylval, &cur_yylloc);
+                        scanbuf, &cur_yylval, &cur_yylloc, yylex_func);
                     core_yystype_2 = cur_yylval;
                     cur_yylloc_2 = cur_yylloc;
                     next_token_2 = next_token;
@@ -793,7 +798,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             break;
         case READ:
             get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner, scanbuf,
-                &cur_yylval, &cur_yylloc);
+                &cur_yylval, &cur_yylloc, yylex_func);
             core_yystype_1 = cur_yylval;
             cur_yylloc_1 = cur_yylloc;
             cur_yyleng_1 = cur_yyleng;
@@ -802,7 +807,7 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
             switch (next_token) {
                 case ON:
                     get_next_token(lookahead_len, lookaheads, &next_token, &next_yyleng, lvalp, llocp, yyscanner,
-                        scanbuf, &cur_yylval, &cur_yylloc);
+                        scanbuf, &cur_yylval, &cur_yylloc, yylex_func);
                     core_yystype_2 = cur_yylval;
                     cur_yylloc_2 = cur_yylloc;
                     next_token_2 = next_token;
@@ -836,7 +841,27 @@ int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
     return cur_token;
 }
 
-status_t raw_parser(sql_stmt_t *stmt, sql_text_t *sql, void **context)
+int base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
+{
+    return base_yylex_common(lvalp, llocp, yyscanner, core_yylex);
+}
+
+int a_base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
+{
+    return base_yylex_common(lvalp, llocp, yyscanner, core_yylex);
+}
+
+int b_base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
+{
+    return base_yylex_common(lvalp, llocp, yyscanner, b_core_yylex);
+}
+
+int c_base_yylex(YYSTYPE* lvalp, YYLTYPE* llocp, core_yyscan_t yyscanner)
+{
+    return base_yylex_common(lvalp, llocp, yyscanner, c_core_yylex);
+}
+
+static status_t a_format_raw_parser(sql_stmt_t *stmt, sql_text_t *sql, void **context)
 {
     core_yyscan_t yyscanner;
     base_yy_extra_type yyextra;
@@ -845,7 +870,7 @@ status_t raw_parser(sql_stmt_t *stmt, sql_text_t *sql, void **context)
     CM_SAVE_STACK(stmt->session->stack);
 
     /* initialize the flex scanner */
-    yyscanner = scanner_init(sql, &yyextra.core_yy_extra, &ScanKeywords, ScanKeywordTokens, stmt);
+    yyscanner = a_scanner_init(sql, &yyextra.core_yy_extra, &dialect_a_ScanKeywords, a_format_ScanKeywordTokens, stmt);
     if (SECUREC_UNLIKELY(yyscanner == NULL)) {
         return OG_ERROR;
     }
@@ -853,13 +878,13 @@ status_t raw_parser(sql_stmt_t *stmt, sql_text_t *sql, void **context)
     yyextra.lookahead_len = 0;
 
     /* initialize the bison parser */
-    parser_init(&yyextra);
+    a_parser_init(&yyextra);
 
     /* Parse! */
-    yyresult = base_yyparse(yyscanner);
+    yyresult = a_base_yyparse(yyscanner);
 
     /* Clean up (release memory) */
-    scanner_finish(yyscanner);
+    a_scanner_finish(yyscanner);
 
     if (SECUREC_UNLIKELY(yyresult)) { /* error */
         return OG_ERROR;
@@ -869,6 +894,90 @@ status_t raw_parser(sql_stmt_t *stmt, sql_text_t *sql, void **context)
 
     *context = yyextra.parsetree;
     return OG_SUCCESS;
+}
+
+static status_t b_format_raw_parser(sql_stmt_t *stmt, sql_text_t *sql, void **context)
+{
+    core_yyscan_t yyscanner;
+    base_yy_extra_type yyextra;
+    int yyresult;
+
+    CM_SAVE_STACK(stmt->session->stack);
+
+    /* initialize the flex scanner */
+    yyscanner = b_scanner_init(sql, &yyextra.core_yy_extra, &dialect_b_ScanKeywords, b_format_ScanKeywordTokens, stmt);
+    if (SECUREC_UNLIKELY(yyscanner == NULL)) {
+        return OG_ERROR;
+    }
+
+    yyextra.lookahead_len = 0;
+
+    /* initialize the bison parser */
+    b_parser_init(&yyextra);
+
+    /* Parse! */
+    yyresult = b_base_yyparse(yyscanner);
+
+    /* Clean up (release memory) */
+    b_scanner_finish(yyscanner);
+
+    if (SECUREC_UNLIKELY(yyresult)) { /* error */
+        return OG_ERROR;
+    }
+
+    CM_RESTORE_STACK(stmt->session->stack);
+
+    *context = yyextra.parsetree;
+    return OG_SUCCESS;
+}
+
+static status_t c_format_raw_parser(sql_stmt_t *stmt, sql_text_t *sql, void **context)
+{
+    core_yyscan_t yyscanner;
+    base_yy_extra_type yyextra;
+    int yyresult;
+
+    CM_SAVE_STACK(stmt->session->stack);
+
+    /* initialize the flex scanner */
+    yyscanner = c_scanner_init(sql, &yyextra.core_yy_extra, &dialect_c_ScanKeywords, c_format_ScanKeywordTokens, stmt);
+    if (SECUREC_UNLIKELY(yyscanner == NULL)) {
+        return OG_ERROR;
+    }
+
+    yyextra.lookahead_len = 0;
+
+    /* initialize the bison parser */
+    c_parser_init(&yyextra);
+
+    /* Parse! */
+    yyresult = c_base_yyparse(yyscanner);
+
+    /* Clean up (release memory) */
+    c_scanner_finish(yyscanner);
+
+    if (SECUREC_UNLIKELY(yyresult)) { /* error */
+        return OG_ERROR;
+    }
+
+    CM_RESTORE_STACK(stmt->session->stack);
+
+    *context = yyextra.parsetree;
+    return OG_SUCCESS;
+}
+
+status_t raw_parser(sql_stmt_t *stmt, sql_text_t *sql, void **context)
+{
+    if (stmt->session->dbcompatibility == 'A') {
+        return a_format_raw_parser(stmt, sql, context);
+    }
+    if (stmt->session->dbcompatibility == 'B') {
+        return b_format_raw_parser(stmt, sql, context);
+    }
+    if (stmt->session->dbcompatibility == 'C') {
+        return c_format_raw_parser(stmt, sql, context);
+    }
+    return a_format_raw_parser(stmt, sql, context);
 }
 
 static status_t sql_create_dml_context(sql_stmt_t *stmt, sql_text_t *sql, key_wid_t key_wid)

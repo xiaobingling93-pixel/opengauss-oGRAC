@@ -103,6 +103,167 @@ add_custom_command(
     COMMENT "Generating pl_gram.c, pl_gram.h from pl_gram.y"
 )
 
+
+####### a format database #####
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/kwlist_d.h
+    COMMAND perl -I ${CMAKE_CURRENT_SOURCE_DIR}/parser/ ${CMAKE_CURRENT_SOURCE_DIR}/parser/gen_keywordlist.pl --extern ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/kwlist.h --varname dialect_a_ScanKeywords --dialect a
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/kwlist.h
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/kwlist.h
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser
+    COMMENT "Generating a format kwlist_d.h from kwlist.h"
+)
+
+execute_process(
+    COMMAND perl ${CMAKE_CURRENT_SOURCE_DIR}/parser/include.pl ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/ scan.l a_
+    RESULT_VARIABLE RET_RESULT
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser/
+    INPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/parser/scan.l
+    OUTPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/scan-backend.l
+)
+
+if(RET_RESULT)
+    message(FATAL_ERROR "Failed to generate a-format gram.y by include.pl.")
+endif()
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/scan-backend.inc
+    COMMAND rm -fr lex.backup
+    COMMAND flex -CF -b -p -p -o scan-backend.inc scan-backend.l
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/scan-backend.l
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/scan-backend.l
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser
+    COMMENT "Generating a format scan.inc from scan.l"
+)
+
+execute_process(
+    COMMAND perl ${CMAKE_CURRENT_SOURCE_DIR}/parser/include.pl ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/ gram.y a_
+    RESULT_VARIABLE RET_RESULT
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser/
+    INPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/parser/gram.y
+    OUTPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/gram-backend.y
+)
+
+if(RET_RESULT)
+    message(FATAL_ERROR "Failed to generate a-format gram.y by include.pl.")
+endif()
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/gram-backend.c ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/gram-backend.h
+    COMMAND bison -d -o ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/gram-backend.c ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/gram-backend.y
+	DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/gram-backend.y ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/scan-backend.l
+	MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/gram-backend.y ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/scan-backend.l
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser
+	COMMENT "Generating b format gram.c"
+)
+
+
+####### b format database #####
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/kwlist_d.h
+    COMMAND perl -I ${CMAKE_CURRENT_SOURCE_DIR}/parser/ ${CMAKE_CURRENT_SOURCE_DIR}/parser/gen_keywordlist.pl --extern ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/kwlist.h --varname dialect_b_ScanKeywords --dialect b
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/kwlist.h
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/kwlist.h
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser
+    COMMENT "Generating b format kwlist_d.h from kwlist.h"
+)
+
+execute_process(
+    COMMAND perl ${CMAKE_CURRENT_SOURCE_DIR}/parser/include.pl ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/ scan.l b_
+    RESULT_VARIABLE RET_RESULT
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser/
+    INPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/parser/scan.l
+    OUTPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/scan-backend.l
+)
+
+if(RET_RESULT)
+    message(FATAL_ERROR "Failed to generate b-format gram.y by include.pl.")
+endif()
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/scan-backend.inc
+    COMMAND rm -fr lex.backup
+    COMMAND flex -CF -b -p -p -o scan-backend.inc scan-backend.l
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/scan-backend.l
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/scan-backend.l
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser
+    COMMENT "Generating b format scan.inc from scan.l"
+)
+
+execute_process(
+    COMMAND perl ${CMAKE_CURRENT_SOURCE_DIR}/parser/include.pl ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/ gram.y b_
+    RESULT_VARIABLE RET_RESULT
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser/
+    INPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/parser/gram.y
+    OUTPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/gram-backend.y
+)
+
+if(RET_RESULT)
+    message(FATAL_ERROR "Failed to generate b-format gram.y by include.pl.")
+endif()
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/gram-backend.c ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/gram-backend.h
+    COMMAND bison -d -o ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/gram-backend.c ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/gram-backend.y
+	DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/gram-backend.y ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/scan-backend.l
+	MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/gram-backend.y ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/scan-backend.l
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser
+	COMMENT "Generating b format gram.c"
+)
+
+#######c format database######
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/kwlist_d.h
+    COMMAND perl -I ${CMAKE_CURRENT_SOURCE_DIR}/parser/ ${CMAKE_CURRENT_SOURCE_DIR}/parser/gen_keywordlist.pl --extern ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/kwlist.h --varname dialect_c_ScanKeywords --dialect c
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/kwlist.h
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/kwlist.h
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser
+    COMMENT "Generating c format kwlist_d.h from kwlist.h"
+)
+
+execute_process(
+    COMMAND perl ${CMAKE_CURRENT_SOURCE_DIR}/parser/include.pl ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/ scan.l c_
+    RESULT_VARIABLE RET_RESULT
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser/
+    INPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/parser/scan.l
+    OUTPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/scan-backend.l
+)
+
+if(RET_RESULT)
+    message(FATAL_ERROR "Failed to generate c-format gram.y by include.pl.")
+endif()
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/scan-backend.inc
+    COMMAND rm -fr lex.backup
+    COMMAND flex -CF -b -p -p -o scan-backend.inc scan-backend.l
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/scan-backend.l
+    MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/scan-backend.l
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser
+    COMMENT "Generating c format scan.inc from scan.l"
+)
+
+execute_process(
+    COMMAND perl ${CMAKE_CURRENT_SOURCE_DIR}/parser/include.pl ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/ gram.y c_
+    RESULT_VARIABLE RET_RESULT
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser/
+    INPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/parser/gram.y
+    OUTPUT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/gram-backend.y
+)
+
+if(RET_RESULT)
+    message(FATAL_ERROR "Failed to generate c-format gram.y by include.pl.")
+endif()
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/gram-backend.c ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/gram-backend.h
+    COMMAND bison -d -o ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/gram-backend.c ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/gram-backend.y
+	DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/gram-backend.y ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/scan-backend.l
+	MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/gram-backend.y ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/scan-backend.l
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser
+	COMMENT "Generating c format gram.c"
+)
+
 set(LIBRARY_OUTPUT_PATH ${OGRACDB_LIB})
 
 aux_source_directory(. SQL_SRC)
@@ -157,6 +318,18 @@ set(SQL_ALL_SRC
         ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_gram.h
         ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_reserved_kwlist_d.h
         ${CMAKE_CURRENT_SOURCE_DIR}/pl/parser/pl_unreserved_kwlist_d.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/kwlist_d.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/kwlist_d.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/kwlist_d.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/scan-backend.inc
+        ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/gram-backend.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_a/backend_parser/gram-backend.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/scan-backend.inc
+        ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/gram-backend.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_b/backend_parser/gram-backend.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/scan-backend.inc
+        ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/gram-backend.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/parser/dialect_c/backend_parser/gram-backend.h
         )
 
 link_directories(${OGRACDB_LIB} ${PCRE_LIB_PATH} ${VPP_LIB_PATH} ${Z_LIB_PATH})

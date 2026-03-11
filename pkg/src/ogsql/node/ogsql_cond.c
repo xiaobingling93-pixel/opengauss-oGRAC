@@ -1997,6 +1997,11 @@ static status_t sql_match_normal(sql_stmt_t *stmt, cmp_node_t *node, bool32 *pen
     // evaluate the right node
     SQL_EXEC_CMP_OPERAND_EX(node->right, &r_var, result, pending, stmt);
 
+    if (node->type == CMP_TYPE_NULL_CMP_OP && l_var.is_null && r_var.is_null) {
+        *result = COND_TRUE;
+        return OG_SUCCESS;
+    }
+    
     if (l_var.is_null || r_var.is_null) {
         if (stmt->is_check) {
             *result = COND_UNKNOWN;

@@ -46,6 +46,17 @@ extern const ScanKeywordList ScanKeywords;
 extern const uint8 ScanKeywordCategories[];
 extern const bool8 ScanKeywordDirectLabel[];
 
+
+extern const ScanKeywordList dialect_a_ScanKeywords;
+extern const uint16 a_format_ScanKeywordTokens[];
+
+extern const ScanKeywordList dialect_b_ScanKeywords;
+extern const uint16 b_format_ScanKeywordTokens[];
+
+extern const ScanKeywordList dialect_c_ScanKeywords;
+extern const uint16 c_format_ScanKeywordTokens[];
+
+
 /* Globals from keywords.c */
 extern const ScanKeywordList SQLScanKeywords[];
 

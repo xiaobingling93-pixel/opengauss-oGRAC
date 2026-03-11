@@ -37,12 +37,14 @@ my $output_path = '';
 my $extern = 0;
 my $case_fold = 1;
 my $varname = 'ScanKeywords';
+my $dialect = '';
 
 GetOptions(
 	'output:s'   => \$output_path,
 	'extern'     => \$extern,
 	'case-fold!' => \$case_fold,
-	'varname:s'  => \$varname) || usage();
+	'varname:s'  => \$varname,
+	'dialect:s'  => \$dialect) || usage();
 
 my $kw_input_file = shift @ARGV || die "No input file.\n";
 
@@ -53,7 +55,13 @@ if ($output_path ne '' && substr($output_path, -1) ne '/')
 }
 
 $kw_input_file =~ /(\w+)\.h$/ || die "Input file must be named something.h.\n";
-my $base_filename = $1 . '_d';
+
+if ($dialect ne '')
+{
+    $dialect = '_' . $dialect;
+}
+
+my $base_filename = $1 . $dialect . '_d';
 my $kw_def_file = $output_path . $base_filename . '.h';
 
 open(my $kif, '<', $kw_input_file) || die "$kw_input_file: $!\n";

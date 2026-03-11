@@ -76,6 +76,7 @@ typedef enum en_cmp_type {
     CMP_TYPE_LESS_EQUAL_ALL  = 331,
     CMP_TYPE_IS_JSON         = 332,
     CMP_TYPE_IS_NOT_JSON     = 333,
+    CMP_TYPE_NULL_CMP_OP     = 334,
 } cmp_type_t;
 
 /* The word type of numeric type */

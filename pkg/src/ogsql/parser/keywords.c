@@ -30,6 +30,9 @@
 
 /* ScanKeywordList lookup.data.for.SQL.keywords. */
 #include "kwlist_d.h"
+#include "dialect_a/backend_parser/kwlist_a_d.h"
+#include "dialect_b/backend_parser/kwlist_b_d.h"
+#include "dialect_c/backend_parser/kwlist_c_d.h"
 
 #define OG_KEYWORD(kwname,value,category) category,
 
