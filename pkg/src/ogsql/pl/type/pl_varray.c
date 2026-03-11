@@ -368,6 +368,7 @@ static status_t udt_varray_extend(sql_stmt_t *stmt, variant_t *var, expr_tree_t 
         status = var_as_uint32(&var1);
         OG_RETURN_IFERR(status);
         count = VALUE(uint32, &var1);
+        OG_RETSUC_IFTRUE(count == 0);
         if (args->next != NULL) {
             /* extend(n,i) appends n copies of the ith element to the collection */
             status = sql_exec_expr(stmt, args->next, &var2);
@@ -378,6 +379,10 @@ static status_t udt_varray_extend(sql_stmt_t *stmt, variant_t *var, expr_tree_t 
             status = var_as_uint32(&var2);
             OG_RETURN_IFERR(status);
             copy_from = VALUE(uint32, &var2);
+            if (copy_from == 0) {
+                OG_SRC_THROW_ERROR(args->loc, ERR_SUBSCRIPT_BEYOND_COUNT);
+                return OG_ERROR;
+            }
             is_copy = OG_TRUE;
         }
     }
@@ -385,8 +390,8 @@ static status_t udt_varray_extend(sql_stmt_t *stmt, variant_t *var, expr_tree_t 
     OPEN_VM_PTR(&var->v_collection.value, vm_ctx);
     collection_head = (mtrl_array_head_t *)d_ptr;
 
-    if ((collection_head->ctrl.count + count > collection_head->ctrl.hwm) || (is_copy && copy_from >
-        collection_head->ctrl.count)) {
+    if (((uint64)collection_head->ctrl.count + (uint64)count > (uint64)collection_head->ctrl.hwm) ||
+        (is_copy && copy_from > collection_head->ctrl.count)) {
         CLOSE_VM_PTR_EX(&var->v_collection.value, vm_ctx);
         OG_THROW_ERROR(ERR_SUBSCRIPT_BEYOND_COUNT);
         return OG_ERROR;
