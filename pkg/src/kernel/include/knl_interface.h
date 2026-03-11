@@ -69,6 +69,7 @@ typedef struct st_knl_view_def {
     object_status_t status;
     galist_t *ref_objects;
     void *select;
+    bool32 is_read_only;
 } knl_view_def_t;
 
 typedef struct st_knl_rebuild_ctrlfile_def {

@@ -47,3 +47,5 @@ test: og_pred_deliver
 test: og_or2union
 test: og_winsort
 test: og_connect_by
+
+test: og_create_view_with_read_only

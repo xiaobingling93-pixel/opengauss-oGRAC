@@ -221,7 +221,7 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
                 opt_distinct unpivot_include_or_exclude_nulls opt_nocycle opt_all opt_all_distinct opt_if_exists opt_drop_behavior
                 opt_cascade opt_purge opt_temporary opt_public opt_force partition_or_subpartition opt_archivelog
                 opt_reuse opt_all_in_memory opt_encrypted ignore_nulls opt_orajoin on_or_off opt_undo opt_or_replace opt_signed
-                opt_revoke_cascade
+                opt_revoke_cascade opt_with_read_only
 %type <winsort_args> over_clause window_specification
 %type <windowing_args> opt_frame_clause frame_extent
 %type <query_column> target_el
@@ -8698,7 +8698,7 @@ view_column_list:
         ;
 
 CreateViewStmt:
-            CREATE opt_or_replace opt_force VIEW any_name opt_view_column_list AS SelectStmt
+            CREATE opt_or_replace opt_force VIEW any_name opt_view_column_list opt_with_read_only AS SelectStmt
                 {
                     knl_view_def_t *def = NULL;
                     sql_stmt_t *stmt = og_yyget_extra(yyscanner)->core_yy_extra.stmt;
@@ -8706,11 +8706,16 @@ CreateViewStmt:
                     src_sql.str = og_yyget_extra(yyscanner)->core_yy_extra.scanbuf;
                     src_sql.len = og_yyget_extra(yyscanner)->core_yy_extra.scanbuflen;
 
-                    if (og_parse_create_view(stmt, &def, $5, $6, $2, $3, $8, &src_sql, @8.offset) != OG_SUCCESS) {
+                    if (og_parse_create_view(stmt, &def, $5, $6, $2, $3, $7, $9, &src_sql, @9.offset) != OG_SUCCESS) {
                         parser_yyerror("parse create view failed");
                     }
                     $$ = def;
                 }
+        ;
+
+opt_with_read_only:
+            WITH READ ONLY                   { $$ = OG_TRUE; }
+            | /*EMPTY*/                      { $$ = OG_FALSE; }
         ;
 
 opt_view_column_list:

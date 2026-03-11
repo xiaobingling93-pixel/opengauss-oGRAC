@@ -467,56 +467,65 @@ static inline bool32 sql_check_context_ref_sys_tab(sql_stmt_t *stmt, knl_view_de
     return OG_FALSE;
 }
 
-status_t sql_parse_create_view(sql_stmt_t *stmt, bool32 is_replace, bool32 is_force)
+static status_t sql_init_create_view_def(sql_stmt_t *stmt, bool32 is_replace, knl_view_def_t **def)
+{
+    if (sql_alloc_mem(stmt->context, sizeof(knl_view_def_t), (pointer_t *)def) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+    MEMS_RETURN_IFERR(memset_s(*def, sizeof(knl_view_def_t), 0, sizeof(knl_view_def_t)));
+    (*def)->is_replace = is_replace;
+    (*def)->is_read_only = OG_FALSE;
+    cm_galist_init(&(*def)->columns, stmt->context, sql_alloc_mem);
+    return OG_SUCCESS;
+}
+
+static status_t sql_parse_view_header(sql_stmt_t *stmt, lex_t *lex, knl_view_def_t *def)
 {
     word_t word;
     bool32 result = OG_FALSE;
-    knl_view_def_t *def = NULL;
-    lex_t *lex = stmt->session->lex;
-
-    stmt->context->type = OGSQL_TYPE_CREATE_VIEW;
-
-    if (sql_alloc_mem(stmt->context, sizeof(knl_view_def_t), (pointer_t *)&def) != OG_SUCCESS) {
-        return OG_ERROR;
-    }
-    def->is_replace = is_replace;
-    cm_galist_init(&def->columns, stmt->context, sql_alloc_mem);
     lex->flags = LEX_WITH_OWNER;
-
     if (lex_expected_fetch_variant(lex, &word) != OG_SUCCESS) {
         return OG_ERROR;
     }
-
     if (sql_convert_object_name(stmt, &word, &def->user, NULL, &def->name) != OG_SUCCESS) {
         return OG_ERROR;
     }
-
     if (lex_try_fetch_bracket(lex, &word, &result) != OG_SUCCESS) {
         return OG_ERROR;
     }
-
     if (result == OG_TRUE) {
         OG_RETURN_IFERR(lex_push(lex, &word.text));
-
         if (sql_parse_view_column_defs(stmt, lex, def) != OG_SUCCESS) {
             lex_pop(lex);
             return OG_ERROR;
         }
-
         lex_pop(lex);
     }
+    return OG_SUCCESS;
+}
 
-    if (lex_expected_fetch_word(lex, "AS") != OG_SUCCESS) {
+static status_t sql_parse_read_only_clause(lex_t *lex, knl_view_def_t *def)
+{
+    bool32 has_read_only = OG_FALSE;
+    if (lex_try_fetch(lex, "WITH", &has_read_only) != OG_SUCCESS) {
         return OG_ERROR;
     }
-
-    if (sql_verify_view_def(stmt, def, lex, is_force) != OG_SUCCESS) {
-        return OG_ERROR;
+    if (has_read_only == OG_TRUE) {
+        if (lex_expected_fetch_word(lex, "READ") != OG_SUCCESS) {
+            return OG_ERROR;
+        }
+        if (lex_expected_fetch_word(lex, "ONLY") != OG_SUCCESS) {
+            return OG_ERROR;
+        }
+        def->is_read_only = OG_TRUE;
     }
+    return OG_SUCCESS;
+}
 
+static status_t sql_finalize_create_view(sql_stmt_t *stmt, knl_view_def_t *def)
+{
     def->sql_tpye = SQL_STYLE_CT;
     stmt->context->entry = def;
-
     OG_RETURN_IFERR(sql_alloc_mem(stmt->context, sizeof(galist_t), (void **)&def->ref_objects));
     cm_galist_init(def->ref_objects, stmt->context, sql_alloc_mem);
     OG_RETURN_IFERR(sql_append_references(def->ref_objects, stmt->context));
@@ -524,7 +533,20 @@ status_t sql_parse_create_view(sql_stmt_t *stmt, bool32 is_replace, bool32 is_fo
         OG_THROW_ERROR(ERR_INSUFFICIENT_PRIV);
         return OG_ERROR;
     }
+    return OG_SUCCESS;
+}
 
+status_t sql_parse_create_view(sql_stmt_t *stmt, bool32 is_replace, bool32 is_force)
+{
+    knl_view_def_t *def = NULL;
+    lex_t *lex = stmt->session->lex;
+    stmt->context->type = OGSQL_TYPE_CREATE_VIEW;
+    OG_RETURN_IFERR(sql_init_create_view_def(stmt, is_replace, &def));
+    OG_RETURN_IFERR(sql_parse_view_header(stmt, lex, def));
+    OG_RETURN_IFERR(sql_parse_read_only_clause(lex, def));
+    OG_RETURN_IFERR(lex_expected_fetch_word(lex, "AS"));
+    OG_RETURN_IFERR(sql_verify_view_def(stmt, def, lex, is_force));
+    OG_RETURN_IFERR(sql_finalize_create_view(stmt, def));
     return OG_SUCCESS;
 }
 
@@ -612,8 +634,8 @@ static status_t og_parse_view_column_defs(sql_stmt_t *stmt, knl_view_def_t *def,
 }
 
 status_t og_parse_create_view(sql_stmt_t *stmt, knl_view_def_t **def, name_with_owner *view_name,
-    galist_t *column_list, bool32 is_replace, bool32 is_force, sql_select_t *select_ctx, text_t *src_sql,
-    uint32 offset)
+    galist_t *column_list, bool32 is_replace, bool32 is_force, bool32 is_read_only,
+    sql_select_t *select_ctx, text_t *src_sql, uint32 offset)
 {
     status_t status;
     knl_view_def_t *view_def = NULL;
@@ -627,6 +649,7 @@ status_t og_parse_create_view(sql_stmt_t *stmt, knl_view_def_t **def, name_with_
     view_def = *def;
 
     view_def->is_replace = is_replace;
+    view_def->is_read_only = is_read_only;
     cm_galist_init(&view_def->columns, stmt->context, sql_alloc_mem);
 
     // Parse view name
