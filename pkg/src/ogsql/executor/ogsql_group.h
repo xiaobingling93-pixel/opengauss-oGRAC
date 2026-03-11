@@ -87,7 +87,7 @@ static inline og_type_t sql_group_pending_type(sql_cursor_t *cursor, uint32 id)
     if (mtrl_cursor->type == MTRL_CURSOR_WINSORT) {
         return ((og_type_t *)(pending_buf + PENDING_HEAD_SIZE))[id];
     }
-    return OG_TYPE_VARCHAR;
+    return sql_get_pending_type(pending_buf, id);
 }
 
 static inline status_t sql_get_group_value(sql_stmt_t *stmt, var_vm_col_t *v_vm_col, og_type_t temp_type,
