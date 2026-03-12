@@ -1088,3 +1088,27 @@ status_t sql_verify_sqrt(sql_verifier_t *verifier, expr_node_t *func)
 
     return OG_SUCCESS;
 }
+
+status_t sql_func_random(sql_stmt_t *stmt, expr_node_t *func, variant_t *res)
+{
+    uint32 randvalue;
+    res->is_null = OG_FALSE;
+    res->type = OG_TYPE_NUMBER;
+    randvalue = cm_random(OG_MAX_RAND_RANGE);
+    cm_uint32_to_dec(randvalue, &res->v_dec);
+    OG_RETURN_IFERR(cm_dec_div_int64(&res->v_dec, OG_MAX_RAND_RANGE, &res->v_dec));
+    return OG_SUCCESS;
+}
+
+status_t sql_verify_random(sql_verifier_t *verf, expr_node_t *func)
+{
+    CM_POINTER2(verf, func);
+    OG_RETURN_IFERR(sql_verify_func_node(verf, func, 0, 1, OG_INVALID_ID32));
+
+    func->datatype = OG_TYPE_NUMBER;
+    func->size = MAX_DEC_BYTE_SZ;
+    func->scale = OG_UNSPECIFIED_NUM_SCALE;
+    func->precision = OG_UNSPECIFIED_NUM_PREC;
+    return OG_SUCCESS;
+}
+

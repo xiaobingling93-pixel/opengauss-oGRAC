@@ -101,7 +101,8 @@ status_t sql_verify_column_default_expr(sql_verifier_t *verf, expr_tree_t *cast_
     expr_node_t *cast_func = cast_expr->root;
     expr_tree_t *default_expr = cast_func->argument;
 
-    v.func_id = sql_get_func_id((text_t *)&cast_func->word.func.name);
+    v.func_id = sql_get_func_id_with_dialect((text_t *)&cast_func->word.func.name,
+        verf->stmt->session->dbcompatibility);
     v.pack_id = OG_INVALID_ID32;
     v.is_proc = OG_FALSE;
     v.is_winsort_func = OG_FALSE;

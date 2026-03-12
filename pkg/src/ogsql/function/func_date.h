@@ -62,4 +62,12 @@ status_t sql_func_unix_timestamp(sql_stmt_t *stmt, expr_node_t *func, variant_t 
 status_t sql_verify_utctimestamp(sql_verifier_t *verf, expr_node_t *func);
 status_t sql_func_utctimestamp(sql_stmt_t *stmt, expr_node_t *func, variant_t *res);
 
+status_t sql_verify_ymd(sql_verifier_t *verif, expr_node_t *func);
+status_t sql_func_year(sql_stmt_t *stmt, expr_node_t *func, variant_t *res);
+status_t sql_func_month(sql_stmt_t *stmt, expr_node_t *func, variant_t *res);
+status_t sql_func_day(sql_stmt_t *stmt, expr_node_t *func, variant_t *res);
+
+#define VERIFY_YMD_PARAM_MIN_COUNT (2)
+#define VERIFY_YMD_PARAM_MAX_COUNT (2)
+
 #endif

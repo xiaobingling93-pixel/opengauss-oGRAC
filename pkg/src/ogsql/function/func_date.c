@@ -1554,3 +1554,61 @@ status_t sql_func_utctimestamp(sql_stmt_t *stmt, expr_node_t *func, variant_t *r
     res->type = OG_TYPE_DATE;
     return OG_SUCCESS;
 }
+
+status_t sql_verify_ymd(sql_verifier_t *verif, expr_node_t *func)
+{
+    expr_tree_t *date_arg = NULL;
+    CM_POINTER2(verif, func);
+
+    // verify date or interval expr node
+    date_arg = func->argument;
+    if (date_arg->next != NULL) {
+        OG_SRC_THROW_ERROR(func->loc, ERR_INVALID_FUNC_PARAM_COUNT, T2S(&func->word.func.name),
+            VERIFY_YMD_PARAM_MIN_COUNT, VERIFY_YMD_PARAM_MAX_COUNT);
+        return OG_ERROR;
+    }
+    OG_RETURN_IFERR(sql_verify_expr_node(verif, date_arg->root));
+    if (!(sql_match_interval_type(TREE_DATATYPE(date_arg)) || sql_match_datetime_type(TREE_DATATYPE(date_arg)))) {
+        OG_SRC_ERROR_REQUIRE_DATETIME(date_arg->loc, TREE_DATATYPE(date_arg));
+        return OG_ERROR;
+    }
+
+    func->datatype = OG_TYPE_INTEGER;
+    func->size = (func->datatype == OG_TYPE_INTEGER) ? sizeof(int32) : sizeof(dec8_t);
+    return OG_SUCCESS;
+}
+
+
+static status_t sql_func_extract_ymd(sql_stmt_t *stmt, expr_node_t *func, variant_t *res, interval_unit_t unit)
+{
+    expr_tree_t *arg_date = NULL;
+    variant_t date_var;
+    CM_POINTER2(func, res);
+
+    // get date or interval
+    arg_date = func->argument;
+    CM_POINTER(arg_date);
+    SQL_EXEC_FUNC_ARG_EX(arg_date, &date_var, res);
+    
+    if (var_as_timestamp_flex(&date_var) == OG_SUCCESS) {
+        return sql_func_extract_date(unit, date_var, res);
+    } else {
+        cm_set_error_loc(arg_date->loc);
+        return OG_ERROR;
+    }
+}
+
+status_t sql_func_year(sql_stmt_t *stmt, expr_node_t *func, variant_t *res)
+{
+    return sql_func_extract_ymd(stmt, func, res, IU_YEAR);
+}
+
+status_t sql_func_month(sql_stmt_t *stmt, expr_node_t *func, variant_t *res)
+{
+    return sql_func_extract_ymd(stmt, func, res, IU_MONTH);
+}
+
+status_t sql_func_day(sql_stmt_t *stmt, expr_node_t *func, variant_t *res)
+{
+    return sql_func_extract_ymd(stmt, func, res, IU_DAY);
+}

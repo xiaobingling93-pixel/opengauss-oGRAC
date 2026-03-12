@@ -364,7 +364,8 @@ static status_t sql_search_case_expr_in_rs_col_alias(sql_verifier_t *verif, sql_
 static inline status_t sql_search_func_expr_in_rs_col_alias(sql_verifier_t *verif, sql_query_t *query,
     expr_node_t **node, bool32 *is_aggr, bool32 *is_found, bool32 *exist_alias)
 {
-    uint32 func_id = sql_get_func_id((text_t *)&(*node)->word.func.name);
+    uint32 func_id = sql_get_func_id_with_dialect((text_t *)&(*node)->word.func.name,
+        verif->stmt->session->dbcompatibility);
     bool32 tmp_aggr = *is_aggr;
     if (func_id != OG_INVALID_ID32 && g_func_tab[func_id].aggr_type != AGGR_TYPE_NONE) {
         *is_aggr = OG_TRUE;

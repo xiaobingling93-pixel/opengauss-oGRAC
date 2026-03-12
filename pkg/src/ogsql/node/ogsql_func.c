@@ -271,6 +271,83 @@ sql_func_t g_func_tab[] = {
     { { (char *)"vsize", 5 }, sql_func_vsize, sql_verify_vsize, AGGR_TYPE_NONE, FO_NORMAL, ID_FUNC_ITEM_VSIZE, FO_USUAL, OG_FALSE },
 };
 
+sql_func_t g_dialect_a_func_tab[] = {
+};
+
+sql_func_t g_dialect_b_func_tab[] = {
+    { { (char *)"day", 3 }, sql_func_day, sql_verify_ymd, AGGR_TYPE_NONE, FO_NORMAL, ID_FUNC_ITEM_EXTRACT, FO_USUAL, OG_FALSE },
+    { { (char *)"month", 5 }, sql_func_month, sql_verify_ymd, AGGR_TYPE_NONE, FO_NORMAL, ID_FUNC_ITEM_EXTRACT, FO_USUAL, OG_FALSE },
+    { { (char *)"year", 4 }, sql_func_year, sql_verify_ymd, AGGR_TYPE_NONE, FO_NORMAL, ID_FUNC_ITEM_EXTRACT, FO_USUAL, OG_FALSE },
+};
+
+sql_func_t g_dialect_c_func_tab[] = {
+    { { (char *)"random", 6 }, sql_func_random, sql_verify_random, AGGR_TYPE_NONE, FO_NORMAL, ID_FUNC_ITEM_RAND, FO_USUAL, OG_FALSE },
+};
+
+#define SQL_DIALECT_A_FUNC_COUNT ELEMENT_COUNT(g_dialect_a_func_tab)
+#define SQL_DIALECT_B_FUNC_COUNT ELEMENT_COUNT(g_dialect_b_func_tab)
+#define SQL_DIALECT_C_FUNC_COUNT ELEMENT_COUNT(g_dialect_c_func_tab)
+
+/* we distinguish which array a function belongs to by the range of function id
+ * common function id range: 0x0 - 0x0FFFFFFF
+ * dialect A id range : 0x10000000 - 0x1FFFFFFF
+ * dialect B id range : 0x20000000 - 0x2FFFFFFF
+ * dialect C id range : 0x30000000 - 0x3FFFFFFF
+ */
+
+static uint32 sql_mask_function_id(uint32 function_id, char dialect)
+{
+    if (dialect == 'B') {
+        return (function_id | SQL_DIALECT_B_FUNC_OFFSET);
+    } else if (dialect == 'C') {
+        return (function_id | SQL_DIALECT_C_FUNC_OFFSET);
+    } else {
+        return (function_id | SQL_DIALECT_A_FUNC_OFFSET);
+    }
+}
+
+static status_t check_buildin_func_id(uint32 function_id)
+{
+    if (function_id == OG_INVALID_ID32) {
+        OG_THROW_ERROR(ERR_INVALID_FUNC, function_id);
+        return OG_ERROR;
+    }
+
+    if (function_id >= SQL_DIALECT_C_FUNC_OFFSET) {
+        if ((function_id & SQL_DIALECT_FUNC_MASK) >= SQL_DIALECT_C_FUNC_COUNT) {
+            OG_THROW_ERROR(ERR_INVALID_FUNC, function_id);
+            return OG_ERROR;
+        } else {
+            return OG_SUCCESS;
+        }
+    }
+
+    if (function_id >= SQL_DIALECT_B_FUNC_OFFSET) {
+        if ((function_id & SQL_DIALECT_FUNC_MASK) >= SQL_DIALECT_B_FUNC_COUNT) {
+            OG_THROW_ERROR(ERR_INVALID_FUNC, function_id);
+            return OG_ERROR;
+        } else {
+            return OG_SUCCESS;
+        }
+    }
+
+    if (function_id >= SQL_DIALECT_A_FUNC_OFFSET) {
+        if ((function_id & SQL_DIALECT_FUNC_MASK) >= SQL_DIALECT_A_FUNC_COUNT) {
+            OG_THROW_ERROR(ERR_INVALID_FUNC, function_id);
+            return OG_ERROR;
+        } else {
+            return OG_SUCCESS;
+        }
+    }
+    
+    if (function_id >= SQL_FUNC_COUNT) {
+        OG_THROW_ERROR(ERR_INVALID_FUNC, function_id);
+        return OG_ERROR;
+    }
+
+    return OG_SUCCESS;
+}
+
 
 /* *************************************************************************** */
 /*    End of type declarations for internal use within ogsql_func.c            */
@@ -315,6 +392,7 @@ uint32 sql_func_binsearch(const text_t *name, sql_func_item_t get_item, void *se
     }
     return OG_INVALID_ID32;
 }
+
 uint32 sql_get_func_id(const text_t *func_name)
 {
     uint32 begin_pos;
@@ -353,6 +431,68 @@ uint32 sql_get_func_id(const text_t *func_name)
         }
     }
     return OG_INVALID_ID32;
+}
+
+
+static uint32 sql_get_func_id_with_func_tab(const text_t *func_name, sql_func_t* func_tab, uint32 tab_count)
+{
+    uint32 begin_pos;
+    uint32 end_pos;
+    uint32 mid_pos;
+    int32 cmp;
+
+    if (tab_count <= 0) {
+        return OG_INVALID_ID32;
+    }
+
+    cmp = cm_compare_text_ins(func_name, &func_tab[0].name);
+    if (cmp == 0) {
+        return 0;
+    } else if (cmp < 0) {
+        return OG_INVALID_ID32;
+    }
+
+    cmp = cm_compare_text_ins(func_name, &func_tab[tab_count - 1].name);
+    if (cmp == 0) {
+        return tab_count - 1;
+    } else if (cmp > 0) {
+        return OG_INVALID_ID32;
+    }
+
+    begin_pos = 0;
+    end_pos = tab_count - 1;
+    mid_pos = (begin_pos + end_pos) / 2;
+
+    while (end_pos - 1 > begin_pos) {
+        cmp = cm_compare_text_ins(func_name, &func_tab[mid_pos].name);
+        if (cmp == 0) {
+            return mid_pos;
+        } else if (cmp < 0) {
+            end_pos = mid_pos;
+            mid_pos = (end_pos + begin_pos) / 2;
+        } else {
+            begin_pos = mid_pos;
+            mid_pos = (end_pos + begin_pos) / 2;
+        }
+    }
+    return OG_INVALID_ID32;
+}
+
+
+uint32 sql_get_func_id_with_dialect(const text_t *func_name, char dialect)
+{
+    uint32 func_pos = OG_INVALID_ID32;
+    if (dialect == 'B') {
+        func_pos = sql_get_func_id_with_func_tab(func_name, g_dialect_b_func_tab, SQL_DIALECT_B_FUNC_COUNT);
+    } else if (dialect == 'C') {
+        func_pos = sql_get_func_id_with_func_tab(func_name, g_dialect_c_func_tab, SQL_DIALECT_C_FUNC_COUNT);
+    } else {
+        func_pos = sql_get_func_id_with_func_tab(func_name, g_dialect_a_func_tab, SQL_DIALECT_A_FUNC_COUNT);
+    }
+    if (func_pos != OG_INVALID_ID32) {
+        return sql_mask_function_id(func_pos, dialect);
+    }
+    return sql_get_func_id(func_name);
 }
 
 status_t sql_verify_func_node(sql_verifier_t *verf, expr_node_t *func, uint16 min_args, uint16 max_args,
@@ -587,11 +727,7 @@ status_t sql_invoke_func(sql_stmt_t *stmt, expr_node_t *node, variant_t *result)
         return sql_invoke_pack_func(stmt, node, result);
     }
 
-    if (id >= SQL_FUNC_COUNT) {
-        // only if some built-in functions been removed
-        OG_THROW_ERROR(ERR_INVALID_FUNC, id);
-        return OG_ERROR;
-    }
+    OG_RETURN_IFERR(check_buildin_func_id(id));
 
     result->type = OG_TYPE_UNKNOWN;
     func = sql_get_func(&node->value.v_func);
