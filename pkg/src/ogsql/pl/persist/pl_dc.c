@@ -1330,7 +1330,7 @@ status_t pl_try_verify_builtin_func(sql_verifier_t *verif, expr_node_t *node, va
     CM_POINTER2(verif, node);
     var_func_t vf = node->value.v_func;
 
-    vf.func_id = sql_get_func_id((text_t *)&node->word.func.name);
+    vf.func_id = sql_get_func_id_with_dialect((text_t *)&node->word.func.name, verif->stmt->session->dbcompatibility);
     vf.pack_id = OG_INVALID_ID32;
     vf.is_proc = OG_FALSE;
 

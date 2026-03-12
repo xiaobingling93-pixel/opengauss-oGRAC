@@ -77,6 +77,11 @@ typedef enum en_sql_aggr_type {
 #define SQL_ASCII_COUNT 256
 #define UTF8_MAX_BYTE 6
 
+#define SQL_DIALECT_FUNC_MASK 0x0FFFFFFF
+#define SQL_DIALECT_A_FUNC_OFFSET 0x10000000
+#define SQL_DIALECT_B_FUNC_OFFSET 0x20000000
+#define SQL_DIALECT_C_FUNC_OFFSET 0x30000000
+
 typedef enum en_bit_operation {
     BIT_OPER_AND = 1,
     BIT_OPER_OR = 2,
@@ -507,14 +512,24 @@ static inline status_t ogsql_exec_func_argumnet(sql_stmt_t * stmt, expr_tree_t *
 
 typedef text_t *(*sql_func_item_t)(void *set, uint32 id);
 extern sql_func_t g_func_tab[];
+extern sql_func_t g_dialect_a_func_tab[];
+extern sql_func_t g_dialect_b_func_tab[];
+extern sql_func_t g_dialect_c_func_tab[];
 extern sql_func_t *sql_get_pack_func(var_func_t *v);
 
 static inline sql_func_t *sql_get_func(var_func_t *v)
 {
     if (v->pack_id == OG_INVALID_ID32) {
-        return &g_func_tab[v->func_id];
+        if (v->func_id >= SQL_DIALECT_C_FUNC_OFFSET) {
+            return &g_dialect_c_func_tab[(v->func_id & SQL_DIALECT_FUNC_MASK)];
+        } else if (v->func_id >= SQL_DIALECT_B_FUNC_OFFSET) {
+            return &g_dialect_b_func_tab[(v->func_id & SQL_DIALECT_FUNC_MASK)];
+        } else if (v->func_id >= SQL_DIALECT_A_FUNC_OFFSET) {
+            return &g_dialect_a_func_tab[(v->func_id & SQL_DIALECT_FUNC_MASK)];
+        } else {
+            return &g_func_tab[v->func_id];
+        }
     }
-
     return sql_get_pack_func(v);
 }
 
@@ -536,6 +551,7 @@ bool32 sql_verify_lob_func_args(og_type_t datatype);
 status_t sql_func_page2masterid(sql_stmt_t *stmt, expr_node_t *func, variant_t *result);
 status_t sql_verify_page2masterid(sql_verifier_t *verifier, expr_node_t *func);
 bool32 check_func_with_sort_items(expr_node_t *node);
+uint32 sql_get_func_id_with_dialect(const text_t *func_name, char dialect);
 
 #ifdef __cplusplus
 }

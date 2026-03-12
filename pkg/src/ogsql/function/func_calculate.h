@@ -74,4 +74,8 @@ status_t sql_func_sign(sql_stmt_t *stmt, expr_node_t *func, variant_t *res);
 status_t sql_verify_sign(sql_verifier_t *verf, expr_node_t *func);
 status_t sql_func_sqrt(sql_stmt_t *stmt, expr_node_t *func, variant_t *res);
 status_t sql_verify_sqrt(sql_verifier_t *verifier, expr_node_t *func);
+
+status_t sql_func_random(sql_stmt_t *stmt, expr_node_t *func, variant_t *res);
+status_t sql_verify_random(sql_verifier_t *verf, expr_node_t *func);
+
 #endif
