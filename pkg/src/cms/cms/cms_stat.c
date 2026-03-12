@@ -1511,15 +1511,11 @@ status_t get_res_stat(uint32 node_id, uint32 res_id, cms_res_stat_t* res_stat)
         return OG_ERROR;
     }
 
-    cms_res_stat_t* res_stat_new = CMS_RES_STAT(node_id, res_id);
     uint32 size = CM_ALIGN_512(sizeof(cms_res_stat_t));
     cms_res_stat_t* res_cur_stat = (cms_res_stat_t*)cm_malloc_align(CMS_BLOCK_SIZE, size);
     if (res_cur_stat == NULL) {
         CMS_LOG_ERR("cm_malloc_align failed, alloc_size=%u", size);
         return OG_ERROR;
-    }
-    if (g_cms_inst->is_server && node_id == g_cms_param->node_id) {
-        res_stat_new = res_cur_stat;
     }
 
     cm_thread_lock(&g_node_lock[node_id]);
@@ -1531,7 +1527,7 @@ status_t get_res_stat(uint32 node_id, uint32 res_id, cms_res_stat_t* res_stat)
         return OG_ERROR;
     }
 
-    ret = stat_read(CMS_RES_STAT_POS(node_id, res_id), (char *)res_stat_new, sizeof(cms_res_stat_t));
+    ret = stat_read(CMS_RES_STAT_POS(node_id, res_id), (char *)res_cur_stat, sizeof(cms_res_stat_t));
     cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id], DISK_LOCK_READ);
     if (ret != OG_SUCCESS) {
         CM_FREE_PTR(res_cur_stat);
@@ -1540,7 +1536,20 @@ status_t get_res_stat(uint32 node_id, uint32 res_id, cms_res_stat_t* res_stat)
         return OG_ERROR;
     }
 
-    errno_t err = memcpy_s(res_stat, sizeof(cms_res_stat_t), res_stat_new, sizeof(cms_res_stat_t));
+    if ((res_cur_stat->cur_stat == CMS_RES_OFFLINE && res_cur_stat->inst_id != OG_INVALID_ID64) ||
+        (res_cur_stat->cur_stat != CMS_RES_OFFLINE && res_cur_stat->inst_id >= OG_MAX_INSTANCES)) {
+        CM_ABORT_REASONABLE(0, "[CMS] ABORT INFO: invalid inst_id after stat read, stat_ver=%llu, node_id=%u, "
+                            "res_id=%u, magic=%llu, session_id=%llu, inst_id=%llu, res_type=%s, cur_stat=%d, "
+                            "pre_stat=%d, target_stat=%d, work_stat=%u, hb_time=%lld, last_check=%lld, "
+                            "last_stat_change=%lld, restart_count=%d, restart_time=%lld, checking=%d.",
+                            g_stat->head.stat_ver, node_id, res_id, res_cur_stat->magic, res_cur_stat->session_id,
+                            res_cur_stat->inst_id, res_cur_stat->res_type, res_cur_stat->cur_stat,
+                            res_cur_stat->pre_stat, res_cur_stat->target_stat, res_cur_stat->work_stat,
+                            res_cur_stat->hb_time, res_cur_stat->last_check, res_cur_stat->last_stat_change,
+                            res_cur_stat->restart_count, res_cur_stat->restart_time, res_cur_stat->checking);
+    }
+
+    errno_t err = memcpy_s(res_stat, sizeof(cms_res_stat_t), res_cur_stat, sizeof(cms_res_stat_t));
     CM_FREE_PTR(res_cur_stat);
     cm_thread_unlock(&g_node_lock[node_id]);
     MEMS_RETURN_IFERR(err);
