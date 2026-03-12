@@ -108,6 +108,8 @@ typedef enum g_date_time_mask {
     MASK_USEC = 0x0000040,
     MASK_TZ_HOUR = 0x0000080,
     MASK_TZ_MINUTE = 0x0000100,
+    MASK_AM_PM = 0x0000200,
+    MASK_DOW = 0x0000400,
 } date_time_mask_t;
 
 static format_item_t g_formats[] = {
@@ -252,7 +254,7 @@ static format_item_t g_formats[] = {
         .id = FMT_AM_INDICATOR,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = OG_FALSE,
+        .reversible = OG_TRUE,
         .dt_used = OG_TRUE,
     },
     {
@@ -260,7 +262,7 @@ static format_item_t g_formats[] = {
         .id = FMT_AM_INDICATOR,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = OG_FALSE,
+        .reversible = OG_TRUE,
         .dt_used = OG_TRUE,
     },
     {
@@ -268,7 +270,7 @@ static format_item_t g_formats[] = {
         .id = FMT_PM_INDICATOR,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = OG_FALSE,
+        .reversible = OG_TRUE,
         .dt_used = OG_TRUE,
     },
     {
@@ -276,7 +278,7 @@ static format_item_t g_formats[] = {
         .id = FMT_PM_INDICATOR,
         .fmask = MASK_NONE,
         .placer = -1,
-        .reversible = OG_FALSE,
+        .reversible = OG_TRUE,
         .dt_used = OG_TRUE,
     },
     {
@@ -1524,35 +1526,80 @@ status_t cm_time2str(time_t time, const char *fmt, char *str, uint32 str_max_siz
     return cm_time2text(time, &fmt_text, &time_text, str_max_size);
 }
 
-static status_t cm_get_month_by_name(text_t *date_text, uint32 *mask, uint8 *mon)
+typedef struct st_month_name_entry {
+    text_t full_name;
+    text_t abbr_name;
+} month_name_entry_t;
+
+static const month_name_entry_t g_month_names_en[] = {
+    { { .str = "JANUARY", .len = 7 }, { .str = "JAN", .len = 3 } },
+    { { .str = "FEBRUARY", .len = 8 }, { .str = "FEB", .len = 3 } },
+    { { .str = "MARCH", .len = 5 }, { .str = "MAR", .len = 3 } },
+    { { .str = "APRIL", .len = 5 }, { .str = "APR", .len = 3 } },
+    { { .str = "MAY", .len = 3 }, { .str = "MAY", .len = 3 } },
+    { { .str = "JUNE", .len = 4 }, { .str = "JUN", .len = 3 } },
+    { { .str = "JULY", .len = 4 }, { .str = "JUL", .len = 3 } },
+    { { .str = "AUGUST", .len = 6 }, { .str = "AUG", .len = 3 } },
+    { { .str = "SEPTEMBER", .len = 9 }, { .str = "SEP", .len = 3 } },
+    { { .str = "OCTOBER", .len = 7 }, { .str = "OCT", .len = 3 } },
+    { { .str = "NOVEMBER", .len = 8 }, { .str = "NOV", .len = 3 } },
+    { { .str = "DECEMBER", .len = 8 }, { .str = "DEC", .len = 3 } }
+};
+
+static const text_t g_nls_american   = { .len = 8, .str = (char *)"AMERICAN" };
+static const text_t g_nls_english    = { .len = 7, .str = (char *)"ENGLISH" };
+static const text_t g_nls_english_us = { .len = 10, .str = (char *)"ENGLISH_US" };
+static const text_t g_nls_america    = { .len = 7, .str = (char *)"AMERICA" };
+
+typedef struct st_date_nls_params {
+    text_t language;
+    text_t territory;
+    bool32 is_set;
+} date_nls_params_t;
+
+static status_t cm_get_month_by_name(text_t *date_text, uint32 *mask, uint8 *mon,
+                                     const date_nls_params_t *nls_params)
 {
     text_t cmp_text;
+    const month_name_entry_t *month_table = g_month_names_en;
+    
     CM_POINTER3(date_text, mask, mon);
 
     if ((*mask & MASK_MONTH) != 0) {
         return OG_ERROR;
     }
 
-    if (date_text->len < 3) {  // min length of name is 3
+    if (date_text->len < DATE_MIN_LEN) {
         return OG_ERROR;
+    }
+
+    if (nls_params != NULL && nls_params->is_set && nls_params->language.len > 0) {
+        if (cm_text_equal_ins(&nls_params->language, &g_nls_american) ||
+            cm_text_equal_ins(&nls_params->language, &g_nls_english) ||
+            cm_text_equal_ins(&nls_params->language, &g_nls_english_us) ||
+            cm_text_equal_ins(&nls_params->language, &g_nls_america)) {
+            month_table = g_month_names_en;
+        } else {
+            return OG_ERROR;
+        }
     }
 
     *mask |= MASK_MONTH;
     cmp_text.str = date_text->str;
 
     for (uint32 i = 0; i < 12; i++) {  // have 12 month
-        if (date_text->len < g_month_names[i].len) {
+        if (date_text->len < month_table[i].full_name.len) {
             continue;
         }
 
-        cmp_text.len = g_month_names[i].len;
-        if (!cm_text_equal_ins(&cmp_text, &g_month_names[i])) {
+        cmp_text.len = month_table[i].full_name.len;
+        if (!cm_text_equal_ins(&cmp_text, &month_table[i].full_name)) {
             continue;
         }
 
         *mon = (uint8)(i + 1);
-        date_text->len -= g_month_names[i].len;
-        date_text->str += g_month_names[i].len;
+        date_text->len -= month_table[i].full_name.len;
+        date_text->str += month_table[i].full_name.len;
 
         return OG_SUCCESS;
     }
@@ -1560,10 +1607,12 @@ static status_t cm_get_month_by_name(text_t *date_text, uint32 *mask, uint8 *mon
     return OG_ERROR;
 }
 
-static status_t cm_get_month_by_abbr_name(text_t *date_text, uint32 *mask, uint8 *mon)
+static status_t cm_get_month_by_abbr_name(text_t *date_text, uint32 *mask, uint8 *mon,
+                                          const date_nls_params_t *nls_params)
 {
     text_t cmp_text;
     text_t mon_text;
+    const month_name_entry_t *month_table = g_month_names_en;
 
     CM_POINTER3(date_text, mask, mon);
 
@@ -1577,12 +1626,23 @@ static status_t cm_get_month_by_abbr_name(text_t *date_text, uint32 *mask, uint8
         return OG_ERROR;
     }
 
+    if (nls_params != NULL && nls_params->is_set && nls_params->language.len > 0) {
+        if (cm_text_equal_ins(&nls_params->language, &g_nls_american) ||
+            cm_text_equal_ins(&nls_params->language, &g_nls_english) ||
+            cm_text_equal_ins(&nls_params->language, &g_nls_english_us) ||
+            cm_text_equal_ins(&nls_params->language, &g_nls_america)) {
+            month_table = g_month_names_en;
+        } else {
+            return OG_ERROR;
+        }
+    }
+
     cmp_text.str = date_text->str;
     cmp_text.len = 3;  // just get abbr name
     mon_text.len = 3;
 
     for (uint32 i = 0; i < 12; i++) {
-        mon_text.str = g_month_names[i].str;
+        mon_text.str = month_table[i].abbr_name.str;
         if (!cm_text_equal_ins(&cmp_text, &mon_text)) {
             continue;
         }
@@ -1632,6 +1692,165 @@ static status_t cm_get_month_by_roman_name(text_t *date_text, uint32 *mask, uint
     }
 
     return OG_ERROR;
+}
+
+typedef struct st_day_name_entry {
+    text_t full_name;
+    text_t abbr_name;
+} day_name_entry_t;
+
+static const day_name_entry_t g_day_names_en[] = {
+    { { .str = "SUNDAY", .len = 6 }, { .str = "SUN", .len = 3 } },
+    { { .str = "MONDAY", .len = 6 }, { .str = "MON", .len = 3 } },
+    { { .str = "TUESDAY", .len = 7 }, { .str = "TUE", .len = 3 } },
+    { { .str = "WEDNESDAY", .len = 9 }, { .str = "WED", .len = 3 } },
+    { { .str = "THURSDAY", .len = 8 }, { .str = "THU", .len = 3 } },
+    { { .str = "FRIDAY", .len = 6 }, { .str = "FRI", .len = 3 } },
+    { { .str = "SATURDAY", .len = 8 }, { .str = "SAT", .len = 3 } }
+};
+
+static status_t cm_get_day_by_name(text_t *date_text, uint32 *mask, uint8 *day,
+                                   const date_nls_params_t *nls_params)
+{
+    text_t cmp_text;
+    const day_name_entry_t *day_table = g_day_names_en;
+    CM_POINTER3(date_text, mask, day);
+
+    if ((*mask & MASK_DOW) != 0) {
+        return OG_ERROR;
+    }
+
+    if (date_text->len < 3) {  // min length of name is 3
+        return OG_ERROR;
+    }
+
+    if (nls_params != NULL && nls_params->is_set && nls_params->language.len > 0) {
+        if (cm_text_equal_ins(&nls_params->language, &g_nls_american) ||
+            cm_text_equal_ins(&nls_params->language, &g_nls_english) ||
+            cm_text_equal_ins(&nls_params->language, &g_nls_english_us) ||
+            cm_text_equal_ins(&nls_params->language, &g_nls_america)) {
+            day_table = g_day_names_en;
+        } else {
+            return OG_ERROR;
+        }
+    }
+
+    *mask |= MASK_DOW;
+    cmp_text.str = date_text->str;
+
+    for (uint32 i = 0; i < 7; i++) {  // have 7 days
+        if (date_text->len < day_table[i].full_name.len) {
+            continue;
+        }
+
+        cmp_text.len = day_table[i].full_name.len;
+        if (!cm_text_equal_ins(&cmp_text, &day_table[i].full_name)) {
+            continue;
+        }
+
+        *day = (uint8)i;  // 0=Sunday, 1=Monday, ...
+        date_text->len -= day_table[i].full_name.len;
+        date_text->str += day_table[i].full_name.len;
+
+        return OG_SUCCESS;
+    }
+
+    return OG_ERROR;
+}
+
+static status_t cm_get_day_by_abbr_name(text_t *date_text, uint32 *mask, uint8 *day,
+                                        const date_nls_params_t *nls_params)
+{
+    text_t cmp_text;
+    text_t day_text;
+    const day_name_entry_t *day_table = g_day_names_en;
+
+    CM_POINTER3(date_text, mask, day);
+
+    if ((*mask & MASK_DOW) != 0) {
+        return OG_ERROR;
+    }
+
+    *mask |= MASK_DOW;
+
+    if (date_text->len < 3) {  // min length of name is 3
+        return OG_ERROR;
+    }
+
+    if (nls_params != NULL && nls_params->is_set && nls_params->language.len > 0) {
+        if (cm_text_equal_ins(&nls_params->language, &g_nls_american) ||
+            cm_text_equal_ins(&nls_params->language, &g_nls_english) ||
+            cm_text_equal_ins(&nls_params->language, &g_nls_english_us) ||
+            cm_text_equal_ins(&nls_params->language, &g_nls_america)) {
+            day_table = g_day_names_en;
+        } else {
+            return OG_ERROR;
+        }
+    }
+
+    cmp_text.str = date_text->str;
+    cmp_text.len = TEXT_LEN;  // just get abbr name
+    day_text.len = TEXT_LEN;
+
+    for (uint32 i = 0; i < DAYS_PER_WEEK; i++) {
+        day_text.str = day_table[i].abbr_name.str;
+        if (!cm_text_equal_ins(&cmp_text, &day_text)) {
+            continue;
+        }
+
+        *day = (uint8)i;  // 0=Sunday, 1=Monday, ...
+
+        date_text->len -= TEXT_LEN;  // just get abbr name
+        date_text->str += TEXT_LEN;
+        return OG_SUCCESS;
+    }
+    return OG_ERROR;
+}
+
+static inline void cm_init_nls_params(date_nls_params_t *params)
+{
+    params->language.str = NULL;
+    params->language.len = 0;
+    params->territory.str = NULL;
+    params->territory.len = 0;
+    params->is_set = OG_FALSE;
+}
+
+
+static const text_t g_nls_language   = { .len = 17, .str = (char *)"NLS_DATE_LANGUAGE" };
+static const text_t g_nls_territory   = { .len = 13, .str = (char *)"NLS_TERRITORY" };
+
+static status_t cm_parse_nls_params(const text_t *nls_text, date_nls_params_t *params)
+{
+    text_t remaining;
+    text_t key;
+    text_t value;
+    
+    remaining = *nls_text;
+    cm_trim_text(&remaining);
+    
+    while (remaining.len > 0) {
+        if (cm_text_split_on_char(&remaining, '=', &key, &value) != OG_SUCCESS) {
+            return OG_ERROR;
+        }
+        
+        if (cm_text_equal_ins(&key, &g_nls_language)) {
+            params->language = value;
+            params->is_set = 1;
+        } else if (cm_text_equal_ins(&key, &g_nls_territory)) {
+            params->territory = value;
+            params->is_set = 1;
+        } else {
+            return OG_ERROR;
+        }
+        cm_text_skip_spaces(&remaining);
+        if (remaining.len > 0 && remaining.str[0] == ',') {
+            cm_text_remove_head(&remaining, 1);
+        }
+        cm_text_skip_spaces(&remaining);
+    }
+    
+    return OG_SUCCESS;
 }
 
 static status_t cm_check_number(text_t *num_text,
@@ -1839,7 +2058,8 @@ static inline status_t cm_get_date_item(text_t *date_text,
                                         const format_item_t *fmt_item,
                                         text_t *fmt_extra,
                                         date_detail_t *date,
-                                        uint32 *mask)
+                                        uint32 *mask,
+                                        const date_nls_params_t *nls_params)
 {
     text_t part_text;
     int64 num_value = 0;
@@ -1890,13 +2110,52 @@ static inline status_t cm_get_date_item(text_t *date_text,
             break;
 
         case FMT_MONTH_NAME:
-            return cm_get_month_by_name(date_text, mask, &date->mon);
+            return cm_get_month_by_name(date_text, mask, &date->mon, nls_params);
 
         case FMT_MONTH_RM:
             return cm_get_month_by_roman_name(date_text, mask, &date->mon);
 
         case FMT_MONTH_ABBR_NAME:
-            return cm_get_month_by_abbr_name(date_text, mask, &date->mon);
+            return cm_get_month_by_abbr_name(date_text, mask, &date->mon, nls_params);
+
+        case FMT_DAY_NAME:
+            return cm_get_day_by_name(date_text, mask, &date->day, nls_params);
+
+        case FMT_DAY_ABBR_NAME:
+            return cm_get_day_by_abbr_name(date_text, mask, &date->day, nls_params);
+
+        case FMT_AM:
+        case FMT_PM:
+        case FMT_A_M:
+        case FMT_P_M:
+        case FMT_AM_INDICATOR:
+        case FMT_PM_INDICATOR: {
+            if (date_text->len < fmt_item->name.len) {
+                return OG_ERROR;
+            }
+            text_t input_part = { .str = date_text->str, .len = fmt_item->name.len };
+
+            if (!cm_text_equal_ins(&input_part, &fmt_item->name)) {
+                return OG_ERROR;
+            }
+
+            bool32 is_pm = (fmt_item->id == FMT_PM ||
+                            fmt_item->id == FMT_P_M ||
+                            fmt_item->id == FMT_PM_DOT ||
+                            fmt_item->id == FMT_PM_INDICATOR);
+            
+            if ((*mask & MASK_HOUR) != 0) {
+                if (date->hour == HOUR_12) {
+                    date->hour = is_pm ? HOUR_12 : HOUR_0; // 12AM→0, 12PM→12
+                } else if (is_pm) {
+                    date->hour += HOUR_12; // 1-11PM→13-23
+                }
+            }
+
+            *mask |= MASK_AM_PM;
+            CM_REMOVE_FIRST_N(date_text, fmt_item->name.len);
+            break;
+        }
 
         case FMT_DAY_OF_MONTH:
             cm_check_special_char(date_text);
@@ -1905,8 +2164,8 @@ static inline status_t cm_get_date_item(text_t *date_text,
                 cm_set_error_pos(__FILE__, __LINE__);
                 return status;
             }
-            // part_len is 2, start is 1, end is 31 support all 0 time
-            status = cm_get_number_and_check("DAY", 2, 1, 31, date_text, &num_value);
+            status = cm_get_number_and_check("DAY", DAY_FIELD_INDEX, DAY_MIN_VALUE,
+                                             DAY_MAX_VALUE, date_text, &num_value);
             if (SECUREC_UNLIKELY(status != OG_SUCCESS)) {
                 cm_set_error_pos(__FILE__, __LINE__);
                 return status;
@@ -2075,7 +2334,9 @@ static inline status_t cm_get_date_item(text_t *date_text,
     return OG_SUCCESS;
 }
 
-static status_t cm_text2date_detail(const text_t *text, const text_t *fmt, date_detail_t *datetime, uint32 datetype)
+static status_t cm_text2date_detail(const text_t *text, const text_t *fmt,
+                                    const date_nls_params_t *nls_params,
+                                    date_detail_t *datetime, uint32 datetype)
 {
     format_item_t *fmt_item = NULL;
     uint32 mask;
@@ -2107,7 +2368,7 @@ static status_t cm_text2date_detail(const text_t *text, const text_t *fmt, date_
             break;
         }
 
-        if (cm_get_date_item(&date_text, fmt_item, &fmt_extra, datetime, &mask) != OG_SUCCESS) {
+        if (cm_get_date_item(&date_text, fmt_item, &fmt_extra, datetime, &mask, nls_params) != OG_SUCCESS) {
             return OG_ERROR;
         }
     }
@@ -2169,7 +2430,7 @@ status_t cm_text2timestamp_tz(const text_t *text, const text_t *fmt, timezone_in
 
     cm_text2date_init(&detail);
     detail.tz_offset = default_tz;
-    if (cm_text2date_detail(text, &fmt_text, &detail, OG_TYPE_TIMESTAMP_TZ) != OG_SUCCESS) {
+    if (cm_text2date_detail(text, &fmt_text, NULL, &detail, OG_TYPE_TIMESTAMP_TZ) != OG_SUCCESS) {
         OG_SET_DATETIME_FMT_ERROR;
         return OG_ERROR;
     }
@@ -2202,7 +2463,7 @@ status_t cm_text2date(const text_t *text, const text_t *fmt, date_t *date)
     }
 
     cm_text2date_init(&detail);
-    if (cm_text2date_detail(text, &fmt_text, &detail, OG_TYPE_DATE) != OG_SUCCESS) {
+    if (cm_text2date_detail(text, &fmt_text, NULL, &detail, OG_TYPE_DATE) != OG_SUCCESS) {
         OG_SET_DATETIME_FMT_ERROR;
         return OG_ERROR;
     }
@@ -2278,10 +2539,12 @@ status_t cm_text2date_fixed(const text_t *text, const text_t *fmt, date_t *date,
                             timezone_info_t *tz_offset, bool32 is_date_fmt)
 {
     date_detail_t detail;
+
     CM_POINTER2(text, fmt);
 
     cm_text2date_fixed_init(&detail);
-    if (cm_text2date_detail(text, fmt, &detail, OG_TYPE_DATE) != OG_SUCCESS) {
+    
+    if (cm_text2date_detail(text, fmt, NULL, &detail, OG_TYPE_DATE) != OG_SUCCESS) {
         OG_SET_DATETIME_FMT_ERROR;
         return OG_ERROR;
     }
@@ -2295,6 +2558,51 @@ status_t cm_text2date_fixed(const text_t *text, const text_t *fmt, date_t *date,
     *date = cm_encode_date(&detail);
     // For DATE_FMT, truncate microsecond-precision timestamp to the second.
     if (is_date_fmt) {
+        *date = cm_adjust_date(*date);
+    }
+
+    // check again
+    if (!CM_IS_VALID_TIMESTAMP(*date)) {
+        OG_THROW_ERROR(ERR_TYPE_OVERFLOW, "DATETIME");
+        return OG_ERROR;
+    }
+
+    *tz_offset = detail.tz_offset;
+    return OG_SUCCESS;
+}
+
+status_t cm_text2date_fixed_nls(const date_parse_params_t *params, date_t *date,
+                            timezone_info_t *tz_offset)
+{
+    date_detail_t detail;
+    CM_POINTER2(params, date);
+    date_nls_params_t nls_params;
+    bool32 has_nls = (params->nls != NULL && params->nls->len > 0);
+
+    if (has_nls) {
+        cm_init_nls_params(&nls_params);
+        if (cm_parse_nls_params(params->nls, &nls_params) != OG_SUCCESS) {
+            OG_THROW_ERROR(ERR_INVALID_PARAMETER, "invalid NLS parameter format");
+            return OG_ERROR;
+        }
+    }
+
+    cm_text2date_fixed_init(&detail);
+    if (cm_text2date_detail(params->text, params->fmt, has_nls ? &nls_params : NULL,
+                            &detail, OG_TYPE_DATE) != OG_SUCCESS) {
+        OG_SET_DATETIME_FMT_ERROR;
+        return OG_ERROR;
+    }
+
+    if (!cm_check_valid_zero_time(&detail)) {
+        return OG_ERROR;
+    }
+
+    OG_RETURN_IFERR(cm_is_time_valid(&detail));
+
+    *date = cm_encode_date(&detail);
+    // For DATE_FMT, truncate microsecond-precision timestamp to the second.
+    if (params->is_date_fmt) {
         *date = cm_adjust_date(*date);
     }
 
@@ -2465,17 +2773,17 @@ static status_t cm_numtext2date(const text_t *text, date_t *date)
         // yyyymmdd
         date_fmt.str = (char *)"YYYYMMDD";
         date_fmt.len = 8;
-        ret = cm_text2date_detail(text, &date_fmt, &detail, OG_TYPE_DATE);
+        ret = cm_text2date_detail(text, &date_fmt, NULL, &detail, OG_TYPE_DATE);
     } else if (text->len == 14) {
         // yyyymmddhh24miss
         date_fmt.str = (char *)"YYYYMMDDHH24MISS";
         date_fmt.len = 16;
-        ret = cm_text2date_detail(text, &date_fmt, &detail, OG_TYPE_DATE);
+        ret = cm_text2date_detail(text, &date_fmt, NULL, &detail, OG_TYPE_DATE);
     } else if (text->len > 14 && cm_char_in_text('.', text)) {
         // yyyymmddhh24miss
         date_fmt.str = (char *)"YYYYMMDDHH24MISS.FF";
         date_fmt.len = 19;
-        ret = cm_text2date_detail(text, &date_fmt, &detail, OG_TYPE_DATE);
+        ret = cm_text2date_detail(text, &date_fmt, NULL, &detail, OG_TYPE_DATE);
     } else {
         ret = OG_ERROR;
     }

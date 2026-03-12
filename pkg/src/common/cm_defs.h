@@ -1473,6 +1473,9 @@ static inline void cm_try_delete_end_slash(char *str)
 #define DTC_DRC_LOG_INF_LEVEL 0x00400000  // 4194304
 #define DTC_DRC_LOG_ERR_LEVEL 0x00800000  // 8388608
 
+#define DATE_FUNC_MIN_ARGS 1
+#define DATE_FUNC_MAX_ARGS 3
+
 #define MAX_LOG_LEVEL                                                                                                  \
     ((LOG_RUN_ERR_LEVEL) | (LOG_RUN_WAR_LEVEL) | (LOG_RUN_INF_LEVEL) | (LOG_DEBUG_ERR_LEVEL) | (LOG_DEBUG_WAR_LEVEL) | \
      (LOG_DEBUG_INF_LEVEL) | (LOG_SLOWSQL_LEVEL) | (LOG_OPER_LEVEL) | (DTC_DCS_LOG_INF_LEVEL) |                        \

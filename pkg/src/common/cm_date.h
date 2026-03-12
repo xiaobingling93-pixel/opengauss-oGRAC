@@ -164,6 +164,14 @@ typedef int64 date_t;
 #define CM_4_POWER_OF_10 10000
 #define CM_2_POWER_OF_10 100
 
+#define TEXT_LEN 3
+#define DATE_MIN_LEN 3
+#define HOUR_0 0
+#define HOUR_12 12
+#define DAY_FIELD_INDEX 2
+#define DAY_MIN_VALUE 1
+#define DAY_MAX_VALUE 31
+
 #define CM_IS_DATETIME_ADDTION_OVERFLOW(dt, val, res) \
     (!((val) >= 0 && (res) <= CM_MAX_DATETIME && (res) >= (dt)) &&  \
      !((val) < 0 && ((res) >= CM_MIN_DATETIME || (res) == CM_ALL_ZERO_DATETIME) && (res) <= (dt)))
@@ -224,16 +232,17 @@ typedef struct st_date_detail {
     int32 hour;
     uint8 min;
     uint8 sec;
-    uint8 reserved;            /* reserved 8 bytes for byte alignment */
     uint16 millisec;           /* millisecond: 0~999, 1000 millisec = 1 sec */
     uint16 microsec;           /* microsecond: 0~999, 1000 microsec = 1 millisec */
     uint16 nanosec;            /* nanosecond:  0~999, 1000 nanoseconds = 1 millisec */
     timezone_info_t tz_offset; /* time zone */
     bool8 neg;                 /* positive or negative */
+    bool8 is_pm;
 } date_detail_t;
 #pragma pack()
 
 typedef date_t timestamp_t;
+
 
 #pragma pack(4)
 typedef struct st_timestamp_tz {
@@ -278,6 +287,12 @@ typedef enum en_format_id {
     FMT_SEMI_COLON = 108,
     FMT_COLON = 109,
     FMT_X = 110,
+    FMT_AM = 111,
+    FMT_PM = 112,
+    FMT_A_M = 113,
+    FMT_P_M = 114,
+    FMT_AM_DOT = 115,
+    FMT_PM_DOT = 116,
     FMT_CENTURY = 201,
     FMT_DAY_OF_WEEK = 202,
     FMT_DAY_NAME = 203,
@@ -326,6 +341,13 @@ typedef struct en_format_item {
     bool8 reversible;
     bool8 dt_used; /* can the item be used in DATE_FORMAT */
 } format_item_t;
+
+typedef struct st_date_parse_params {
+    const text_t *text;          // 输入日期字符串
+    const text_t *fmt;           // 格式字符串
+    const text_t *nls;           // NLS 参数（可选）
+    bool32 is_date_fmt;          // 是否为 DATE 格式
+} date_parse_params_t;
 
 #define MILL_SECOND1       (date_t)((double)1 / (double)86400000.0)
 #define IS_LEAP_YEAR(year) (((year) % 4 == 0) && (((year) % 100 != 0) || ((year) % 400 == 0)) ? 1 : 0)
@@ -436,6 +458,8 @@ status_t cm_check_tstz_is_valid(timestamp_tz_t *tstz);
 status_t cm_text2timestamp_tz(const text_t *text, const text_t *fmt, timezone_info_t default_tz, timestamp_tz_t *tstz);
 status_t cm_text2date_fixed(const text_t *text, const text_t *fmt, date_t *date,
                             timezone_info_t *tz_offset, bool32 is_date_fmt);
+status_t cm_text2date_fixed_nls(const date_parse_params_t *params, date_t *date,
+                            timezone_info_t *tz_offset);
 status_t cm_fetch_date_field(text_t *text, uint32 minval, uint32 maxval, char spilt_char, uint32 *field_val);
 status_t cm_text2date_def(const text_t *text, date_t *date);
 status_t cm_text2timestamp_def(const text_t *text, date_t *date);

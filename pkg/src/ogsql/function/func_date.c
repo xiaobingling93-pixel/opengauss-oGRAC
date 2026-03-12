@@ -984,7 +984,7 @@ status_t sql_verify_to_date(sql_verifier_t *verf, expr_node_t *func)
 {
     CM_POINTER2(verf, func);
 
-    if (sql_verify_func_node(verf, func, 1, 2, OG_INVALID_ID32) != OG_SUCCESS) {
+    if (sql_verify_func_node(verf, func, DATE_FUNC_MIN_ARGS, DATE_FUNC_MAX_ARGS, OG_INVALID_ID32) != OG_SUCCESS) {
         return OG_ERROR;
     }
 
@@ -1013,28 +1013,73 @@ static status_t sql_text2timestamp(sql_stmt_t *stmt, text_t *text, variant_t *re
     result->type = OG_TYPE_DATE;
     timezone_info_t tz_offset = 0;
     text_t fmt;
-    sql_session_nlsparam_geter(stmt, NLS_TIMESTAMP_TZ_FORMAT, &fmt);
 
+    sql_session_nlsparam_geter(stmt, NLS_TIMESTAMP_TZ_FORMAT, &fmt);
     if (cm_text2date_fixed(text, &fmt, &result->v_date, &tz_offset, is_to_date) == OG_SUCCESS) {
         result->v_tstamp_tz.tz_offset = tz_offset;
         return OG_SUCCESS;
     }
+
     cm_reset_error();
     sql_session_nlsparam_geter(stmt, NLS_TIMESTAMP_TZ_FORMAT2, &fmt);
     if (cm_text2date_fixed(text, &fmt, &result->v_date, &tz_offset, is_to_date) == OG_SUCCESS) {
         result->v_tstamp_tz.tz_offset = tz_offset;
         return OG_SUCCESS;
     }
+
     return OG_ERROR;
+}
+
+typedef struct {
+    const text_t *text;
+    const text_t *fmt;
+    text_t *nls;
+    expr_tree_t *arg1;
+    expr_tree_t *arg3;
+} sql_date_func_args_t;
+
+static status_t sql_execute_date_parsing(sql_stmt_t *stmt, const sql_date_func_args_t *args,
+                                         bool32 is_to_date, variant_t *result)
+{
+    result->is_null = OG_FALSE;
+    result->type = OG_TYPE_DATE;
+    timezone_info_t tz_offset = 0;
+
+    text_t *nls_text = args->nls;
+    if (args->arg3 != NULL) {
+        variant_t nls_var;
+        SQL_EXEC_FUNC_ARG_EX(args->arg3, &nls_var, result);
+        if (!OG_IS_STRING_TYPE(nls_var.type)) {
+            OG_SRC_THROW_ERROR(args->arg3->loc, ERR_INVALID_FUNC_PARAMS,
+                               "string argument expected for NLS_PARAM");
+            return OG_ERROR;
+        }
+        nls_text = &nls_var.v_text;
+    }
+
+    date_parse_params_t params = {
+        .text = args->text,
+        .fmt = args->fmt,
+        .nls = nls_text,
+        .is_date_fmt = is_to_date
+    };
+
+    if (cm_text2date_fixed_nls(&params, &result->v_date, &tz_offset) != OG_SUCCESS) {
+        cm_set_error_loc(args->arg1->loc);
+        return OG_ERROR;
+    }
+    result->v_tstamp_tz.tz_offset = tz_offset;
+    return OG_SUCCESS;
 }
 
 static status_t sql_func_to_date_core(sql_stmt_t *stmt, expr_node_t *func, variant_t *result, bool32 is_to_date)
 {
     variant_t var1;
     variant_t fmt_var;
+
     CM_POINTER3(stmt, func, result);
 
-    expr_tree_t *arg1 = func->argument; // argument string value
+    expr_tree_t *arg1 = func->argument;  // argument string value
     CM_POINTER(arg1);
     SQL_EXEC_FUNC_ARG_EX(arg1, &var1, result);
 
@@ -1057,7 +1102,7 @@ static status_t sql_func_to_date_core(sql_stmt_t *stmt, expr_node_t *func, varia
         }
     }
 
-    expr_tree_t *arg2 = arg1->next; // argument format_string
+    expr_tree_t *arg2 = arg1->next;  // argument format_string
     if (arg2 != NULL) {
         sql_keep_stack_variant(stmt, &var1);
         SQL_EXEC_FUNC_ARG_EX(arg2, &fmt_var, result);
@@ -1070,19 +1115,13 @@ static status_t sql_func_to_date_core(sql_stmt_t *stmt, expr_node_t *func, varia
         cm_set_error_loc(arg1->loc);
         return OG_ERROR;
     } else {
-        sql_session_nlsparam_geter(stmt, NLS_DATE_FORMAT, &fmt_var.v_text);
+        sql_session_nlsparam_geter(stmt, is_to_date ? NLS_DATE_FORMAT : NLS_TIMESTAMP_FORMAT, &fmt_var.v_text);
     }
 
-    result->is_null = OG_FALSE;
-    result->type = OG_TYPE_DATE;
-    timezone_info_t tz_offset = 0;
-    if (cm_text2date_fixed(&var1.v_text, &fmt_var.v_text, &result->v_date, &tz_offset, is_to_date) != OG_SUCCESS) {
-        cm_set_error_loc(arg1->loc);
-        return OG_ERROR;
-    }
-    result->v_tstamp_tz.tz_offset = tz_offset;
+    expr_tree_t *arg3 = (arg2 != NULL) ? arg2->next : NULL;
+    sql_date_func_args_t args = {.text = &var1.v_text, .fmt = &fmt_var.v_text, .nls = NULL, .arg1 = arg1, .arg3 = arg3};
 
-    return OG_SUCCESS;
+    return sql_execute_date_parsing(stmt, &args, is_to_date, result);
 }
 
 status_t sql_func_to_date(sql_stmt_t *stmt, expr_node_t *func, variant_t *result)

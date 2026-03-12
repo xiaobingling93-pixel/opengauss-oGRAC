@@ -1089,3 +1089,17 @@ insert into temp_0730 values(-1);
 drop table temp_0730;
 alter database set time_zone='+08:00';
 alter database set time_zone='+00:00';
+
+SELECT TO_DATE('January 15, 1989, 11:00 AM', 'Month dd, YYYY, HH:MI AM', 'NLS_DATE_LANGUAGE = American');
+SELECT TO_DATE('January 15, 1989, 11:00 PM', 'Month dd, YYYY, HH:MI PM', 'NLS_DATE_LANGUAGE = American');
+SELECT TO_DATE('january 15, 1989, 11:00 am', 'Month dd, YYYY, HH:MI AM', 'NLS_DATE_LANGUAGE = American');
+SELECT TO_DATE('January 15, 1989, 11:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = American');
+SELECT TO_DATE('January 15, 1989, 11:00 P.M.', 'Month dd, YYYY, HH:MI P.M.', 'NLS_DATE_LANGUAGE = American');
+SELECT TO_DATE('january 15, 1989, 11:00 a.m.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = American');
+SELECT TO_DATE('January 15, 1989, 12:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = American');
+SELECT TO_DATE('January 15, 1989, 12:00 P.M.', 'Month dd, YYYY, HH:MI P.M.', 'NLS_DATE_LANGUAGE = American');
+SELECT TO_DATE('January 15, 1989, 01:00 A.M.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = American');
+SELECT TO_DATE('January 15, 1989, 11:59 P.M.', 'Month dd, YYYY, HH:MI P.M.', 'NLS_DATE_LANGUAGE = American');
+SELECT TO_DATE('january 15, 1989, 11:00 a.m.', 'Month dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = chinese');
+SELECT TO_DATE('jun 15, 1989, 11:00 a.m.', 'mon dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = American');
+SELECT TO_DATE('aaa 15, 1989, 11:00 a.m.', 'mon dd, YYYY, HH:MI A.M.', 'NLS_DATE_LANGUAGE = American');
