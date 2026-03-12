@@ -67,7 +67,7 @@ static status_t cm_exec_dss_cmd(const char* arg, uint32 node_id)
     }
 
     if (strstr(cmd_out, "RES_SUCCESS") != NULL) {
-        OG_LOG_RUN_ERR("DSS script exec succeed, cmd=%s", cmd);
+        OG_LOG_RUN_INF("DSS script exec succeed, cmd=%s", cmd);
         return OG_SUCCESS;
     }
 
