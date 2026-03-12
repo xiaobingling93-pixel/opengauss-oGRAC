@@ -5596,7 +5596,7 @@ opt_array_bounds:
                         parser_yyerror("create array bounds list failed.");
                     }
                     int *ival = NULL;
-                    if (sql_alloc_mem(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(int), (void **)&ival) != OG_SUCCESS) {
+                    if (sql_alloc_mem(og_yyget_extra(yyscanner)->core_yy_extra.stmt->context, sizeof(int), (void **)&ival) != OG_SUCCESS) {
                         parser_yyerror("alloc mem failed");
                     }
                     *ival = -1;
@@ -5612,7 +5612,7 @@ opt_array_bounds:
                         parser_yyerror("create array bounds list failed.");
                     }
                     int *ival = NULL;
-                    if (sql_alloc_mem(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(int), (void **)&ival) != OG_SUCCESS) {
+                    if (sql_alloc_mem(og_yyget_extra(yyscanner)->core_yy_extra.stmt->context, sizeof(int), (void **)&ival) != OG_SUCCESS) {
                         parser_yyerror("alloc mem failed");
                     }
                     *ival = $2;

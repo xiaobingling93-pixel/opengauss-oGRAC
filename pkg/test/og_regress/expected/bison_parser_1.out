@@ -4463,6 +4463,28 @@ SQL> drop table sales;
 
 Succeed.
 
+SQL> create table test_array1(id int, idd int[]);
+
+Succeed.
+
+SQL> create table test_array2(id int, idd int[5]);
+
+Succeed.
+
+SQL> create table test_array3(c1 clob[]); --error
+
+OG-01365, [1:36]Datatype CLOB does not support array type
+SQL> create table test_array4(c1 clob[5]); --error
+
+OG-01365, [1:37]Datatype CLOB does not support array type
+SQL> drop table test_array1;
+
+Succeed.
+
+SQL> drop table test_array2;
+
+Succeed.
+
 SQL> alter system set use_bison_parser = false;
 
 Succeed.
