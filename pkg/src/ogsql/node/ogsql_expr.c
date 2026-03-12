@@ -1519,6 +1519,10 @@ status_t sql_get_param_value(sql_stmt_t *stmt, uint32 id, variant_t *result)
     }
 
     if (stmt->plsql_mode == PLSQL_NONE) {
+        if (stmt->param_info.params == NULL) {
+            result->is_null = OG_TRUE;
+            return OG_SUCCESS;
+        }
         var_copy(&stmt->param_info.params[id].value, result);
         return OG_SUCCESS;
     } else {
