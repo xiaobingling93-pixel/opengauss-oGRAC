@@ -1254,10 +1254,10 @@ SQL> SELECT * FROM T_CHAR_1 WHERE F_CHAR < 'ABCDEFGH ';
 
 F_CHAR   F_VARCHAR
 -------- ---------
- A B     A B      
- A B     A B      
 AB       AB       
 AB       AB       
+ A B     A B      
+ A B     A B      
 
 4 rows fetched.
 
@@ -1463,10 +1463,10 @@ SQL> SELECT * FROM T_CHAR_1 WHERE F_VARCHAR < 'ABCDEFGH ';
 
 F_CHAR   F_VARCHAR
 -------- ---------
- A B     A B      
- A B     A B      
 AB       AB       
 AB       AB       
+ A B     A B      
+ A B     A B      
 ABCDEFGH ABCDEFGH 
 
 5 rows fetched.
@@ -2147,7 +2147,11 @@ C_BOOL
 
 SQL> SELECT C_BOOL FROM RQG_ALL_TYPE_TABLE_GSQL WHERE C_BOOL = -1.001 order by ID;
 
-OG-00606, [1:59]Inconsistent datatypes, expected BOOLEAN - got NUMBER
+C_BOOL
+------
+
+0 rows fetched.
+
 SQL> SELECT C_BOOL FROM RQG_ALL_TYPE_TABLE_GSQL WHERE C_BOOL = 100.3232323232::decimal::double::int order by ID;
 
 C_BOOL
@@ -2198,7 +2202,8 @@ SQL>
 SQL> -- boolean and integer 
 SQL> insert into RQG_BOOL_TYPE_GSQL values(3, 2, 1.00);
 
-OG-00606, [1:45]Inconsistent datatypes, expected BOOLEAN - got NUMBER
+1 rows affected.
+
 SQL> insert into RQG_BOOL_TYPE_GSQL values(3, 2, 100);
 
 1 rows affected.
@@ -2221,17 +2226,20 @@ SQL> insert into RQG_BOOL_TYPE_GSQL values(7, 2, 0.0);
 
 SQL> insert into RQG_BOOL_TYPE_GSQL values(8, 2, 0.1);
 
-OG-00606, [1:45]Inconsistent datatypes, expected BOOLEAN - got NUMBER
+1 rows affected.
+
 SQL> insert into RQG_BOOL_TYPE_GSQL values(9, 2, 0.0E100);
 
 1 rows affected.
 
 SQL> insert into RQG_BOOL_TYPE_GSQL values(10, 2, 1.0012311E2::double);
 
-OG-00606, [1:57]Inconsistent datatypes, expected BOOLEAN - got BINARY_DOUBLE
+1 rows affected.
+
 SQL> insert into RQG_BOOL_TYPE_GSQL values(10, 2, 1.0012311E2::decimal);
 
-OG-00606, [1:57]Inconsistent datatypes, expected BOOLEAN - got NUMBER
+1 rows affected.
+
 SQL> insert into RQG_BOOL_TYPE_GSQL values(11, 2, 1.0012311E2::double::int);
 
 1 rows affected.
@@ -2241,45 +2249,72 @@ SQL> select * from RQG_BOOL_TYPE_GSQL where C_INTEGER = 2 order by id;
 ID                   C_INTEGER    C_BOOL
 -------------------- ------------ ------
 3                    2            TRUE  
+3                    2            TRUE  
 4                    2            TRUE  
 5                    2            FALSE 
 6                    2            FALSE 
 7                    2            FALSE 
+8                    2            TRUE  
 9                    2            FALSE 
+10                   2            TRUE  
+10                   2            TRUE  
 11                   2            TRUE  
 
-7 rows fetched.
+11 rows fetched.
 
 SQL> select id, cast(c_bool as integer), 1 - cast(c_bool as bigint) from RQG_BOOL_TYPE_GSQL where C_INTEGER = 2 order by id;
 
 ID                   CAST(C_BOOL AS INTEGER) 1 - CAST(C_BOOL AS BIGINT)
 -------------------- ----------------------- --------------------------
 3                    1                       0                         
+3                    1                       0                         
 4                    1                       0                         
 5                    0                       1                         
 6                    0                       1                         
 7                    0                       1                         
+8                    1                       0                         
 9                    0                       1                         
+10                   1                       0                         
+10                   1                       0                         
 11                   1                       0                         
 
-7 rows fetched.
+11 rows fetched.
 
 SQL> select id, cast(c_bool as double) from RQG_BOOL_TYPE_GSQL where C_INTEGER = 2 order by id;
 
-OG-00606, [1:17]Inconsistent datatypes, expected BINARY_DOUBLE - got BOOLEAN
+ID                   CAST(C_BOOL AS DOUBLE)
+-------------------- ----------------------
+3                    1                     
+3                    1                     
+4                    1                     
+5                    0                     
+6                    0                     
+7                    0                     
+8                    1                     
+9                    0                     
+10                   1                     
+10                   1                     
+11                   1                     
+
+11 rows fetched.
+
 SQL> select id, c_bool::int::double/2 from RQG_BOOL_TYPE_GSQL where C_INTEGER = 2 order by id;
 
 ID                   C_BOOL::INT::DOUBLE/2
 -------------------- ---------------------
 3                    0.5                  
+3                    0.5                  
 4                    0.5                  
 5                    0                    
 6                    0                    
 7                    0                    
+8                    0.5                  
 9                    0                    
+10                   0.5                  
+10                   0.5                  
 11                   0.5                  
 
-7 rows fetched.
+11 rows fetched.
 
 SQL> 
 SQL> -- reserved words
@@ -2441,11 +2476,15 @@ ID                   C_INTEGER    C_BOOL
 1                    1                  
 2                                 TRUE  
 3                    2            TRUE  
+3                    2            TRUE  
 4                    2            TRUE  
 5                    2            FALSE 
 6                    2            FALSE 
 7                    2            FALSE 
+8                    2            TRUE  
 9                    2            FALSE 
+10                   2            TRUE  
+10                   2            TRUE  
 11                   2            TRUE  
 12                   3            TRUE  
 13                   3            TRUE  
@@ -2459,7 +2498,7 @@ ID                   C_INTEGER    C_BOOL
 25                   4            TRUE  
 26                   4            FALSE 
 
-21 rows fetched.
+25 rows fetched.
 
 SQL> -- boolean column as a condition
 SQL> select * from RQG_BOOL_TYPE_GSQL where C_BOOL order by id;
@@ -2468,7 +2507,11 @@ ID                   C_INTEGER    C_BOOL
 -------------------- ------------ ------
 2                                 TRUE  
 3                    2            TRUE  
+3                    2            TRUE  
 4                    2            TRUE  
+8                    2            TRUE  
+10                   2            TRUE  
+10                   2            TRUE  
 11                   2            TRUE  
 12                   3            TRUE  
 13                   3            TRUE  
@@ -2477,7 +2520,7 @@ ID                   C_INTEGER    C_BOOL
 23                   4            TRUE  
 25                   4            TRUE  
 
-10 rows fetched.
+14 rows fetched.
 
 SQL> 
 SQL> -- in and between
@@ -2565,7 +2608,7 @@ SQL> select sum(c_bool::int) from RQG_BOOL_TYPE_GSQL;
 
 SUM(C_BOOL::INT)    
 --------------------
-10                  
+14                  
 
 1 rows fetched.
 
@@ -2608,22 +2651,31 @@ SQL> INSERT INTO RQG_ALL_TYPE_TABLE_GSQL(C_ID,C_VARCHAR20) VALUES(3,'1');
 
 SQL> INSERT INTO RQG_ALL_TYPE_TABLE_GSQL(C_BOOL) VALUES(-9223372036854775808);
 
-OG-00606, [1:52]Inconsistent datatypes, expected BOOLEAN - got NUMBER
+1 rows affected.
+
 SQL> INSERT INTO RQG_ALL_TYPE_TABLE_GSQL(C_ID,C_VARCHAR20,C_BOOL) VALUES(3,'1',-9223372036854775808);
 
-OG-00606, [1:75]Inconsistent datatypes, expected BOOLEAN - got NUMBER
+1 rows affected.
+
 SQL> select C_ID, C_BOOL from RQG_ALL_TYPE_TABLE_GSQL;
 
 C_ID         C_BOOL
 ------------ ------
 3                  
+             TRUE  
+3            TRUE  
 
-1 rows fetched.
+3 rows fetched.
 
 SQL> 
 SQL> select (10+NULL)::bool;
 
-OG-00606, [1:11]Inconsistent datatypes, expected BOOLEAN - got NUMBER
+(10+NULL)::BOOL
+---------------
+               
+
+1 rows fetched.
+
 SQL> select -2147483648;
 
 -2147483648         
@@ -2831,8 +2883,8 @@ SQL> select * from test_raw;
 A                                                               
 ----------------------------------------------------------------
 0023                                                            
-31323334000000000000
-00ADEF1234
+31323334000000000000                                            
+00ADEF1234                                                      
 
 3 rows fetched.
 
@@ -2886,9 +2938,9 @@ SQL> select * from test_binary;
 
 A                                                               
 ----------------------------------------------------------------
-                                                                
 0x023                                                           
 1234                                                            
+                                                                
 616263643039383132                                              
 
 4 rows fetched.
@@ -5563,7 +5615,7 @@ SQL> create index idx_c_vchar2_2 on t_base_vchar3 (c_int3);
 
 Succeed.
 
-SQL>
+SQL> 
 SQL> -- binary cache
 SQL> drop table if exists binary_cache_t;
 
