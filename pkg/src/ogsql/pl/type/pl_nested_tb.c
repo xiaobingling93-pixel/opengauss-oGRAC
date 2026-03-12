@@ -358,6 +358,18 @@ static status_t udt_nested_table_extend_elements(sql_stmt_t *stmt, var_collectio
     return OG_SUCCESS;
 }
 
+static status_t udt_nested_tbl_chk_args0(expr_tree_t *exprtr, variant_t args, bool32 *early_return)
+{
+    if (args.v_int < 0) {
+        OG_SRC_THROW_ERROR(exprtr->loc, ERR_PL_SYNTAX_ERROR_FMT, "element_vars[0].v_int < 0");
+        return OG_ERROR;
+    }
+    if (args.v_int == 0) {
+        *early_return = OG_TRUE;
+    }
+    return OG_SUCCESS;
+}
+
 static status_t udt_nested_table_extend_args(sql_stmt_t *stmt, expr_tree_t *args, int32 *num, uint32 *id, bool32 *is_null)
 {
     if (args == NULL) {
@@ -388,17 +400,22 @@ static status_t udt_nested_table_extend_args(sql_stmt_t *stmt, expr_tree_t *args
         return OG_ERROR;
     }
     *num = element_vars[0].v_int;
+    bool32 early_return = OG_FALSE;
+    status_t ret = udt_nested_tbl_chk_args0(args, element_vars[0], &early_return);
+    if (ret != OG_SUCCESS || early_return) {
+        OGSQL_RESTORE_STACK(stmt);
+        return ret;
+    }
+
     if (args_count == UDT_NTBL_MAX_ARGS) {
         if (element_vars[1].is_null) {
             *is_null = OG_TRUE;
-            OGSQL_RESTORE_STACK(stmt);
-            return OG_SUCCESS;
         }
         if (var_convert(nlsparams, &element_vars[1], OG_TYPE_INTEGER, NULL) != OG_SUCCESS) {
             OGSQL_RESTORE_STACK(stmt);
             return OG_ERROR;
         }
-        if (element_vars[1].v_int == -1) {
+        if (element_vars[1].v_int < 1) {
             OG_SRC_THROW_ERROR(args->loc, ERR_SUBSCRIPT_BEYOND_COUNT);
             OGSQL_RESTORE_STACK(stmt);
             return OG_ERROR;
@@ -409,6 +426,15 @@ static status_t udt_nested_table_extend_args(sql_stmt_t *stmt, expr_tree_t *args
     }
 
     OGSQL_RESTORE_STACK(stmt);
+    return OG_SUCCESS;
+}
+
+static status_t udt_nested_tbl_chk_hwm(mtrl_ntbl_head_t *collection_head, uint32 num)
+{
+    if ((int64)collection_head->ctrl.hwm + (int64)num > (int64)OG_MAX_INT32) {
+        OG_THROW_ERROR(ERR_SUBSCRIPT_BEYOND_COUNT);
+        return OG_ERROR;
+    }
     return OG_SUCCESS;
 }
 
@@ -426,6 +452,10 @@ status_t udt_nested_table_intr_extend_num(sql_stmt_t *stmt, variant_t *var, void
     collection_head = (mtrl_ntbl_head_t *)d_ptr;
     copy.ctrl = 0;
     copy.is_null = OG_TRUE;
+    if (udt_nested_tbl_chk_hwm(collection_head, num) != OG_SUCCESS) {
+        CLOSE_VM_PTR_EX(&var->v_collection.value, vm_context);
+        return OG_ERROR;
+    }
 
     status = udt_nested_table_extend_elements(stmt, &var->v_collection, collection_head, num, &copy);
     CLOSE_VM_PTR(&var->v_collection.value, vm_context);
@@ -546,6 +576,10 @@ static status_t udt_nested_table_extend(sql_stmt_t *stmt, variant_t *var, expr_t
     } else {
         OPEN_VM_PTR(&(var->v_collection.value), vm_context);
         collection_head = (mtrl_ntbl_head_t *)d_ptr;
+        if (udt_nested_tbl_chk_hwm(collection_head, num) != OG_SUCCESS) {
+            CLOSE_VM_PTR_EX(&var->v_collection.value, vm_context);
+            return OG_ERROR;
+        }
         if (udt_nested_table_address_read(stmt, var, id, &copy) != OG_SUCCESS) {
             CLOSE_VM_PTR_EX(&var->v_collection.value, vm_context);
             return OG_ERROR;
@@ -1396,6 +1430,11 @@ static status_t udt_nested_table_delete_args(sql_stmt_t *stmt, expr_tree_t *args
     return OG_SUCCESS;
 }
 
+static inline bool32 udt_nested_tbl_del_overflow(int32 start, int32 cur_ext_hwm)
+{
+    return start > cur_ext_hwm;
+}
+
 static status_t udt_nested_table_delete(sql_stmt_t *stmt, variant_t *var, expr_tree_t *args, variant_t *output)
 {
     pvm_context_t vm_context = GET_VM_CTX(stmt);
@@ -1423,11 +1462,18 @@ static status_t udt_nested_table_delete(sql_stmt_t *stmt, variant_t *var, expr_t
         CLOSE_VM_PTR_EX(&var->v_collection.value, vm_context);
         return OG_SUCCESS;
     }
+    int32 cur_ext_hwm = collection_head->ctrl.hwm;
     if (args == NULL) {
         // delete all
         start = 1;
-        end = collection_head->ctrl.hwm;
+        end = cur_ext_hwm;
     }
+
+    if (udt_nested_tbl_del_overflow(start, cur_ext_hwm)) {
+        CLOSE_VM_PTR_EX(&var->v_collection.value, vm_context);
+        return OG_SUCCESS;
+    }
+    end = MIN(end, cur_ext_hwm);
 
     status = udt_nested_table_delete_elements(stmt, &var->v_collection, collection_head, (uint32)(start - 1),
         (uint32)end);
