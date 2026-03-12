@@ -143,10 +143,14 @@ static const uint64 g_dest_cast_mask[OG_MAX_DATATYPE_NUM] = {
     OG_TYPE_MASK_BINARY,
     [OG_TYPE_I(OG_TYPE_UINT64)] = OG_TYPE_MASK_NUMERIC | OG_TYPE_MASK_STRING | OG_TYPE_MASK(OG_TYPE_BOOLEAN) |
     OG_TYPE_MASK_BINARY,
-    [OG_TYPE_I(OG_TYPE_REAL)] = OG_TYPE_MASK_NUMERIC | OG_TYPE_MASK_STRING | OG_TYPE_MASK_BINARY,
-    [OG_TYPE_I(OG_TYPE_NUMBER)] = OG_TYPE_MASK_NUMERIC | OG_TYPE_MASK_STRING | OG_TYPE_MASK_BINARY,
-    [OG_TYPE_I(OG_TYPE_NUMBER2)] = OG_TYPE_MASK_NUMERIC | OG_TYPE_MASK_STRING | OG_TYPE_MASK_BINARY,
-    [OG_TYPE_I(OG_TYPE_DECIMAL)] = OG_TYPE_MASK_NUMERIC | OG_TYPE_MASK_STRING | OG_TYPE_MASK_BINARY,
+    [OG_TYPE_I(OG_TYPE_REAL)] = OG_TYPE_MASK_NUMERIC | OG_TYPE_MASK_STRING | OG_TYPE_MASK_BINARY |
+	OG_TYPE_MASK(OG_TYPE_BOOLEAN),
+	[OG_TYPE_I(OG_TYPE_NUMBER)] = OG_TYPE_MASK_NUMERIC | OG_TYPE_MASK_STRING | OG_TYPE_MASK_BINARY |
+	OG_TYPE_MASK(OG_TYPE_BOOLEAN),
+    [OG_TYPE_I(OG_TYPE_NUMBER2)] = OG_TYPE_MASK_NUMERIC | OG_TYPE_MASK_STRING | OG_TYPE_MASK_BINARY |
+    OG_TYPE_MASK(OG_TYPE_BOOLEAN),
+    [OG_TYPE_I(OG_TYPE_DECIMAL)] = OG_TYPE_MASK_NUMERIC | OG_TYPE_MASK_STRING | OG_TYPE_MASK_BINARY |
+    OG_TYPE_MASK(OG_TYPE_BOOLEAN),
     [OG_TYPE_I(OG_TYPE_DATE)] = OG_TYPE_MASK_DATETIME | OG_TYPE_MASK_STRING,
     [OG_TYPE_I(OG_TYPE_TIMESTAMP)] = OG_TYPE_MASK_DATETIME | OG_TYPE_MASK_STRING,
     [OG_TYPE_I(OG_TYPE_CHAR)] = OG_TYPE_MASK_ALL,
@@ -162,7 +166,7 @@ static const uint64 g_dest_cast_mask[OG_MAX_DATATYPE_NUM] = {
     [OG_TYPE_I(OG_TYPE_IMAGE)] = OG_TYPE_MASK_ALL,
     [OG_TYPE_I(OG_TYPE_CURSOR)] = OG_TYPE_MASK_NONE,
     [OG_TYPE_I(OG_TYPE_COLUMN)] = OG_TYPE_MASK_NONE,
-    [OG_TYPE_I(OG_TYPE_BOOLEAN)] = OG_TYPE_MASK_INTEGER | OG_TYPE_MASK_STRING | OG_TYPE_MASK(OG_TYPE_BOOLEAN),
+    [OG_TYPE_I(OG_TYPE_BOOLEAN)] = OG_TYPE_MASK_NUMERIC | OG_TYPE_MASK_STRING | OG_TYPE_MASK(OG_TYPE_BOOLEAN),
     [OG_TYPE_I(OG_TYPE_TIMESTAMP_TZ)] = OG_TYPE_MASK_DATETIME | OG_TYPE_MASK_STRING,
     [OG_TYPE_I(OG_TYPE_TIMESTAMP_LTZ)] = OG_TYPE_MASK_DATETIME | OG_TYPE_MASK_STRING,
     [OG_TYPE_I(OG_TYPE_INTERVAL)] = OG_TYPE_MASK_NONE,
@@ -475,12 +479,17 @@ status_t var_as_bool(variant_t *var)
             return OG_SUCCESS;
 
         case OG_TYPE_REAL:
+            var->v_bool = !VAR_DOUBLE_IS_ZERO(var->v_real);
+            var->type = OG_TYPE_BOOLEAN;
+            return OG_SUCCESS;
+
         case OG_TYPE_NUMBER:
         case OG_TYPE_DECIMAL:
         case OG_TYPE_NUMBER2:
         default:
-            OG_SET_ERROR_MISMATCH(OG_TYPE_BOOLEAN, var->type);
-            return OG_ERROR;
+            var->v_bool = !DECIMAL8_IS_ZERO(&var->v_dec);
+            var->type = OG_TYPE_BOOLEAN;
+            return OG_SUCCESS;
     }
 
     if (cm_text2bool(VALUE_PTR(text_t, var), &var->v_bool) != OG_SUCCESS) {
@@ -1720,6 +1729,10 @@ static status_t var_as_decimal_core(variant_t *var)
 
         case OG_TYPE_REAL:
             return cm_real_to_dec(var->v_real, VALUE_PTR(dec8_t, var));
+        
+        case OG_TYPE_BOOLEAN:
+            cm_bool_to_decimal(var->v_bool, VALUE_PTR(dec8_t, var));
+            return OG_SUCCESS;
 
         case OG_TYPE_NUMBER:
         case OG_TYPE_DECIMAL:
@@ -1810,6 +1823,9 @@ status_t var_as_real(variant_t *var)
             break;
         }
 
+        case OG_TYPE_BOOLEAN:
+            var->v_real = var->v_bool ? (double)1 : (double)0;
+            break;
         default:
             OG_SET_ERROR_MISMATCH(OG_TYPE_REAL, var->type);
             return OG_ERROR;

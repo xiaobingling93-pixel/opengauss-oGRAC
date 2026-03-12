@@ -1368,6 +1368,16 @@ void cm_uint64_to_dec8(uint64 u64, dec8_t *dec)
     cm_fill_uint64_into_dec8(u64, dec);
 }
 
+void cm_bool32_to_dec8(bool32 val, dec8_t *dec8)
+{
+    if (dec8 == NULL) {
+        return;
+    }
+
+    uint32 num = val ? 1 : 0;
+    return cm_uint32_to_dec8(num, dec8);
+}
+
 static const double g_pos_pow8[] = {
     1.0,
     1.0e8,

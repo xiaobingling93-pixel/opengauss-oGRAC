@@ -122,6 +122,11 @@ static inline status_t cm_dec_4_to_2(const dec4_t *d4, const uint32 sz_byte, dec
 #define cm_dec_to_uint32(dec, u32, rnd_mode) cm_dec8_to_uint32((dec), (u32), (rnd_mode))
 #define cm_dec_to_int32(dec, i32, rnd_mode) cm_dec8_to_int32((dec), (i32), (rnd_mode))
 
+static inline void cm_bool_to_decimal(bool32 value, dec8_t* dec8)
+{
+    return cm_bool32_to_dec8(value, dec8);
+}
+
 /*
  * Decode a decimal from a void data with size
 

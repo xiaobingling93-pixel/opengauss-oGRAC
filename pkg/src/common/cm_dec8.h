@@ -383,6 +383,7 @@ status_t cm_dec8_log(const dec8_t *n2, const dec8_t *n1, dec8_t *result);
 status_t cm_dec8_power(const dec8_t *x, const dec8_t *r, dec8_t *y);
 status_t cm_dec8_mod(const dec8_t *n2, const dec8_t *n1, dec8_t *y);
 void cm_dec8_sign(const dec8_t *dec, dec8_t *result);
+void cm_bool32_to_dec8(bool32 bool_val, dec8_t *dec8);
 
 /*
  * The core algorithm for addition/substruction/multiplication of two decimals,
