@@ -369,9 +369,6 @@ run_cluster_test()
 	echo `pwd`
     chown -R ogracdba:ogracdba ${code_path}/output/bin/cluster_test
     chmod -R 777 ${code_path}/output/bin/cluster_test
-    # chown -R ogracdba:ogracdba ${code_path}/bazel-bin/pkg/test/cluster_test/cluster_test
-    # chmod -R 777 ${code_path}bazel-bin/pkg/test/cluster_test/cluster_test
-	# su - ogracdba -c "${code_path}/bazel-bin/pkg/test/cluster_test/cluster_test '127.0.0.1:1611' ${PORT}':1612' $1" 2>&1 | tee -a $report_file
     su - ogracdba -c "${code_path}/output/bin/cluster_test '127.0.0.1:1611' ${PORT}':1612' $1" 2>&1 | tee -a $report_file
     test_num=`cat $report_file | grep '\--------------------- TEST_CASE' | wc -l`
     succ_num=`cat $report_file | grep '\--------------------- FINISHED ---------------------' | wc -l`
