@@ -22,10 +22,6 @@ The project maintains the following source code repositories:
 
 This project leverages the following third party content.
 
-lz4 (1.9.3)
-
-* License: BSD 2-Clause License
-
 OpenSSL (1.1.1n)
 
 * License: OpenSSL Combined License

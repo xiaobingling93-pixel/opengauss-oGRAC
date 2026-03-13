@@ -10,7 +10,6 @@ include_directories(
         "${PROJECT_SOURCE_DIR}/build/include"
 
         "${PROJECT_SOURCE_DIR}/open_source/libaio/include"
-        "${PROJECT_SOURCE_DIR}/open_source/lz4/include"
         "${PROJECT_SOURCE_DIR}/open_source/odbc/include"
         "${PROJECT_SOURCE_DIR}/open_source/openssl/include/openssl"
         "${PROJECT_SOURCE_DIR}/open_source/openssl/include"
@@ -277,7 +276,6 @@ set(SECUREC_LIB_PATH "${OGRACDB_LIBRARY}/huawei_security/lib")
 set(PCRE_LIB_PATH "${OGRACDB_LIBRARY}/pcre/lib")
 set(Z_LIB_PATH "${OGRACDB_LIBRARY}/zlib/lib")
 set(ODBC_LIB_PATH "${OGRACDB_LIBRARY}/odbc/lib")
-set(LZ4_LIB_PATH "${OGRACDB_LIBRARY}/lz4/lib")
 set(ZSTD_LIB_PATH "${OGRACDB_LIBRARY}/Zstandard/lib")
 set(KMC_LIB_PATH "${OGRACDB_LIBRARY}/kmc/lib")
 
@@ -381,9 +379,6 @@ if (UNIX)
     execute_process(
             COMMAND ${CMAKE_COMMAND} -E tar -xvf ${ZSTD_LIB_PATH}/libzstd.tar WORKING_DIRECTORY ${ZSTD_LIB_PATH}/
     )
-    execute_process(
-            COMMAND ${CMAKE_COMMAND} -E tar -xvf ${LZ4_LIB_PATH}/liblz4.tar WORKING_DIRECTORY ${LZ4_LIB_PATH}/
-    )
 endif (UNIX)
 
 
@@ -407,7 +402,7 @@ if (UNIX)
 endif()
 
 link_directories(${OGRACDB_LIB} "${OGRACDB_LIBRARY}/protobuf/lib" ${OGRACDB_LIBRARY} ${OPENSSL_LIB_PATH} ${PCRE_LIB_PATH} ${Z_LIB_PATH} ${ODBC_LIB_PATH} ${VPP_LIB_PATH}
-         ${ZSTD_LIB_PATH} ${KMC_LIB_PATH} ${LZ4_LIB_PATH} ${AES_LIB_PATH})
+         ${ZSTD_LIB_PATH} ${KMC_LIB_PATH} ${AES_LIB_PATH})
 
 # add subdir, this should be the last line!!
 add_subdirectory(pkg)

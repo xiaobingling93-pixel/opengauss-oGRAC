@@ -11,7 +11,6 @@ COMMON_LINKOPTS = GLOBAL_LINKOPTS + []
 COMMON_LOCAL_DEFINES = GLOBAL_LOCAL_DEFINES + []
 
 COMMON_COPTS = GLOBAL_COPTS + [
-        "-Iopen_source/lz4/include",
         "-Iopen_source/openssl/include/openssl",
         "-Iopen_source/Zstandard/include",
         "-Iplatform/huawei_security/include",
@@ -47,7 +46,6 @@ cc_library (
         "rc_reform.c",
         "rc_reform.h",
         "//pkg/src/cms:interface_hdrs",
-        "//:open_source/lz4/include",
         "//:open_source/zlib/include",
         "//:open_source/openssl/include/openssl",
         "//:open_source/Zstandard/include",

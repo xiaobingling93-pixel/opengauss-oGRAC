@@ -12,7 +12,6 @@ COMMON_LOCAL_DEFINES = GLOBAL_LOCAL_DEFINES + []
 
 COMMON_COPTS = GLOBAL_COPTS + [
     "-Ipkg/src/cluster",
-    "-Iopen_source/lz4/include",
     "-Iplatform/huawei_security/include",
     "-Ipkg/src/common",
     "-Ilibrary/xnet/include/vos_win/vos",
@@ -36,7 +35,6 @@ COMMON_COPTS = GLOBAL_COPTS + [
     "-Ipkg/src/kernel/table",
     "-Ipkg/src/kernel/tablespace",
     "-Ipkg/src/kernel/xact",
-    "-Iopen_source/lz4/include",
     "-Ipkg/src/mec",
     "-Ipkg/src/protocol",
     "-Ipkg/src/server",
@@ -101,7 +99,6 @@ cc_library (
         "//pkg/src/cms:interface_hdrs",
         "//pkg/src/server:params",
         "//pkg/src/rc:rc_hdrs",
-        "//:open_source/lz4/include",
         "//pkg/src/protocol:protocol_hdrs",
         "//library:xnet/include",
         "//pkg/src/common:libogcommon.so",

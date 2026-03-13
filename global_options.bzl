@@ -3,7 +3,6 @@
 GLOBAL_COPTS = [
     # "-Ibuild/include",    # maybe redundant include path
     # "-Iopen_source/libaio/include",    # maybe redundant include path
-    # "-Iopen_source/lz4/include",    # maybe redundant include path
     # "-Iopen_source/odbc/include",    # maybe redundant include path
     # "-Iopen_source/openssl/include/openssl",    # maybe redundant include path
     # "-Iopen_source/openssl/include",    # maybe redundant include path

@@ -201,11 +201,9 @@ func_release_symbol()
         mv -f ${OGRACDB_BIN}/dbstor.${SYMBOLFIX} ${OGRACDB_SYMBOL}/dbstor.${SYMBOLFIX}
 
         ##opensource library
-        sh  ${OGRACDB_BUILD}/${DBG_SYMBOL_SCRIPT} ${LZ4_LIB_PATH}/liblz4.so.1.9.4
         sh  ${OGRACDB_BUILD}/${DBG_SYMBOL_SCRIPT} ${Z_LIB_PATH}/libz.so.1.2.13
         sh  ${OGRACDB_BUILD}/${DBG_SYMBOL_SCRIPT} ${PCRE_LIB_PATH}/libpcre2-8.so.0.11.0
         sh  ${OGRACDB_BUILD}/${DBG_SYMBOL_SCRIPT} ${ZSTD_LIB_PATH}/libzstd.so.1.5.2
-        mv -f ${LZ4_LIB_PATH}/liblz4.so.1.9.4.${SYMBOLFIX}   ${OGRACDB_SYMBOL}/liblz4.so.1.9.4.${SYMBOLFIX}
         mv -f ${Z_LIB_PATH}/libz.so.1.2.13.${SYMBOLFIX}       ${OGRACDB_SYMBOL}/libz.so.1.2.13.${SYMBOLFIX}
         mv -f ${PCRE_LIB_PATH}/libpcre2-8.so.0.11.0.${SYMBOLFIX} ${OGRACDB_SYMBOL}/libpcre2-8.so.0.11.0.${SYMBOLFIX}
         mv -f ${ZSTD_LIB_PATH}/libzstd.so.1.5.2.${SYMBOLFIX} ${OGRACDB_SYMBOL}/libzstd.so.1.5.2.${SYMBOLFIX}
@@ -269,7 +267,6 @@ func_pkg_run_basic()
     cp -d ${PCRE_LIB_PATH}/libpcre2-8.so*  ${OGRACDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
     cp -d ${Z_LIB_PATH}/libz.so*  ${OGRACDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
     cp -d ${ZSTD_LIB_PATH}/libzstd.so*  ${OGRACDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
-    cp -d ${LZ4_LIB_PATH}/liblz4.so*  ${OGRACDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
 
     cp -R ${OGRACDB_HOME}/admin  ${OGRACDB_BIN}/${RUN_PACK_DIR_NAME}/
     cp -R ${OGRACDB_HOME}/cfg  ${OGRACDB_BIN}/${RUN_PACK_DIR_NAME}/
@@ -348,7 +345,6 @@ func_test()
     fi
 
     cp -d ${ZSTD_LIB_PATH}/libzstd.so*  ${OGRACDB_HOME}/add-ons/
-    cp -d ${LZ4_LIB_PATH}/liblz4.so* ${OGRACDB_HOME}/add-ons/
     cp -rf ${OGRACDB_BIN} ${OGRACDB_HOME}
     cp -rf ${OGRACDB_LIB} ${OGRACDB_HOME}
     cp -rf ${OGRACDB_LIBRARY} ${OGRACDB_HOME}
@@ -365,7 +361,6 @@ prepare_bazel_dependency()
     fi
 
     cp -d ${ZSTD_LIB_PATH}/libzstd.so*  ${OGRACDB_HOME}/add-ons/
-    cp -d ${LZ4_LIB_PATH}/liblz4.so* ${OGRACDB_HOME}/add-ons/
     cp -rf ${OGRACDB_BIN} ${OGRACDB_HOME}
     cp -rf ${OGRACDB_LIB} ${OGRACDB_HOME}
     cp -rf ${OGRACDB_LIBRARY} ${OGRACDB_HOME}

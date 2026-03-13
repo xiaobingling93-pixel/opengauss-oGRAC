@@ -46,12 +46,6 @@ ENABLE_LLT_ASAN="NO"
 FEATURE_FOR_EVERSQL=${FEATURE_FOR_EVERSQL:-"0"}
 OS_ARCH=$(uname -i)
 
-export INTERNAL_BUILD="TRUE"
-
-if [[ ! -d "${OGDB_CODE_PATH}"/../ProductComm_DoradoAA ]];then
-    export INTERNAL_BUILD="FALSE"
-fi
-
 if [[ ${OS_ARCH} =~ "x86_64" ]]; then
     export CPU_CORES_NUM=`cat /proc/cpuinfo |grep "cores" |wc -l`
     LIB_OS_ARCH="lib_x86"
@@ -212,11 +206,9 @@ func_release_symbol()
         mv -f ${OGRACDB_BIN}/dbstor.${SYMBOLFIX} ${OGRACDB_SYMBOL}/dbstor.${SYMBOLFIX}
 
         ##opensource library
-        sh  ${OGRACDB_BUILD}/${DBG_SYMBOL_SCRIPT} ${LZ4_LIB_PATH}/liblz4.so.1.9.4
         sh  ${OGRACDB_BUILD}/${DBG_SYMBOL_SCRIPT} ${Z_LIB_PATH}/libz.so.1.2.13
         sh  ${OGRACDB_BUILD}/${DBG_SYMBOL_SCRIPT} ${PCRE_LIB_PATH}/libpcre2-8.so.0.11.0
         sh  ${OGRACDB_BUILD}/${DBG_SYMBOL_SCRIPT} ${ZSTD_LIB_PATH}/libzstd.so.1.5.2
-        mv -f ${LZ4_LIB_PATH}/liblz4.so.1.9.4.${SYMBOLFIX}   ${OGRACDB_SYMBOL}/liblz4.so.1.9.4.${SYMBOLFIX}
         mv -f ${Z_LIB_PATH}/libz.so.1.2.13.${SYMBOLFIX}       ${OGRACDB_SYMBOL}/libz.so.1.2.13.${SYMBOLFIX}
         mv -f ${PCRE_LIB_PATH}/libpcre2-8.so.0.11.0.${SYMBOLFIX} ${OGRACDB_SYMBOL}/libpcre2-8.so.0.11.0.${SYMBOLFIX}
         mv -f ${ZSTD_LIB_PATH}/libzstd.so.1.5.2.${SYMBOLFIX} ${OGRACDB_SYMBOL}/libzstd.so.1.5.2.${SYMBOLFIX}
@@ -279,7 +271,6 @@ func_pkg_run_basic()
     cp -d ${PCRE_LIB_PATH}/libpcre2-8.so*  ${OGRACDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
     cp -d ${Z_LIB_PATH}/libz.so*  ${OGRACDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
     cp -d ${ZSTD_LIB_PATH}/libzstd.so*  ${OGRACDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
-    cp -d ${LZ4_LIB_PATH}/liblz4.so*  ${OGRACDB_BIN}/${RUN_PACK_DIR_NAME}/add-ons/
 
     cp -R ${OGRACDB_HOME}/admin  ${OGRACDB_BIN}/${RUN_PACK_DIR_NAME}/
     cp -R ${OGRACDB_HOME}/cfg  ${OGRACDB_BIN}/${RUN_PACK_DIR_NAME}/
@@ -360,7 +351,6 @@ func_test()
     fi
 
     cp -d ${ZSTD_LIB_PATH}/libzstd.so*  ${OGRACDB_HOME}/add-ons/
-    cp -d ${LZ4_LIB_PATH}/liblz4.so* ${OGRACDB_HOME}/add-ons/
     cp -rf ${OGRACDB_BIN} ${OGRACDB_HOME}
     cp -rf ${OGRACDB_LIB} ${OGRACDB_HOME}
     cp -rf ${OGRACDB_LIBRARY} ${OGRACDB_HOME}
@@ -497,22 +487,33 @@ func_download_3rdparty()
     fi
     
     cd ${DOWNLOAD_PATH}
-    if [[ ${INTERNAL_BUILD} == "FALSE" ]]; then
-      git submodule init
-      git submodule update --recursive
-    else
-      echo "Clone source start"
-      if [[ x"${proxy_user}" != x"" ]]; then
-        export http_proxy=http://${proxy_user}:${proxy_pwd}@${proxy_url}
-        export https_proxy=${http_proxy}
-        export no_proxy=127.0.0.1,.huawei.com,localhost,local,.local
-      fi    
-      git clone https://gitee.com/cantian-repo/cantian-repo.git
-      rm -rf open_source
-      mv cantian-repo open_source
-    fi    
+    echo "Clone source start"
+    if [[ x\"${proxy_user}\" != x\"\" ]]; then
+      export http_proxy=http://${proxy_user}:${proxy_pwd}@${proxy_url}
+      export https_proxy=${http_proxy}
+      export no_proxy=127.0.0.1,localhost,local,.local
+    fi
 
-    cd -
+    rm -rf open_source/*
+    cd open_source
+
+    # openGauss third_party repo (contains zstd / openssl / huawei_secure_c, etc.)
+    git clone https://gitcode.com/opengauss/openGauss-third_party.git -b master
+    # pcre2: use src-openeuler repo
+    git clone https://gitcode.com/src-openeuler/pcre2.git -b openEuler-24.03-LTS-SP3
+
+    # zlib: use src-openeuler repo
+    git clone https://gitcode.com/src-openeuler/zlib.git -b openEuler-24.03-LTS-SP3
+
+    # protobuf-all: use src-openeuler repo
+    git clone https://gitcode.com/src-openeuler/protobuf.git -b openEuler-22.03-LTS-SP4
+
+    # protobuf-c: use src-openeuler repo
+    git clone https://gitcode.com/src-openeuler/protobuf-c.git -b openEuler-24.03-LTS-SP1
+
+    # lz4 uses system library; googletest / mockcpp are not fetched in this build
+
+    cd ${DOWNLOAD_PATH}/build
 
     echo "start compile 3rdparty : "
     sh compile_opensource_new.sh

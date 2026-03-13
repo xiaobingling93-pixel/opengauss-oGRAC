@@ -11,7 +11,6 @@ COMMON_LINKOPTS = GLOBAL_LINKOPTS + []
 COMMON_LOCAL_DEFINES = GLOBAL_LOCAL_DEFINES + []
 
 COMMON_COPTS = GLOBAL_COPTS + [
-    "-Iopen_source/lz4/include",
     "-Iplatform/huawei_security/include",
     "-Ipkg/src/common/variant",
     "-Ipkg/src/common",
@@ -94,7 +93,6 @@ cc_library (
         "dtc_view.c",
         "//pkg/src/kernel:xact",
         "//platform:huawei_security_hdrs",
-        "//:open_source/lz4/include",
         "//pkg/src/common:variant_hdrs",
         "//pkg/src/common:common_hdrs",
         "//pkg/src/upgrade_check",

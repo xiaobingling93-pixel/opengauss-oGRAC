@@ -16,7 +16,6 @@ package(default_visibility = ["//visibility:public"])
         "open_source/openssl/include/openssl",
         "open_source/pcre/include",
         "open_source/Zstandard/include",
-        "open_source/lz4/include",
         "open_source/zlib/include",
    ]
 ]
