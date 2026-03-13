@@ -324,5 +324,327 @@ status_t var_convert(const nlsparams_t *nls, variant_t *var, og_type_t type, tex
 status_t var_text2num(const text_t *text, og_type_t type, bool32 negative, variant_t *result);
 status_t var_to_unix_timestamp(dec8_t *unix_ts, timestamp_t *ts_ret, int64 time_zone_offset);
 status_t var_to_int32_check_overflow(uint32 u32);
+bool32 var_datatype_matched_with_dialect(og_type_t dest_type, og_type_t src_type, char dbcompatibility);
+status_t var_convert_dialect(const nlsparams_t *nls, variant_t *var, og_type_t type, text_buf_t *buf,
+                                   char dbcompatibility);
+
+status_t var_convert_dialect_a(const nlsparams_t *nls, variant_t *var, og_type_t type, text_buf_t *buf);
+status_t var_to_round_bigint_dialect_a(const variant_t *var, round_mode_t rnd_mode, int64 *i64, int *overflow);
+status_t var_to_round_ubigint_dialect_a(const variant_t *uvar, round_mode_t rnd_mode, uint64 *ui64, int *uoverflow);
+status_t var_to_round_int32_dialect_a(const variant_t *var, round_mode_t rnd_mode, int32 *i32);
+status_t var_to_round_uint32_dialect_a(const variant_t *var, round_mode_t rnd_mode, uint32 *u32);
+status_t var_as_bool_dialect_a(variant_t *var);
+status_t var_as_number_dialect_a(variant_t *var);
+status_t var_as_number2_dialect_a(variant_t *var);
+status_t var_as_real_dialect_a(variant_t *var);
+status_t var_as_string_dialect_a(const nlsparams_t *nls, variant_t *var, text_buf_t *buf);
+status_t var_as_date_dialect_a(const nlsparams_t *nls, variant_t *var);
+status_t var_as_timestamp_dialect_a(const nlsparams_t *nls, variant_t *var);
+status_t var_as_timestamp_ltz_dialect_a(const nlsparams_t *nls, variant_t *var);
+status_t var_as_timestamp_tz_dialect_a(const nlsparams_t *nls, variant_t *var);
+status_t var_as_binary_dialect_a(const nlsparams_t *nls, variant_t *var, text_buf_t *buf);
+status_t var_as_raw_dialect_a(variant_t *var, char *buf, uint32 buf_size);
+status_t var_as_yminterval_dialect_a(variant_t *var);
+status_t var_as_dsinterval_dialect_a(variant_t *var);
+status_t var_as_blob_dialect_a(variant_t *var, text_buf_t *buf);
+status_t var_as_image_dialect_a(const nlsparams_t *nls, variant_t *var, text_buf_t *buf);
+status_t var_as_clob_dialect_a(const nlsparams_t *nls, variant_t *var, text_buf_t *buf);
+
+status_t var_convert_dialect_b(const nlsparams_t *nls, variant_t *var, og_type_t type, text_buf_t *buf);
+status_t var_to_round_bigint_dialect_b(const variant_t *var, round_mode_t rnd_mode, int64 *i64, int *overflow);
+status_t var_to_round_ubigint_dialect_b(const variant_t *uvar, round_mode_t rnd_mode, uint64 *ui64, int *uoverflow);
+status_t var_to_round_int32_dialect_b(const variant_t *var, round_mode_t rnd_mode, int32 *i32);
+status_t var_to_round_uint32_dialect_b(const variant_t *var, round_mode_t rnd_mode, uint32 *u32);
+status_t var_as_bool_dialect_b(variant_t *var);
+status_t var_as_number_dialect_b(variant_t *var);
+status_t var_as_number2_dialect_b(variant_t *var);
+status_t var_as_real_dialect_b(variant_t *var);
+status_t var_as_string_dialect_b(const nlsparams_t *nls, variant_t *var, text_buf_t *buf);
+status_t var_as_date_dialect_b(const nlsparams_t *nls, variant_t *var);
+status_t var_as_timestamp_dialect_b(const nlsparams_t *nls, variant_t *var);
+status_t var_as_timestamp_ltz_dialect_b(const nlsparams_t *nls, variant_t *var);
+status_t var_as_timestamp_tz_dialect_b(const nlsparams_t *nls, variant_t *var);
+status_t var_as_binary_dialect_b(const nlsparams_t *nls, variant_t *var, text_buf_t *buf);
+status_t var_as_raw_dialect_b(variant_t *var, char *buf, uint32 buf_size);
+status_t var_as_yminterval_dialect_b(variant_t *var);
+status_t var_as_dsinterval_dialect_b(variant_t *var);
+status_t var_as_blob_dialect_b(variant_t *var, text_buf_t *buf);
+status_t var_as_image_dialect_b(const nlsparams_t *nls, variant_t *var, text_buf_t *buf);
+status_t var_as_clob_dialect_b(const nlsparams_t *nls, variant_t *var, text_buf_t *buf);
+
+status_t var_convert_dialect_c(const nlsparams_t *nls, variant_t *var, og_type_t type, text_buf_t *buf);
+status_t var_to_round_bigint_dialect_c(const variant_t *var, round_mode_t rnd_mode, int64 *i64, int *overflow);
+status_t var_to_round_ubigint_dialect_c(const variant_t *uvar, round_mode_t rnd_mode, uint64 *ui64, int *uoverflow);
+status_t var_to_round_int32_dialect_c(const variant_t *var, round_mode_t rnd_mode, int32 *i32);
+status_t var_to_round_uint32_dialect_c(const variant_t *var, round_mode_t rnd_mode, uint32 *u32);
+status_t var_as_bool_dialect_c(variant_t *var);
+status_t var_as_number_dialect_c(variant_t *var);
+status_t var_as_number2_dialect_c(variant_t *var);
+status_t var_as_real_dialect_c(variant_t *var);
+status_t var_as_string_dialect_c(const nlsparams_t *nls, variant_t *var, text_buf_t *buf);
+status_t var_as_date_dialect_c(const nlsparams_t *nls, variant_t *var);
+status_t var_as_timestamp_dialect_c(const nlsparams_t *nls, variant_t *var);
+status_t var_as_timestamp_ltz_dialect_c(const nlsparams_t *nls, variant_t *var);
+status_t var_as_timestamp_tz_dialect_c(const nlsparams_t *nls, variant_t *var);
+status_t var_as_binary_dialect_c(const nlsparams_t *nls, variant_t *var, text_buf_t *buf);
+status_t var_as_raw_dialect_c(variant_t *var, char *buf, uint32 buf_size);
+status_t var_as_yminterval_dialect_c(variant_t *var);
+status_t var_as_dsinterval_dialect_c(variant_t *var);
+status_t var_as_blob_dialect_c(variant_t *var, text_buf_t *buf);
+status_t var_as_image_dialect_c(const nlsparams_t *nls, variant_t *var, text_buf_t *buf);
+status_t var_as_clob_dialect_c(const nlsparams_t *nls, variant_t *var, text_buf_t *buf);
+
+static inline status_t var_as_bigint_dialect_a(variant_t *var)
+{
+    int64 i64;
+    OG_RETURN_IFERR(var_to_round_bigint_dialect_a(var, ROUND_HALF_UP, &i64, NULL));
+    var->v_bigint = i64;
+    var->type = OG_TYPE_BIGINT;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_ubigint_dialect_a(variant_t *var)
+{
+    uint64 ui64;
+    OG_RETURN_IFERR(var_to_round_ubigint_dialect_a(var, ROUND_HALF_UP, &ui64, NULL));
+    var->v_bigint = ui64;
+    var->type = OG_TYPE_UINT64;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_floor_bigint_dialect_a(variant_t *var)
+{
+    int64 i64;
+    OG_RETURN_IFERR(var_to_round_bigint_dialect_a(var, ROUND_TRUNC, &i64, NULL));
+    var->v_bigint = i64;
+    var->type = OG_TYPE_BIGINT;
+    return OG_SUCCESS;
+}
+
+// In some case, need to know overflow type
+static inline status_t var_as_bigint_ex_dialect_a(variant_t *var, int *overflow)
+{
+    int64 i64;
+    OG_RETURN_IFERR(var_to_round_bigint_dialect_a(var, ROUND_HALF_UP, &i64, overflow));
+    var->v_bigint = i64;
+    var->type = OG_TYPE_BIGINT;
+    return OG_SUCCESS;
+}
+
+// In some case, need to know overflow type
+static inline status_t var_as_floor_bigint_ex_dialect_a(variant_t *var, int *overflow)
+{
+    int64 i64;
+    OG_RETURN_IFERR(var_to_round_bigint_dialect_a(var, ROUND_TRUNC, &i64, overflow));
+    var->v_bigint = i64;
+    var->type = OG_TYPE_BIGINT;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_integer_dialect_a(variant_t *var)
+{
+    int32 i32;
+    OG_RETURN_IFERR(var_to_round_int32_dialect_a(var, ROUND_HALF_UP, &i32));
+    var->v_int = i32;
+    var->type = OG_TYPE_INTEGER;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_uint32_dialect_a(variant_t *var)
+{
+    uint32 u32;
+    OG_RETURN_IFERR(var_to_round_uint32_dialect_a(var, ROUND_HALF_UP, &u32));
+    var->v_uint32 = u32;
+    var->type = OG_TYPE_UINT32;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_floor_integer_dialect_a(variant_t *var)
+{
+    int32 i32;
+    OG_RETURN_IFERR(var_to_round_int32_dialect_a(var, ROUND_TRUNC, &i32));
+    var->v_int = i32;
+    var->type = OG_TYPE_INTEGER;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_floor_uint32_dialect_a(variant_t *var)
+{
+    uint32 u32;
+    OG_RETURN_IFERR(var_to_round_uint32_dialect_a(var, ROUND_TRUNC, &u32));
+    var->v_uint32 = u32;
+    var->type = OG_TYPE_UINT32;
+    return OG_SUCCESS;
+}
+
+
+static inline status_t var_as_bigint_dialect_b(variant_t *var)
+{
+    int64 i64;
+    OG_RETURN_IFERR(var_to_round_bigint_dialect_b(var, ROUND_HALF_UP, &i64, NULL));
+    var->v_bigint = i64;
+    var->type = OG_TYPE_BIGINT;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_ubigint_dialect_b(variant_t *var)
+{
+    uint64 ui64;
+    OG_RETURN_IFERR(var_to_round_ubigint_dialect_b(var, ROUND_HALF_UP, &ui64, NULL));
+    var->v_bigint = ui64;
+    var->type = OG_TYPE_UINT64;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_floor_bigint_dialect_b(variant_t *var)
+{
+    int64 i64;
+    OG_RETURN_IFERR(var_to_round_bigint_dialect_b(var, ROUND_TRUNC, &i64, NULL));
+    var->v_bigint = i64;
+    var->type = OG_TYPE_BIGINT;
+    return OG_SUCCESS;
+}
+
+// In some case, need to know overflow type
+static inline status_t var_as_bigint_ex_dialect_b(variant_t *var, int *overflow)
+{
+    int64 i64;
+    OG_RETURN_IFERR(var_to_round_bigint_dialect_b(var, ROUND_HALF_UP, &i64, overflow));
+    var->v_bigint = i64;
+    var->type = OG_TYPE_BIGINT;
+    return OG_SUCCESS;
+}
+
+// In some case, need to know overflow type
+static inline status_t var_as_floor_bigint_ex_dialect_b(variant_t *var, int *overflow)
+{
+    int64 i64;
+    OG_RETURN_IFERR(var_to_round_bigint_dialect_b(var, ROUND_TRUNC, &i64, overflow));
+    var->v_bigint = i64;
+    var->type = OG_TYPE_BIGINT;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_integer_dialect_b(variant_t *var)
+{
+    int32 i32;
+    OG_RETURN_IFERR(var_to_round_int32_dialect_b(var, ROUND_HALF_UP, &i32));
+    var->v_int = i32;
+    var->type = OG_TYPE_INTEGER;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_uint32_dialect_b(variant_t *var)
+{
+    uint32 u32;
+    OG_RETURN_IFERR(var_to_round_uint32_dialect_b(var, ROUND_HALF_UP, &u32));
+    var->v_uint32 = u32;
+    var->type = OG_TYPE_UINT32;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_floor_integer_dialect_b(variant_t *var)
+{
+    int32 i32;
+    OG_RETURN_IFERR(var_to_round_int32_dialect_b(var, ROUND_TRUNC, &i32));
+    var->v_int = i32;
+    var->type = OG_TYPE_INTEGER;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_floor_uint32_dialect_b(variant_t *var)
+{
+    uint32 u32;
+    OG_RETURN_IFERR(var_to_round_uint32_dialect_b(var, ROUND_TRUNC, &u32));
+    var->v_uint32 = u32;
+    var->type = OG_TYPE_UINT32;
+    return OG_SUCCESS;
+}
+
+
+static inline status_t var_as_bigint_dialect_c(variant_t *var)
+{
+    int64 i64;
+    OG_RETURN_IFERR(var_to_round_bigint_dialect_c(var, ROUND_HALF_UP, &i64, NULL));
+    var->v_bigint = i64;
+    var->type = OG_TYPE_BIGINT;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_ubigint_dialect_c(variant_t *var)
+{
+    uint64 ui64;
+    OG_RETURN_IFERR(var_to_round_ubigint_dialect_c(var, ROUND_HALF_UP, &ui64, NULL));
+    var->v_bigint = ui64;
+    var->type = OG_TYPE_UINT64;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_floor_bigint_dialect_c(variant_t *var)
+{
+    int64 i64;
+    OG_RETURN_IFERR(var_to_round_bigint_dialect_c(var, ROUND_TRUNC, &i64, NULL));
+    var->v_bigint = i64;
+    var->type = OG_TYPE_BIGINT;
+    return OG_SUCCESS;
+}
+
+// In some case, need to know overflow type
+static inline status_t var_as_bigint_ex_dialect_c(variant_t *var, int *overflow)
+{
+    int64 i64;
+    OG_RETURN_IFERR(var_to_round_bigint_dialect_c(var, ROUND_HALF_UP, &i64, overflow));
+    var->v_bigint = i64;
+    var->type = OG_TYPE_BIGINT;
+    return OG_SUCCESS;
+}
+
+// In some case, need to know overflow type
+static inline status_t var_as_floor_bigint_ex_dialect_c(variant_t *var, int *overflow)
+{
+    int64 i64;
+    OG_RETURN_IFERR(var_to_round_bigint_dialect_c(var, ROUND_TRUNC, &i64, overflow));
+    var->v_bigint = i64;
+    var->type = OG_TYPE_BIGINT;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_integer_dialect_c(variant_t *var)
+{
+    int32 i32;
+    OG_RETURN_IFERR(var_to_round_int32_dialect_c(var, ROUND_HALF_UP, &i32));
+    var->v_int = i32;
+    var->type = OG_TYPE_INTEGER;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_uint32_dialect_c(variant_t *var)
+{
+    uint32 u32;
+    OG_RETURN_IFERR(var_to_round_uint32_dialect_c(var, ROUND_HALF_UP, &u32));
+    var->v_uint32 = u32;
+    var->type = OG_TYPE_UINT32;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_floor_integer_dialect_c(variant_t *var)
+{
+    int32 i32;
+    OG_RETURN_IFERR(var_to_round_int32_dialect_c(var, ROUND_TRUNC, &i32));
+    var->v_int = i32;
+    var->type = OG_TYPE_INTEGER;
+    return OG_SUCCESS;
+}
+
+static inline status_t var_as_floor_uint32_dialect_c(variant_t *var)
+{
+    uint32 u32;
+    OG_RETURN_IFERR(var_to_round_uint32_dialect_c(var, ROUND_TRUNC, &u32));
+    var->v_uint32 = u32;
+    var->type = OG_TYPE_UINT32;
+    return OG_SUCCESS;
+}
+
+
 #endif
 
