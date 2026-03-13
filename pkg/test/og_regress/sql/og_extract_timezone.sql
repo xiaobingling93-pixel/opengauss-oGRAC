@@ -46,3 +46,6 @@ select
   extract(timezone_minute from to_timestamp('2026-02-26 00:00:00 +08:00', 'YYYY-MM-DD HH24:MI:SS TZH:TZM')) as tzm
 from dual;
 
+select extract(-1) from dual;
+select extract(-1 from timestamp '2023-06-15 14:30:00') from dual;
+
