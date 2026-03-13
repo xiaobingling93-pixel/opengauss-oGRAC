@@ -149,6 +149,25 @@ cms_res_status_t *get_res_stat_by_inst_id(cms_res_status_list_t *list, uint8 ins
     return NULL;
 }
 
+static bool32 rc_cluster_stat_suspicious(const cms_res_status_list_t *res_list)
+{
+    if (res_list->inst_count > OG_MAX_INSTANCES) {
+        OG_LOG_RUN_ERR("[RC] invalid cms cluster stat, version %llu, inst_count %u", res_list->version,
+            res_list->inst_count);
+        return OG_TRUE;
+    }
+
+    for (uint8 i = 0; i < res_list->inst_count; i++) {
+        const cms_res_status_t *cms_res = &res_list->inst_list[i];
+        if (cms_res->stat == CMS_RES_ONLINE && cms_res->inst_id >= OG_MAX_INSTANCES) {
+            OG_LOG_RUN_ERR("[RC] invalid cms cluster stat, version %llu, index %u, inst_id %u, node_id %u, "
+                "work_stat %u", res_list->version, i, cms_res->inst_id, cms_res->node_id, cms_res->work_stat);
+            return OG_TRUE;
+        }
+    }
+    return OG_FALSE;
+}
+
 reform_role_t rc_get_role(reform_info_t *info, uint8 id)
 {
     if (check_id_in_list(id, &info->reform_list[REFORM_LIST_ABORT])) {
@@ -197,6 +216,9 @@ static void rc_check_abort_in_loop(void)
     cms_res_status_list_t tmp_current_stat;
 
     if (cms_get_res_stat_list1(g_rc_ctx->res_type, &tmp_current_stat) == OG_SUCCESS) {
+        if (rc_cluster_stat_suspicious(&tmp_current_stat)) {
+            return;
+        }
         cms_res_status_t *self_stat = get_res_stat_by_inst_id(&tmp_current_stat, g_rc_ctx->self_id);
 
         if (self_stat == NULL || self_stat->stat != CMS_RES_ONLINE) {
@@ -362,6 +384,11 @@ static void rc_refresh_cluster_info(void)
     // refresh master info from cms, instead of master_node(which maybe gone)
     for (;;) {
         if (cms_get_res_stat_list1(g_rc_ctx->res_type, &tmp_current_stat)) {
+            cm_sleep(10);
+            continue;
+        }
+
+        if (rc_cluster_stat_suspicious(&tmp_current_stat)) {
             cm_sleep(10);
             continue;
         }
