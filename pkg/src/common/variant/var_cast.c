@@ -180,6 +180,108 @@ static const uint64 g_dest_cast_mask[OG_MAX_DATATYPE_NUM] = {
     [OG_TYPE_I(OG_TYPE_NUMBER3)] = OG_TYPE_MASK_NUMERIC | OG_TYPE_MASK_STRING | OG_TYPE_MASK_BINARY,
 };
 
+static const uint64 g_dest_cast_dialect_a_mask_ext[OG_MAX_DATATYPE_NUM] = {
+    [OG_TYPE_I(OG_TYPE_INTEGER)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_BIGINT)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_UINT64)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_REAL)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_NUMBER)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_NUMBER2)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_DECIMAL)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_DATE)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_TIMESTAMP)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_CHAR)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_VARCHAR)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_STRING)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_BINARY)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_VARBINARY)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_RAW)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_CLOB)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_BLOB)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_IMAGE)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_CURSOR)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_COLUMN)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_BOOLEAN)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_TIMESTAMP_TZ)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_TIMESTAMP_LTZ)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_INTERVAL)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_INTERVAL_YM)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_INTERVAL_DS)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_UINT32)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_TIMESTAMP_TZ_FAKE)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_ARRAY)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_COLLECTION)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_NUMBER3)] = OG_TYPE_MASK_NONE,
+};
+
+static const uint64 g_dest_cast_dialect_b_mask_ext[OG_MAX_DATATYPE_NUM] = {
+    [OG_TYPE_I(OG_TYPE_INTEGER)] = OG_TYPE_MASK(OG_TYPE_DATE),
+    [OG_TYPE_I(OG_TYPE_BIGINT)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_UINT64)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_REAL)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_NUMBER)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_NUMBER2)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_DECIMAL)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_DATE)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_TIMESTAMP)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_CHAR)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_VARCHAR)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_STRING)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_BINARY)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_VARBINARY)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_RAW)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_CLOB)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_BLOB)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_IMAGE)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_CURSOR)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_COLUMN)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_BOOLEAN)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_TIMESTAMP_TZ)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_TIMESTAMP_LTZ)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_INTERVAL)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_INTERVAL_YM)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_INTERVAL_DS)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_UINT32)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_TIMESTAMP_TZ_FAKE)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_ARRAY)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_COLLECTION)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_NUMBER3)] = OG_TYPE_MASK_NONE,
+};
+
+static const uint64 g_dest_cast_dialect_c_mask_ext[OG_MAX_DATATYPE_NUM] = {
+    [OG_TYPE_I(OG_TYPE_INTEGER)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_BIGINT)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_UINT64)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_REAL)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_NUMBER)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_NUMBER2)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_DECIMAL)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_DATE)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_TIMESTAMP)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_CHAR)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_VARCHAR)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_STRING)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_BINARY)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_VARBINARY)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_RAW)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_CLOB)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_BLOB)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_IMAGE)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_CURSOR)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_COLUMN)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_BOOLEAN)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_TIMESTAMP_TZ)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_TIMESTAMP_LTZ)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_INTERVAL)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_INTERVAL_YM)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_INTERVAL_DS)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_UINT32)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_TIMESTAMP_TZ_FAKE)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_ARRAY)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_COLLECTION)] = OG_TYPE_MASK_NONE,
+    [OG_TYPE_I(OG_TYPE_NUMBER3)] = OG_TYPE_MASK_NONE,
+};
+
 /**
 * To decide whether built-in datatypes can be cast into which other built-in datatype.
 * This function can check the Compatibility of two datatypes before conversion. therefore
@@ -195,6 +297,20 @@ bool32 var_datatype_matched(og_type_t dest_type, og_type_t src_type)
         return OG_FALSE;
     }
     return ((g_dest_cast_mask[OG_TYPE_I(dest_type)] & OG_TYPE_MASK(src_type)) != 0);
+}
+
+bool32 var_datatype_matched_with_dialect(og_type_t dest_type, og_type_t src_type, char dbcompatibility)
+{
+    if (var_datatype_matched(dest_type, src_type)) {
+        return OG_TRUE;
+    }
+    if (dbcompatibility == 'B') {
+        return ((g_dest_cast_dialect_b_mask_ext[OG_TYPE_I(dest_type)] & OG_TYPE_MASK(src_type)) != 0);
+    } else if (dbcompatibility == 'C') {
+        return ((g_dest_cast_dialect_c_mask_ext[OG_TYPE_I(dest_type)] & OG_TYPE_MASK(src_type)) != 0);
+    } else {
+        return ((g_dest_cast_dialect_a_mask_ext[OG_TYPE_I(dest_type)] & OG_TYPE_MASK(src_type)) != 0);
+    }
 }
 
 bool32 var_datatype_is_compatible(og_type_t left_datatype, og_type_t right_datatype)
@@ -1857,4 +1973,21 @@ status_t var_to_unix_timestamp(dec8_t *unix_ts, timestamp_t *ts_ret, int64 time_
         return OG_ERROR;
     }
     return OG_SUCCESS;
+}
+
+status_t var_convert_dialect(const nlsparams_t *nls, variant_t *var, og_type_t type, text_buf_t *buf,
+                                  char dbcompatibility)
+{
+    status_t status = OG_SUCCESS;
+    if (dbcompatibility == 'B') {
+        status = var_convert_dialect_b(nls, var, type, buf);
+    } else if (dbcompatibility == 'C') {
+        status = var_convert_dialect_c(nls, var, type, buf);
+    } else {
+        status = var_convert_dialect_a(nls, var, type, buf);
+    }
+    if (status == OG_SUCCESS) {
+        return status;
+    }
+    return var_convert(nls, var, type, buf);
 }

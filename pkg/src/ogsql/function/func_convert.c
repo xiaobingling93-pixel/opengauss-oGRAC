@@ -247,7 +247,8 @@ status_t sql_func_cast(sql_stmt_t *stmt, expr_node_t *func, variant_t *res)
         } else if (arg2->root->datatype == OG_TYPE_COLLECTION) {
             status = sql_convert_to_collection(stmt, res, arg2->root->udt_type);
         } else {
-            status = var_convert(nlsparams, res, arg2->root->value.v_type.datatype, &text_buf);
+            status = var_convert_dialect(nlsparams, res, arg2->root->value.v_type.datatype, &text_buf,
+                                         stmt->session->dbcompatibility);
             OG_BREAK_IF_ERROR(status);
             if (arg2->root->exec_default) {
                 status = sql_apply_typmode(res, &arg2->root->value.v_type, buf, OG_FALSE);
@@ -295,6 +296,7 @@ status_t sql_verify_cast(sql_verifier_t *verf, expr_node_t *func)
 {
     expr_tree_t *arg1 = NULL;
     expr_tree_t *arg2 = NULL;
+    char dbcompatibility = verf->stmt->session->dbcompatibility;
 
     if (SECUREC_UNLIKELY(func->argument == NULL)) {
         OG_SRC_THROW_ERROR_EX(func->loc, ERR_SQL_SYNTAX_ERROR, "not enough argument for cast");
@@ -326,7 +328,7 @@ status_t sql_verify_cast(sql_verifier_t *verf, expr_node_t *func)
         if (sql_is_skipped_expr(arg1)) {
             return OG_SUCCESS;
         }
-        if (!var_datatype_matched(TREE_DATATYPE(arg2), TREE_DATATYPE(arg1))) {
+        if (!var_datatype_matched_with_dialect(TREE_DATATYPE(arg2), TREE_DATATYPE(arg1), dbcompatibility)) {
             OG_SRC_ERROR_MISMATCH(TREE_LOC(arg1), TREE_DATATYPE(arg2), TREE_DATATYPE(arg1));
             return OG_ERROR;
         }
