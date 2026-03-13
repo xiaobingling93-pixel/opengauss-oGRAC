@@ -6955,6 +6955,11 @@ C
 2 rows fetched.
 
 SQL> 
-SQL> 
+SQL> select to_number(-2E+4,'xxxxxxxx');
+TO_NUMBER(-2E+4,'XXXXXXXX')             
+----------------------------------------
+-20000                                  
+
+1 rows fetched.
 
 
