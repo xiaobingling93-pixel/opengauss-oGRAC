@@ -242,11 +242,6 @@ cc_import (
 )
 
 cc_import (
-    name = "lz4",
-    shared_library = "lz4/lib/liblz4.so",
-)
-
-cc_import (
     name = "protobuf-c",
     static_library = "protobuf/lib/libprotobuf-c.a",
     alwayslink = True,

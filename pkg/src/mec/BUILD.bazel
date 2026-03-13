@@ -17,7 +17,6 @@ COMMON_COPTS = GLOBAL_COPTS + [
     "-Iopen_source/odbc/include",
     "-Iopen_source/openssl/include/openssl",
     "-Iopen_source/openssl/include",
-    "-Iopen_source/lz4/include",
     "-Iplatform/huawei_security/include",
     "-Ipkg/src/common/variant",
     "-Ipkg/src/common",

@@ -85,7 +85,6 @@ cp_ograc_add_ons()
     cp -d ${code_path}/library/pcre/lib/libpcre2-8.so*     $1/add-ons/
     cp -d ${code_path}/library/zlib/lib/libz.so*     $1/add-ons/
     cp -d ${code_path}/library/Zstandard/lib/libzstd.so*     $1/add-ons/
-    cp -d ${code_path}/library/lz4/lib/liblz4.so*     $1/add-ons/
 }
 
 cp_ograc_bin()

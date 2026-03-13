@@ -286,7 +286,7 @@ static status_t lz4f_decompress(knl_compress_t *ogx, bool32 end_stream, char *wr
     size_t res;
     size_t in_len = ogx->lz4f_in_buf.size - ogx->lz4f_in_buf.pos;
     size_t out_len = write_buf_len;
-    const LZ4F_decompressOptions_t option = {0, 0, 0, 0};
+    const LZ4F_decompressOptions_t option = {0};
 
     res = LZ4F_decompress(ogx->lz4f_dstream, write_buf, &out_len,
         ogx->lz4f_in_buf.src + ogx->lz4f_in_buf.pos, &in_len, &option);
