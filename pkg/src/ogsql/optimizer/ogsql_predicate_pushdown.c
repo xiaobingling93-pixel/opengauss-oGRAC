@@ -53,7 +53,6 @@ static inline status_t og_transf_slct_exprn(visit_assist_t *v_ast, expr_node_t *
 
 static void og_copy_col_info(column_info_t *col_info_orig, column_info_t *col_info_dest)
 {
-    CM_POINTER2(col_info_orig, col_info_dest);
     OG_RETVOID_IFTRUE(col_info_orig == NULL || col_info_dest == NULL);
     col_info_dest->col_pro_id = col_info_orig->col_pro_id;
     col_info_dest->org_tab = col_info_orig->org_tab;
@@ -377,7 +376,7 @@ static inline bool32 og_pred_down_chk_unable_cond(rs_column_t *rs_column)
 static bool32 og_pred_down_chk_cols_used(sql_stmt_t *statement, cols_used_t *col_used,
     sql_query_t *qry, sql_table_t *tbl)
 {
-    CM_POINTER4(statement, col_used, qry, tbl);
+    CM_POINTER3(statement, col_used, qry);
     biqueue_t *bq = &col_used->cols_que[SELF_IDX];
     expr_node_t *exprn = NULL;
     rs_column_t *rs_column = NULL;
@@ -460,7 +459,7 @@ static bool32 og_pred_down_chk_cols(sql_stmt_t *statement, sql_query_t *qry,
 static inline bool32 og_pred_down_chk_node(sql_stmt_t *statement, sql_query_t *qry,
     cols_used_t *col_used_l, cols_used_t *col_used_r, sql_table_t *tbl)
 {
-    CM_POINTER5(statement, col_used_r, col_used_r, qry, tbl);
+    CM_POINTER5(statement, col_used_l, col_used_r, qry, tbl);
     if (og_pred_down_chk_cols(statement, qry, col_used_l, tbl)) {
         OG_RETVALUE_IFTRUE(!check_self_cols(col_used_l), OG_TRUE);
         return og_pred_down_chk_cols_used(statement, col_used_l, qry, tbl);
@@ -474,7 +473,7 @@ static inline bool32 og_pred_down_chk_node(sql_stmt_t *statement, sql_query_t *q
 
 static inline void init_and_collect_cols(expr_tree_t *exprtr, cols_used_t *col_used)
 {
-    CM_POINTER2(exprtr, col_used);
+    CM_POINTER(col_used);
     init_cols_used(col_used);
     sql_collect_cols_in_expr_tree(exprtr, col_used);
 }
