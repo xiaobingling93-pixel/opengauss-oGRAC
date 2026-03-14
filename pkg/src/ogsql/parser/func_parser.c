@@ -355,26 +355,52 @@ static status_t sql_build_func_args_substr(sql_stmt_t *stmt, word_t *word, expr_
 /*
  * EXTRACT( { YEAR|MONTH|DAY|HOUR|MINUTE|SECOND } FROM { datetime_expr|interval_expr } )
  */
+static bool32 sql_is_extract_unit_expr(expr_tree_t *unit_expr)
+{
+    word_t word;
+
+    if (unit_expr == NULL || unit_expr->root == NULL || unit_expr->chain.count != 1) {
+        return OG_FALSE;
+    }
+
+    if (unit_expr->root->type != EXPR_NODE_COLUMN || unit_expr->root->unary != UNARY_OPER_NONE ||
+        unit_expr->root->word.column.table.len != 0) {
+        return OG_FALSE;
+    }
+
+    word.text = unit_expr->root->word.column.name;
+    return lex_match_datetime_unit(&word);
+}
+
 static status_t sql_build_func_args_extract(sql_stmt_t *stmt, word_t *word, expr_node_t *func_node,
     sql_text_t *arg_text)
 {
     lex_t *lex = stmt->session->lex;
+    expr_tree_t *unit_expr = NULL;
     expr_tree_t *arg_expr = NULL;
-    // datetime unit expr
-    OG_RETURN_IFERR(lex_expected_fetch(lex, word));
-    // verify word text
-    OG_RETURN_IFERR(lex_push(lex, &word->text));
-    lex_pop(lex);
-    OG_RETURN_IFERR(sql_create_expr_from_word(stmt, word, &arg_expr));
-    OG_RETURN_IFERR(sql_generate_expr(arg_expr));
-    func_node->argument = arg_expr;
 
-    // expect FROM
-    OG_RETURN_IFERR(lex_expected_fetch_word(lex, "FROM"));
+    (void)arg_text;
+
+    OG_RETURN_IFERR(sql_create_expr_until(stmt, &unit_expr, word));
+    if (word->type == WORD_TYPE_EOF) {
+        OG_SRC_THROW_ERROR(func_node->loc, ERR_SQL_SYNTAX_ERROR, "not enough arguments for function");
+        return OG_ERROR;
+    }
+
+    if (word->id != KEY_WORD_FROM) {
+        OG_SRC_THROW_ERROR_EX(word->text.loc, ERR_SQL_SYNTAX_ERROR, "FROM expected but %s found", W2S(word));
+        return OG_ERROR;
+    }
+
+    if (!sql_is_extract_unit_expr(unit_expr)) {
+        OG_SRC_THROW_ERROR(unit_expr->loc, ERR_SQL_SYNTAX_ERROR, "invalid datetime unit");
+        return OG_ERROR;
+    }
 
     // datetime/interval expr
     OG_RETURN_IFERR(sql_create_expr_until(stmt, &arg_expr, word));
-    func_node->argument->next = arg_expr;
+    unit_expr->next = arg_expr;
+    func_node->argument = unit_expr;
 
     if (word->type != WORD_TYPE_EOF) {
         OG_SRC_THROW_ERROR_EX(LEX_LOC, ERR_SQL_SYNTAX_ERROR, "expected end but %s found", W2S(word));

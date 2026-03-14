@@ -120,6 +120,11 @@ TZH          TZM
 1 rows fetched.
 
 SQL> 
+SQL> select extract(-1) from dual;
+OG-00601, [1:8]Sql syntax error: not enough arguments for function
+SQL> select extract(-1 from timestamp '2023-06-15 14:30:00') from dual;
+OG-00601, [1:16]Sql syntax error: invalid datetime unit
+SQL> 
 SQL> 
 
 
