@@ -1922,20 +1922,20 @@ static void cost_mj_sort(sql_join_node_t* sort_path, galist_t *sort_keys, cbo_co
         return;
     }
     double startup_cost = sort_path->cost.cost;
-    double run_cost = CBO_DEFAULT_CPU_OPERATOR_COST * sort_path->cost.card;
+    int64 rows = MAX(sort_path->cost.card, 2);
+    double run_cost = CBO_DEFAULT_CPU_OPERATOR_COST * rows;
     double comparison_cost = 2.0 * CBO_DEFAULT_CPU_OPERATOR_COST;
-    int64 rows = sort_path->cost.card;
-    if (rows > 0) {
-        startup_cost += comparison_cost * sort_path->cost.card * log2(rows);
-        uint32 row_size = 0;
-        sort_item_t *item = NULL;
-        for (uint32 i = 0; i < sort_keys->count; i++) {
-            item = (sort_item_t *)cm_galist_get(sort_keys, i);
-            row_size += cm_get_datatype_strlen(item->cmp_type, OG_MAX_COLUMN_SIZE) + sizeof(mtrl_rowid_t);
-        }
-        double total_bytes = (double)row_size * (double)sort_path->cost.card;
-        startup_cost += compute_sort_disk_cost(total_bytes);
+
+    startup_cost += comparison_cost * rows * log2(rows);
+    uint32 row_size = 0;
+    sort_item_t *item = NULL;
+    for (uint32 i = 0; i < sort_keys->count; i++) {
+        item = (sort_item_t *)cm_galist_get(sort_keys, i);
+        row_size += cm_get_datatype_strlen(item->cmp_type, OG_MAX_COLUMN_SIZE) + sizeof(mtrl_rowid_t);
     }
+    double total_bytes = (double)row_size * (double)rows;
+    startup_cost += compute_sort_disk_cost(total_bytes);
+    
     cost_sort->card = sort_path->cost.card;
     cost_sort->startup_cost = startup_cost;
     cost_sort->cost = startup_cost + run_cost;

@@ -4,6 +4,7 @@ create table t1 (c1 varchar(100), c2 clob, c3 int);
 insert into t1 values ('1aschauchcdc', 'cashohvveoeve@!$!$', 1);
 insert into t1 values ('1aschauchcdc', 'cashohvveoeve@!$!$', 2);
 insert into t1 values ('1aschauchcdc', 'cashohvveoeve@!$!$', 3);
+analyze table t1 compute statistics;
 explain select c3 from t1 where c1 in (select c1 from t1) or c2 in (select c2 from t1);
 select c3 from t1 where c1 in (select c1 from t1) or c2 in (select c2 from t1);
 explain select * from
@@ -21,6 +22,7 @@ create table t1 (c1 varchar(100), c2 blob, c3 int);
 insert into t1 values ('1aschauchcdc', '1244abcd', 1);
 insert into t1 values ('1aschauchcdc', '1244abcd', 2);
 insert into t1 values ('1aschauchcdc', '1244abcd', 3);
+analyze table t1 compute statistics;
 explain select c3 from t1 where c1 in (select c1 from t1) or c2 in (select c2 from t1);
 select c3 from t1 where c1 in (select c1 from t1) or c2 in (select c2 from t1);
 explain select * from

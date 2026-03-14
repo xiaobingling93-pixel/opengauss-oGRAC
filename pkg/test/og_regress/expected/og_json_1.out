@@ -1,5 +1,3 @@
-
-
 SQL> SELECT JSON_QUERY('{A:"B"}', '$') FROM DUAL;
 
 JSON_QUERY('{A:"B"}', '$')                                      
@@ -737,12 +735,13 @@ C1
 
 1 rows fetched.
 
-SQL> SELECT 'CREATE OR REPLACE VIEW ' || U.NAME || '.' || V.NAME || ' ( '|| VC.COLUMNS || ' ) AS ', V.TEXT || ';' AS VIEWDEF FROM SYS.VIEW$ V, (SELECT USER#, VIEW#, GROUP_CONCAT(NAME ORDER BY ID) COLUMNS FROM SYS.VIEWCOL$ GROUP BY USER#, VIEW#) VC, SYS.USER$ U WHERE V.USER# = VC.USER# AND V.ID = VC.VIEW# AND V.USER# = U.ID AND V.NAME = 'V_JSON_TEST_1'; 
+SQL> SELECT 'CREATE OR REPLACE VIEW ' || U.NAME || '.' || V.NAME || ' ( '|| VC.COLUMNS || ' ) AS ', V.TEXT || ';' AS VIEWDEF FROM SYS.VIEW$ V, (SELECT USER#, VIEW#, GROUP_CONCAT(NAME ORDER BY ID) COLUMNS FROM SYS.VIEWCOL$ GROUP BY USER#, VIEW#) VC, SYS.USER$ U WHERE V.USER# = VC.USER# AND V.ID = VC.VIEW# AND V.USER# = U.ID AND V.NAME = 'V_JSON_TEST_1';
 
 'CREATE OR REPLACE VIEW ' || U.NAME || '.' || V.NAME || ' ( '||  VIEWDEF                                                         
 ---------------------------------------------------------------- ----------------------------------------------------------------
+CREATE OR REPLACE VIEW SYS.V_JSON_TEST_1 ( C1 ) AS               select json_value('{"Aa":123}', '$.Aa' returning varchar2(1024) error on error) C1 from dual;
 
-0 rows fetched.
+1 rows fetched.
 
 SQL> drop view V_JSON_TEST_1;
 
@@ -771,9 +770,9 @@ SQL> insert into json_t_mem_opt values('[1,');
 
 1 rows affected.
 
-SQL> begin 
+SQL> begin
   2 for i in 1..2000
-  3     loop    
+  3     loop
   4         update json_t_mem_opt set c = c || '1,1,1,8,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,';
   5     end loop;
   6     update json_t_mem_opt set c = c || '1]';
@@ -796,9 +795,9 @@ LENGTHB(C)
 1 rows fetched.
 
 SQL> 
-SQL> begin 
+SQL> begin
   2 for i in 1..5
-  3     loop    
+  3     loop
   4         insert into json_t_mem_opt select * from json_t_mem_opt;
   5     end loop;
   6 end;
