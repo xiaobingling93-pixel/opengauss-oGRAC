@@ -799,7 +799,7 @@ static inline og_type_t og_convert_lob_row(og_type_t temp_type)
 static inline status_t og_put_select_sort_row(sql_stmt_t *statement, char *row_buf, row_assist_t *row_ast,
     og_type_t temp_type, variant_t *var)
 {
-    CM_POINTER4(statement, row_buf, row_ast, var);
+    CM_POINTER3(statement, row_ast, var);
     if (OG_IS_LOB_TYPE(var->type) && sql_get_lob_value(statement, var) != OG_SUCCESS) {
         return OG_ERROR;
     }
