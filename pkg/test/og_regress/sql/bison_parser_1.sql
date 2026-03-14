@@ -1348,4 +1348,10 @@ ALTER INDEX global_idx UNUSABLE;
 ALTER INDEX global_idx REBUILD;
 
 drop table sales;
+create table test_array1(id int, idd int[]);
+create table test_array2(id int, idd int[5]);
+create table test_array3(c1 clob[]); --error
+create table test_array4(c1 clob[5]); --error
+drop table test_array1;
+drop table test_array2;
 alter system set use_bison_parser = false;
