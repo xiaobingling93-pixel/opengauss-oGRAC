@@ -1,5 +1,3 @@
-
-
 SQL> -- the default col and check can not using user define func
 SQL> CREATE OR REPLACE FUNCTION func1(c1 int) return int is
   2 begin
@@ -96,75 +94,60 @@ EXPLAIN PLAN OUTPUT
 | 1  |   NESTED LOOPS                                  |       |                           | 0    | 0     | 0         |       |        |
 | 2  |       VIEW                                      | SYS   | DB_TAB_PARTITIONS X       | 0    | 0     | 0         |       |        |
 | 3  |           TABLE ACCESS FULL                     | SYS   | SYS_COMPRESS_OBJECTS CO   | 0    | 10000 | 0         |       |        |
-| 4  |         WINDOW SORT                             |       |                           | 0    | 40000 | 40000     |       |        |
-| 5  |           MERGE JOIN                            |       |                           | 0    | 40000 | 40000     |       |        |
-| 6  |             MERGE JOIN                          |       |                           | 0    | 30000 | 30000     |       |        |
-| 7  |               NESTED LOOPS                      |       |                           | 0    | 20000 | 0         |       |        |
-| 8  |                   TABLE ACCESS FULL             | SYS   | SYS_USERS U               | 0    | 10000 | 0         |       |        |
-| 9  |                   TABLE ACCESS FULL             | SYS   | SYS_TABLES T              | 0    | 10000 | 0         |       |        |
-| 10 |                 TABLE ACCESS FULL               | SYS   | SYS_TABLE_PARTS TP        | 0    | 10000 | 0         |       |        |
-| 11 |               TABLE ACCESS FULL                 | SYS   | DV_TABLESPACES TS         | 0    | 10000 | 0         |       |        |
+| 4  |         WINDOW SORT                             |       |                           | 0    | 40000 | 0         |       |        |
+| 5  |           NESTED LOOPS                          |       |                           | 0    | 40000 | 0         |       |        |
+| 6  |             NESTED LOOPS                        |       |                           | 0    | 20000 | 0         |       |        |
+| 7  |                 TABLE ACCESS FULL               | SYS   | SYS_USERS U               | 0    | 10000 | 0         |       |        |
+| 8  |                 TABLE ACCESS FULL               | SYS   | SYS_TABLES T              | 0    | 10000 | 0         |       |        |
+| 9  |             NESTED LOOPS                        |       |                           | 0    | 20000 | 0         |       |        |
+| 10 |                 TABLE ACCESS FULL               | SYS   | DV_TABLESPACES TS         | 0    | 10000 | 0         |       |        |
+| 11 |                 TABLE ACCESS FULL               | SYS   | SYS_TABLE_PARTS TP        | 0    | 10000 | 0         |       |        |
 | 12 |       SUBSELECT                                 | SYS   | Z                         | 1    | 0     | 0         |       |        |
 | 13 |         MERGE SORT GROUP BY                     |       |                           | 0    | 0     | 0         |       |        |
 | 14 |             SUBSELECT                           | SYS   | Y                         | 0    | 0     | 0         |       |        |
 | 15 |               NESTED LOOPS                      |       |                           | 0    | 0     | 0         |       |        |
 | 16 |                   VIEW                          | SYS   | DB_TAB_SUBPARTITIONS O    | 0    | 0     | 0         |       |        |
-| 17 |                     WINDOW SORT                 |       |                           | 0    | 50000 | 30000     |       |        |
-| 18 |                       NESTED LOOPS              |       |                           | 0    | 50000 | 30000     |       |        |
-| 19 |                         NESTED LOOPS            |       |                           | 0    | 20000 | 0         |       |        |
-| 20 |                             TABLE ACCESS FULL   | SYS   | SYS_USERS U               | 0    | 10000 | 0         |       |        |
-| 21 |                             TABLE ACCESS FULL   | SYS   | SYS_TABLES T              | 0    | 10000 | 0         |       |        |
-| 22 |                         MERGE JOIN              |       |                           | 0    | 30000 | 30000     |       |        |
+| 17 |                     WINDOW SORT                 |       |                           | 0    | 50000 | 0         |       |        |
+| 18 |                       NESTED LOOPS              |       |                           | 0    | 50000 | 0         |       |        |
+| 19 |                         NESTED LOOPS            |       |                           | 0    | 40000 | 0         |       |        |
+| 20 |                           NESTED LOOPS          |       |                           | 0    | 20000 | 0         |       |        |
+| 21 |                               TABLE ACCESS FULL | SYS   | SYS_SUB_TABLE_PARTS TSUBP | 0    | 10000 | 0         |       |        |
+| 22 |                               TABLE ACCESS FULL | SYS   | SYS_TABLE_PARTS TP        | 0    | 10000 | 0         |       |        |
 | 23 |                           NESTED LOOPS          |       |                           | 0    | 20000 | 0         |       |        |
-| 24 |                               TABLE ACCESS FULL | SYS   | SYS_SUB_TABLE_PARTS TSUBP | 0    | 10000 | 0         |       |        |
-| 25 |                               TABLE ACCESS FULL | SYS   | SYS_TABLE_PARTS TP        | 0    | 10000 | 0         |       |        |
-| 26 |                             TABLE ACCESS FULL   | SYS   | DV_TABLESPACES TS         | 0    | 10000 | 0         |       |        |
+| 24 |                               TABLE ACCESS FULL | SYS   | SYS_USERS U               | 0    | 10000 | 0         |       |        |
+| 25 |                               TABLE ACCESS FULL | SYS   | SYS_TABLES T              | 0    | 10000 | 0         |       |        |
+| 26 |                           TABLE ACCESS FULL     | SYS   | DV_TABLESPACES TS         | 0    | 10000 | 0         |       |        |
 | 27 |                   VIEW                          | SYS   | DB_PART_TABLES P          | 0    | 0     | 0         |       |        |
-| 28 |                     MERGE JOIN                  |       |                           | 0    | 40000 | 40000     |       |        |
-| 29 |                       MERGE JOIN                |       |                           | 0    | 30000 | 30000     |       |        |
-| 30 |                         NESTED LOOPS            |       |                           | 0    | 20000 | 0         |       |        |
-| 31 |                             TABLE ACCESS FULL   | SYS   | SYS_PART_OBJECTS P        | 0    | 10000 | 0         |       |        |
-| 32 |                             TABLE ACCESS FULL   | SYS   | SYS_TABLES T              | 0    | 10000 | 0         |       |        |
-| 33 |                           TABLE ACCESS FULL     | SYS   | SYS_USERS U               | 0    | 10000 | 0         |       |        |
-| 34 |                         TABLE ACCESS FULL       | SYS   | DV_TABLESPACES TS         | 0    | 10000 | 0         |       |        |
+| 28 |                     NESTED LOOPS                |       |                           | 0    | 40000 | 0         |       |        |
+| 29 |                       NESTED LOOPS              |       |                           | 0    | 20000 | 0         |       |        |
+| 30 |                           TABLE ACCESS FULL     | SYS   | SYS_USERS U               | 0    | 10000 | 0         |       |        |
+| 31 |                           TABLE ACCESS FULL     | SYS   | SYS_PART_OBJECTS P        | 0    | 10000 | 0         |       |        |
+| 32 |                       NESTED LOOPS              |       |                           | 0    | 20000 | 0         |       |        |
+| 33 |                           TABLE ACCESS FULL     | SYS   | SYS_TABLES T              | 0    | 10000 | 0         |       |        |
+| 34 |                           TABLE ACCESS FULL     | SYS   | DV_TABLESPACES TS         | 0    | 10000 | 0         |       |        |
 ----------------------------------------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     3 - filter: CO.OBJECT_TYPE = 2 AND CO.ORG_SCN = TP.ORG_SCN  
-    5 - access: TP.SPACE# = TS.ID                               
-    6 - access: U.ID = TP.USER#                                 
-        filter: T.USER# = TP.USER# AND TP.TABLE# = T.ID         
-    9 - filter: T.RECYCLED = 0 AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME
+    8 - filter: T.RECYCLED = 0 AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME
                 || '"', 'TABLE')) AND U.ID = T.USER#            
-    10 - filter: TP.TABLE# = T.ID AND T.USER# = TP.USER#        
-    11 - filter: T.RECYCLED = 0 AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' ||
-                T.NAME || '"', 'TABLE')) AND U.ID = T.USER# AND TP.TABLE# = T.ID AND T.USER# = TP.USER#
+    11 - filter: U.ID = TP.USER# AND T.USER# = TP.USER# AND TP.TABLE# = T.ID AND TP.SPACE# = TS.ID
     12 - filter: X.PARTITION_NAME = Z.PARENTPART_NAME           
     16 - filter: O.PARENTPART_NAME = X.PARTITION_NAME           
-    21 - filter: T.RECYCLED = 0 AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' ||
-                T.NAME || '"', 'TABLE')) AND T.NAME = P.NAME AND T.NAME = 'T_RG_HS_01' AND T.USER# = U.ID
-    22 - access: TSUBP.SPACE# = TS.ID                           
-    24 - filter: T.USER# = TSUBP.USER# AND U.ID = TSUBP.USER# AND TSUBP.TABLE# = T.ID
-    25 - filter: TSUBP.USER# = TP.USER# AND U.ID = TP.USER# AND T.USER# = TP.USER# AND FALSE != TP.FLAGS & 0x04 AND
-                TSUBP.PARENT_PART# = TP.PART# AND TP.TABLE# = TSUBP.TABLE# AND TP.TABLE# = T.ID
-    26 - filter: T.RECYCLED = 0 AND U.ID = TSUBP.USER# AND TSUBP.TABLE# = T.ID AND T.NAME = P.NAME AND TSUBP.USER# =
-                TP.USER# AND T.USER# = U.ID AND TSUBP.PARENT_PART# = TP.PART# AND U.ID = TP.USER# AND T.NAME =
-                'T_RG_HS_01' AND FALSE != TP.FLAGS & 0x04 AND T.USER# = TP.USER# AND TP.TABLE# = TSUBP.TABLE# AND
-                T.USER# = TSUBP.USER# AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"'
-                || T.NAME || '"', 'TABLE')) AND TP.TABLE# = T.ID
-    28 - access: T.SPACE# = TS.ID                               
-    29 - access: P.USER# = U.ID                                 
-         filter: (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME || '"', 'TABLE'))
-                AND T.USER# = U.ID                              
-    31 - filter: P.INDEX# = (-1)                                
-    32 - filter: T.NAME = 'T_RG_HS_01' AND P.TABLE# = T.ID AND T.USER# = P.USER# AND T.RECYCLED = 0 AND T.NAME = O.TABLE_NAME
-    33 - filter: T.USER# = U.ID AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' ||
-                T.NAME || '"', 'TABLE'))                        
-    34 - filter: P.INDEX# = (-1) AND T.NAME = O.TABLE_NAME AND T.RECYCLED = 0 AND T.USER# = U.ID AND T.NAME = 'T_RG_HS_01'
-                AND P.TABLE# = T.ID AND T.USER# = P.USER# AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER,
-                U.NAME, '"' || T.NAME || '"', 'TABLE'))         
+    22 - filter: TSUBP.USER# = TP.USER# AND FALSE != TP.FLAGS & 0x04 AND TSUBP.PARENT_PART# = TP.PART# AND TP.TABLE#
+                = TSUBP.TABLE#                                  
+    24 - filter: U.ID = TSUBP.USER# AND U.ID = TP.USER#         
+    25 - filter: T.RECYCLED = 0 AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' ||
+                T.NAME || '"', 'TABLE')) AND T.USER# = TP.USER# AND T.USER# = TSUBP.USER# AND TP.TABLE# = T.ID AND
+                T.NAME = 'T_RG_HS_01' AND T.NAME = P.NAME AND TSUBP.TABLE# = T.ID AND T.USER# = U.ID
+    26 - filter: TSUBP.SPACE# = TS.ID                           
+    31 - filter: P.INDEX# = (-1) AND U.ID = P.USER#             
+    33 - filter: T.NAME = 'T_RG_HS_01' AND T.USER# = U.ID AND T.USER# = P.USER# AND P.TABLE# = T.ID AND T.RECYCLED =
+                0 AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME || '"',
+                'TABLE')) AND T.NAME = O.TABLE_NAME             
+    34 - filter: T.SPACE# = TS.ID                               
 
-74 rows fetched.
+59 rows fetched.
 
 SQL> 
 SQL> DROP TABLE IF EXISTS T_RG_HS_01;
@@ -172,5 +155,3 @@ SQL> DROP TABLE IF EXISTS T_RG_HS_01;
 Succeed.
 
 SQL> 
-
-
