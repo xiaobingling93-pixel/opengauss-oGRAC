@@ -1,3 +1,5 @@
+
+
 SQL> -- the default col and check can not using user define func
 SQL> CREATE OR REPLACE FUNCTION func1(c1 int) return int is
   2 begin
@@ -133,21 +135,23 @@ Predicate Information (identified by id):
                 || '"', 'TABLE')) AND U.ID = T.USER#            
     11 - filter: U.ID = TP.USER# AND T.USER# = TP.USER# AND TP.TABLE# = T.ID AND TP.SPACE# = TS.ID
     12 - filter: X.PARTITION_NAME = Z.PARENTPART_NAME           
+    14 - filter: Y.PARENTPART_NAME = X.PARTITION_NAME           
     16 - filter: O.PARENTPART_NAME = X.PARTITION_NAME           
     22 - filter: TSUBP.USER# = TP.USER# AND FALSE != TP.FLAGS & 0x04 AND TSUBP.PARENT_PART# = TP.PART# AND TP.TABLE#
                 = TSUBP.TABLE#                                  
     24 - filter: U.ID = TSUBP.USER# AND U.ID = TP.USER#         
-    25 - filter: T.RECYCLED = 0 AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' ||
-                T.NAME || '"', 'TABLE')) AND T.USER# = TP.USER# AND T.USER# = TSUBP.USER# AND TP.TABLE# = T.ID AND
-                T.NAME = 'T_RG_HS_01' AND T.NAME = P.NAME AND TSUBP.TABLE# = T.ID AND T.USER# = U.ID
+    25 - filter: T.RECYCLED = 0 AND T.USER# = TP.USER# AND T.USER# = TSUBP.USER# AND TP.TABLE# = T.ID AND T.NAME =
+                'T_RG_HS_01' AND T.USER# = U.ID AND TSUBP.TABLE# = T.ID AND (U.NAME = USER OR USER = 'SYS' OR FALSE
+                != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME || '"', 'TABLE'))
     26 - filter: TSUBP.SPACE# = TS.ID                           
+    27 - filter: P.NAME = O.TABLE_NAME                          
     31 - filter: P.INDEX# = (-1) AND U.ID = P.USER#             
     33 - filter: T.NAME = 'T_RG_HS_01' AND T.USER# = U.ID AND T.USER# = P.USER# AND P.TABLE# = T.ID AND T.RECYCLED =
                 0 AND (U.NAME = USER OR USER = 'SYS' OR FALSE != HAS_OBJ_PRIVS(USER, U.NAME, '"' || T.NAME || '"',
                 'TABLE')) AND T.NAME = O.TABLE_NAME             
     34 - filter: T.SPACE# = TS.ID                               
 
-59 rows fetched.
+61 rows fetched.
 
 SQL> 
 SQL> DROP TABLE IF EXISTS T_RG_HS_01;
@@ -155,3 +159,5 @@ SQL> DROP TABLE IF EXISTS T_RG_HS_01;
 Succeed.
 
 SQL> 
+
+
