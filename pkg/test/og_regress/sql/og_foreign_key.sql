@@ -22,3 +22,28 @@ delete from t_emp where empno = 1; -- error
 delete from t_emp where empno = -1; -- success
 commit;
 drop table t_emp;
+
+-- drop referenced primary key should fail
+drop table if exists emp;
+drop table if exists dept;
+create table dept(deptno number(2), dname varchar2(20), constraint deptno_id primary key(deptno));
+create table emp(empno number(4) primary key, ename varchar2(20), deptno number(2));
+alter table emp add constraint emp_deptno_fk foreign key(deptno) references dept(deptno);
+
+insert into dept values(10, 'Test');
+insert into dept values(20, 'Develop');
+insert into dept values(30, 'HR');
+insert into dept values(40, 'Sales');
+insert into dept values(50, 'Finance');
+
+insert into emp values(0001, 'Nancy', 10);
+insert into emp values(0002, 'Tom', 10);
+insert into emp values(0003, 'Anne', 20);
+insert into emp values(0004, 'Alice', 30);
+insert into emp values(0005, 'Gaby', 40);
+insert into emp values(0006, 'Lynette', 30);
+
+alter table dept drop constraint deptno_id;
+
+drop table emp;
+drop table dept;
