@@ -21,7 +21,6 @@ SQL> insert into t1 values ('1aschauchcdc', 'cashohvveoeve@!$!$', 3);
 
 1 rows affected.
 
-
 SQL> analyze table t1 compute statistics;
 
 Succeed.
@@ -128,9 +127,9 @@ SQL> insert into t1 values ('1aschauchcdc', '1244abcd', 2);
 SQL> insert into t1 values ('1aschauchcdc', '1244abcd', 3);
 
 1 rows affected.
- 
+
 SQL> analyze table t1 compute statistics;
- 
+
 Succeed.
 
 SQL> explain select c3 from t1 where c1 in (select c1 from t1) or c2 in (select c2 from t1);
@@ -603,7 +602,43 @@ SQL> select count(*) from or_2_union_t t1 where
   3 or 
   4 exists(select * from  or_2_union_t t3 where t3.c < 10 and t1.c < 10);
 
-OG-00608, Invalid expression
+COUNT(*)            
+--------------------
+2                   
+
+1 rows fetched.
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------
+| Id | Operation                           | Owner | Name            | Rows | Cost        | StartCost   | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                    |       |                 | 1    | 40000000006 | 20000000002 |       |        |
+| 1  |   AGGR                              |       |                 | 1    | 40000000006 | 20000000002 |       |        |
+| 2  |       SUBSELECT                     |       | $FROM_ORE_0     | 2    | 20000000004 | 20000000002 |       |        |
+| 3  |         HASH UNION                  |       |                 | 2    | 20000000004 | 20000000002 |       |        |
+| 4  |           HASH JOIN SEMI(R)         |       |                 | 1    | 10000000002 | 10000000001 |       |        |
+| 5  |               TABLE ACCESS FULL     | SYS   | OR_2_UNION_T T1 | 2    | 1           | 0           |       |        |
+| 6  |               SUBSELECT             |       | $FROM_SQ_0      | 2    | 1           | 0           |       |        |
+| 7  |                   TABLE ACCESS FULL | SYS   | OR_2_UNION_T T2 | 2    | 1           | 0           |       |        |
+| 8  |           HASH JOIN SEMI(R)         |       |                 | 1    | 10000000002 | 10000000001 |       |        |
+| 9  |               TABLE ACCESS FULL     | SYS   | OR_2_UNION_T T1 | 2    | 1           | 0           |       |        |
+| 10 |               SUBSELECT             |       | $FROM_SQ_1      | 2    | 1           | 0           |       |        |
+| 11 |                   TABLE ACCESS FULL | SYS   | OR_2_UNION_T T3 | 2    | 1           | 0           |       |        |
+--------------------------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - access: NA = NA                                         
+    5 - filter: T1.B < 10                                       
+    6 - filter: T1.B < 10                                       
+    7 - filter: T2.B < 10                                       
+    8 - access: NA = NA                                         
+    9 - filter: T1.C < 10                                       
+    10 - filter: T1.C < 10                                      
+    11 - filter: T3.C < 10                                      
+
+26 rows fetched.
+
 SQL> 
 SQL> select count(*) from  or_2_union_t t1 where 
   2 t1.b in(select t2.b from  or_2_union_t t2 where t2.b < 10)
@@ -676,7 +711,7 @@ Predicate Information (identified by id):
     5 - filter: T1.A > 10                                       
     6 - filter: T1.B = T2.B                                     
     9 - filter: T1.C = T2.C AND (FALSE != LNNVL(T1.B = T2.B) OR FALSE != LNNVL(T1.A > 10))
- 
+
 19 rows fetched.
 
 SQL> 
