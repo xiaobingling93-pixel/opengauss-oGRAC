@@ -498,7 +498,7 @@ func_download_3rdparty()
     cd open_source
 
     # openGauss third_party repo (contains zstd / openssl / huawei_secure_c, etc.)
-    git clone https://gitcode.com/opengauss/openGauss-third_party.git -b master
+    git clone https://gitcode.com/opengauss/openGauss-third_party.git -b master --depth 1
     # pcre2: use src-openeuler repo
     git clone https://gitcode.com/src-openeuler/pcre2.git -b openEuler-24.03-LTS-SP3
 
@@ -510,8 +510,6 @@ func_download_3rdparty()
 
     # protobuf-c: use src-openeuler repo
     git clone https://gitcode.com/src-openeuler/protobuf-c.git -b openEuler-24.03-LTS-SP1
-
-    # lz4 uses system library; googletest / mockcpp are not fetched in this build
 
     cd ${DOWNLOAD_PATH}/build
 
