@@ -105,16 +105,16 @@ EXPLAIN PLAN OUTPUT
 -----------------------------------------------------------------------------------------------------
 | Id | Operation                     | Owner | Name      | Rows | Cost | StartCost | Bytes | Remark |
 -----------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT              |       |           | 1    | 4    | 0         |       |        |
-| 1  |   NESTED LOOPS                |       |           | 1    | 4    | 0         |       |        |
-| 2  |       TABLE ACCESS FULL       | SYS   | SSE_T2 T2 | 3    | 1    | 0         |       |        |
-| 3  |       SUBSELECT               | SYS   | SUB_QRY   | 1    | 1    | 0         |       |        |
-| 4  |         HASH GROUP BY         |       |           | 1    | 18   | 8         |       |        |
-| 5  |             TABLE ACCESS FULL | SYS   | SSE_T1    | 1    | 1    | 0         |       |        |
+| 0  | SELECT STATEMENT              |       |           | 1    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN                  |       |           | 1    | 2    | 2         |       |        |
+| 2  |       SUBSELECT               | SYS   | SUB_QRY   | 3    | 1    | 0         |       |        |
+| 3  |         HASH GROUP BY         |       |           | 3    | 18   | 8         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | SSE_T1    | 3    | 1    | 0         |       |        |
+| 5  |       TABLE ACCESS FULL       | SYS   | SSE_T2 T2 | 3    | 1    | 0         |       |        |
 -----------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    5 - filter: B = T2.B                                        
+    1 - access: SUB_QRY.B = T2.B                                
 
 13 rows fetched.
 

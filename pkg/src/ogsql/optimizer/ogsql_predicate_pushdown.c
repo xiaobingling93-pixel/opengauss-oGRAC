@@ -462,11 +462,11 @@ static inline bool32 og_pred_down_chk_node(sql_stmt_t *statement, sql_query_t *q
     CM_POINTER5(statement, col_used_l, col_used_r, qry, tbl);
     if (og_pred_down_chk_cols(statement, qry, col_used_l, tbl)) {
         OG_RETVALUE_IFTRUE(!check_self_cols(col_used_l), OG_TRUE);
-        return og_pred_down_chk_cols_used(statement, col_used_l, qry, tbl);
+        return og_pred_down_chk_cols_used(statement, col_used_r, qry, tbl);
     }
     if (og_pred_down_chk_cols(statement, qry, col_used_r, tbl)) {
         OG_RETVALUE_IFTRUE(!check_self_cols(col_used_r), OG_TRUE);
-        return og_pred_down_chk_cols_used(statement, col_used_r, qry, tbl);
+        return og_pred_down_chk_cols_used(statement, col_used_l, qry, tbl);
     }
     return OG_FALSE;
 }
@@ -574,7 +574,7 @@ static bool32 og_pred_down_check_priv(sql_stmt_t *statement, sql_query_t *qry,
 static bool32 og_pred_down_chk_filter_down(sql_stmt_t *statement, bool32 is_same_table)
 {
     return ogsql_opt_param_is_enable(statement, g_instance->sql.enable_filter_pushdown, OPT_FILTER_PUSHDOWN) ||
-            is_same_table;
+            !is_same_table;
 }
 
 static bool32 og_pred_down_chk_join_down(sql_stmt_t *statement, bool32 is_same_table)
@@ -602,10 +602,13 @@ static inline bool32 og_pred_down_chk_cmp_rule2(cols_used_t *col_used_l, cols_us
 }
 
 // Check whether a compare node can be pushed down
-static bool32 og_pred_down_chk_cmp_node(sql_stmt_t *statement, sql_query_t *qry, cond_node_t *cond,
-                                                 sql_table_t *tbl, select_node_type_t sub_slct_node_type,
-                                                 bool32 *is_same_table)
+static bool32 og_pred_down_chk_cmp_node(pred_down_common_input_t *input, select_node_type_t sub_slct_node_type,
+    bool32 *is_same_table)
 {
+    sql_stmt_t *statement = input->statement;
+    sql_query_t *qry = input->qry;
+    cond_node_t *cond = input->cond;
+    sql_table_t *tbl = input->tbl;
     CM_POINTER5(statement, qry, cond, tbl, is_same_table);
     cols_used_t col_used_l;
     cols_used_t col_used_r;
@@ -625,7 +628,7 @@ static bool32 og_pred_down_chk_cmp_node(sql_stmt_t *statement, sql_query_t *qry,
     }
 
     if (!sql_cols_is_same_table(tbl->id, &col_used_l) ||
-        !sql_cols_is_same_table(tbl->id, &col_used_l)) {
+        !sql_cols_is_same_table(tbl->id, &col_used_r)) {
         *is_same_table = OG_FALSE;
     }
 
@@ -675,7 +678,13 @@ static bool32 og_pred_down_check_cond_node(pred_down_common_input_t *input, sele
     }
 
     if (cond_nd->type == COND_NODE_COMPARE) {
-        return og_pred_down_chk_cmp_node(statement, qry, cond_nd, tbl, sub_slct_node_type, is_same_table);
+        pred_down_common_input_t input = {
+            .cond = cond_nd,
+            .qry = qry,
+            .statement = statement,
+            .tbl = tbl
+        };
+        return og_pred_down_chk_cmp_node(&input, sub_slct_node_type, is_same_table);
     }
 
     pred_down_common_input_t l_input = {
@@ -1077,7 +1086,7 @@ static status_t og_pred_down_tables(sql_stmt_t *statement, pred_pushdown_helper_
 status_t og_transf_predicate_pushdown(sql_stmt_t *statement, sql_query_t *qry)
 {
     CM_POINTER2(statement, qry);
-    if (!ogsql_opt_param_is_enable(statement, g_instance->sql.enable_join_pred_pushdown, OPT_JOIN_PRED_PUSHDOWN)) {
+    if (!ogsql_opt_param_is_enable(statement, g_instance->sql.enable_pred_pushdown, OPT_JOIN_PRED_PUSHDOWN)) {
         OG_LOG_DEBUG_INF("[PRED_PUSH_DOWN]: Predicate pushdown is disabled.");
         return OG_SUCCESS;
     }

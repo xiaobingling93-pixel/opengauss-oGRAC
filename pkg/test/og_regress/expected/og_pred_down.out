@@ -707,20 +707,21 @@ EXPLAIN PLAN OUTPUT
 ----------------------------------------------------------------------------------------------------------
 | Id | Operation                     | Owner | Name           | Rows | Cost | StartCost | Bytes | Remark |
 ----------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT              |       |                | 1    | 4    | 0         |       |        |
-| 1  |   NESTED LOOPS                |       |                | 1    | 4    | 0         |       |        |
-| 2  |       SUBSELECT               | SYS   | SUB_Q2         | 3    | 1    | 0         |       |        |
-| 3  |         HASH DISTINCT         |       |                | 3    | 9    | 0         |       |        |
-| 4  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_2 T2 | 3    | 1    | 0         |       |        |
-| 5  |       SUBSELECT               | SYS   | SUB_Q1         | 1    | 1    | 0         |       |        |
-| 6  |         HASH DISTINCT         |       |                | 1    | 9    | 0         |       |        |
-| 7  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_1 T1 | 1    | 1    | 0         |       |        |
+| 0  | SELECT STATEMENT              |       |                | 1    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN                  |       |                | 1    | 2    | 2         |       |        |
+| 2  |       SUBSELECT               | SYS   | SUB_Q1         | 6    | 1    | 0         |       |        |
+| 3  |         HASH DISTINCT         |       |                | 6    | 9    | 0         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_1 T1 | 6    | 1    | 0         |       |        |
+| 5  |       SUBSELECT               | SYS   | SUB_Q2         | 3    | 1    | 0         |       |        |
+| 6  |         HASH DISTINCT         |       |                | 3    | 9    | 0         |       |        |
+| 7  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_2 T2 | 3    | 1    | 0         |       |        |
 ----------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    7 - filter: T1.C1 > 0 AND T1.C1 = SUB_Q2.C1                 
+    1 - access: SUB_Q1.C1 = SUB_Q2.C1                           
+    4 - filter: T1.C1 > 0                                       
 
-15 rows fetched.
+16 rows fetched.
 
 SQL> SELECT * FROM (SELECT DISTINCT c1, c2 FROM PRED_DOWN_1 t1) sub_q1
   2     INNER JOIN (SELECT DISTINCT c1, c2 FROM PRED_DOWN_2 t2) sub_q2 ON sub_q1.c1 = sub_q2.c1 WHERE sub_q1.c1 > 0;
@@ -739,19 +740,19 @@ EXPLAIN PLAN OUTPUT
 ----------------------------------------------------------------------------------------------------------
 | Id | Operation                     | Owner | Name           | Rows | Cost | StartCost | Bytes | Remark |
 ----------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT              |       |                | 1    | 4    | 0         |       |        |
-| 1  |   NESTED LOOPS                |       |                | 1    | 4    | 0         |       |        |
-| 2  |       SUBSELECT               | SYS   | SUB_Q2         | 3    | 1    | 0         |       |        |
-| 3  |         HASH DISTINCT         |       |                | 3    | 9    | 0         |       |        |
-| 4  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_2 T2 | 3    | 1    | 0         |       |        |
-| 5  |       SUBSELECT               | SYS   | SUB_Q1         | 1    | 1    | 0         |       |        |
-| 6  |         HASH DISTINCT         |       |                | 1    | 9    | 0         |       |        |
-| 7  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_1 T1 | 1    | 1    | 0         |       |        |
+| 0  | SELECT STATEMENT              |       |                | 1    | 2    | 2         |       |        |
+| 1  |   MERGE JOIN                  |       |                | 1    | 2    | 2         |       |        |
+| 2  |       SUBSELECT               | SYS   | SUB_Q1         | 6    | 1    | 0         |       |        |
+| 3  |         HASH DISTINCT         |       |                | 6    | 9    | 0         |       |        |
+| 4  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_1 T1 | 6    | 1    | 0         |       |        |
+| 5  |       SUBSELECT               | SYS   | SUB_Q2         | 3    | 1    | 0         |       |        |
+| 6  |         HASH DISTINCT         |       |                | 3    | 9    | 0         |       |        |
+| 7  |             TABLE ACCESS FULL | SYS   | PRED_DOWN_2 T2 | 3    | 1    | 0         |       |        |
 ----------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    4 - filter: T2.C1 > 0                                       
-    7 - filter: T1.C1 = SUB_Q2.C1                               
+    1 - access: SUB_Q1.C1 = SUB_Q2.C1                           
+    7 - filter: T2.C1 > 0                                       
 
 16 rows fetched.
 
@@ -899,6 +900,69 @@ C1           C2                   C10
 6 rows fetched.
 
 SQL> 
-SQL> 
+SQL> -- cond push down core
+SQL> CREATE TABLE SYS_USERS_TEST(NAME int);
+
+Succeed.
+
+SQL> CREATE TABLE SYS_PROCS_TEST(NAME int);
+
+Succeed.
+
+SQL> CREATE TABLE SYS_TABLES_TEST(NAME int);
+
+Succeed.
+
+SQL> INSERT INTO SYS_USERS_TEST VALUES(1);
+
+1 rows affected.
+
+SQL> INSERT INTO SYS_PROCS_TEST VALUES(1);
+
+1 rows affected.
+
+SQL> INSERT INTO SYS_TABLES_TEST VALUES(1);
+
+1 rows affected.
+
+SQL> COMMIT;
+
+Succeed.
+
+SQL> (SELECT
+  2 P1.OBJECT_NAME
+  3 FROM
+  4 (SELECT U1.NAME OWNER, P1.NAME OBJECT_NAME FROM SYS.SYS_USERS_TEST U1, SYS.SYS_PROCS_TEST P1) P1,
+  5 (SELECT U2.NAME OWNER, T2.NAME OBJECT_NAME FROM SYS.SYS_USERS_TEST U2, SYS.SYS_TABLES_TEST T2) O1
+  6 WHERE
+  7 P1.OWNER = O1.OWNER)
+  8 UNION ALL
+  9 (SELECT
+ 10 P2.OBJECT_NAME
+ 11 FROM
+ 12 (SELECT U3.NAME OWNER, P3.NAME OBJECT_NAME FROM SYS.SYS_USERS_TEST U3, SYS.SYS_PROCS_TEST P3) P2,
+ 13 (SELECT U4.NAME OWNER, T4.NAME OBJECT_NAME FROM SYS.SYS_USERS_TEST U4, SYS.SYS_TABLES_TEST T4) O2
+ 14 WHERE
+ 15 P2.OWNER = O2.OWNER);
+
+OBJECT_NAME 
+------------
+1           
+1           
+
+2 rows fetched.
+
+SQL> DROP TABLE SYS_USERS_TEST;
+
+Succeed.
+
+SQL> DROP TABLE SYS_PROCS_TEST;
+
+Succeed.
+
+SQL> DROP TABLE SYS_TABLES_TEST;
+Succeed.
+
+
 
 

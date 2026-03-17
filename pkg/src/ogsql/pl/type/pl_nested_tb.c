@@ -562,7 +562,7 @@ static status_t udt_nested_table_extend(sql_stmt_t *stmt, variant_t *var, expr_t
     mtrl_ntbl_head_t *collection_head = NULL;
     status_t status;
     int32 num;
-    uint32 id;
+    uint32 id = OG_INVALID_ID32;
     variant_t copy;
     bool32 is_null = OG_FALSE;
 

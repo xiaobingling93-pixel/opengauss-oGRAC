@@ -1078,7 +1078,6 @@ static inline status_t remove_join_cond_4_query(sql_stmt_t *stmt, sql_query_t *s
         OG_RETURN_IFERR(remove_join_cond_4_slct_node(stmt, table->select_ctx->root, ancestor + 1, tab));
         if (chk_remove_table_push_down_join(table->select_ctx->root)) {
             TABLE_CBO_UNSET_FLAG(table, SELTION_PUSH_DOWN_JOIN);
-            cbo_unset_select_node_table_flag(table->select_ctx->root, SELTION_PUSH_DOWN_TABLE, OG_FALSE);
         }
     }
 
@@ -1303,9 +1302,51 @@ static status_t sql_finalize_join_tree(sql_stmt_t *stmt, plan_assist_t *pa, sql_
     return OG_SUCCESS;
 }
 
+static status_t remove_push_down_cond_4_slct(sql_stmt_t *statement, plan_assist_t *plan_ass, sql_select_t *slct,
+                                                uint32 cur_tab)
+{
+    OG_RETSUC_IFTRUE(slct->parent_refs->count == 0);
+    galist_t *ref_lst = slct->parent_refs;
+    OG_RETURN_IFERR(sql_create_list(statement, &slct->parent_refs));
+
+    int32_t idx = 0;
+    while (idx < ref_lst->count) {
+        parent_ref_t *ref = (parent_ref_t *)cm_galist_get(ref_lst, idx++);
+        uint32 ref_tab = ref->tab;
+        /*
+         * need remove pushed down join cond if current tab planId < ref tab planId when two table join as NL
+         * need remove all pushed down join cond when two table join as others type.
+         */
+        if (chk_tab_with_oper_map(plan_ass, cur_tab, ref_tab) &&
+            plan_ass->tables[cur_tab]->plan_id >= plan_ass->tables[ref_tab]->plan_id) {
+            OG_RETURN_IFERR(cm_galist_insert(slct->parent_refs, ref));
+        } else {
+            OG_RETURN_IFERR(remove_join_cond_4_slct_node(statement, slct->root, PARENT_IDX, ref_tab));
+        }
+    }
+
+    return OG_SUCCESS;
+}
+
+static status_t remove_pushed_down_cond_4_subslct_table(sql_stmt_t *statement, plan_assist_t *plan_ass,
+    sql_array_t *tbl_arr)
+{
+    int32_t idx = 0;
+    while (idx < tbl_arr->count) {
+        sql_table_t *tbl = (sql_table_t *)sql_array_get(tbl_arr, idx++);
+        sql_select_t *tab_slct = tbl->select_ctx;
+        if (tbl->type == SUBSELECT_AS_TABLE || tbl->type == VIEW_AS_TABLE) {
+            OG_RETURN_IFERR(remove_push_down_cond_4_slct(statement, plan_ass, tab_slct, tbl->id));
+        }
+    }
+
+    return OG_SUCCESS;
+}
+
 static status_t optimized_with_join_tree(sql_stmt_t *stmt, plan_assist_t *plan_ass, sql_join_node_t **join_root)
 {
     OG_RETURN_IFERR(sql_finalize_join_tree(stmt, plan_ass, join_root));
+    OG_RETURN_IFERR(remove_pushed_down_cond_4_subslct_table(stmt, plan_ass, &plan_ass->query->tables));
     return OG_SUCCESS;
 }
 
