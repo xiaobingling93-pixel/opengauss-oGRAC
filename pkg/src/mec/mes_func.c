@@ -1619,9 +1619,13 @@ status_t mes_broadcast_data_and_wait_with_retry_allow_send_fail(uint32 sid, uint
 void mes_broadcast_data3(uint32 sid, mes_message_head_t *head, uint32 head_size, const void *body)
 {
     uint64 start_stat_time = 0;
+    const char *msg = NULL;
+    source_location_t loc;
+    int32 code;
     mes_check_sid(sid);
     mes_waiting_room_t *room = &g_mes.mes_ctx.waiting_rooms[sid];
 
+    cm_get_error(&code, &msg, &loc);
     cm_spin_lock(&room->lock, NULL);
     room->req_count = g_mes.profile.inst_count - 1;
     room->req_bitmap = 0;
@@ -1639,7 +1643,7 @@ void mes_broadcast_data3(uint32 sid, mes_message_head_t *head, uint32 head_size,
         head->dst_inst = i;
 
         if (mes_send_data3(head, head_size, body) != OG_SUCCESS) {
-            cm_reset_error();
+            cm_revert_error(code, msg, &loc);
             (void)cm_atomic32_dec(&room->req_count);
             MES_LOGGING(MES_LOGGING_BROADCAST, "MES broadcast to instance %d failed", i);
             continue;

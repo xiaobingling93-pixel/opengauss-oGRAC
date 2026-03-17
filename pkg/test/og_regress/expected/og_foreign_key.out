@@ -80,8 +80,90 @@ SQL> commit;
 Succeed.
 
 SQL> drop table t_emp;
+
 Succeed.
 
+SQL> 
+SQL> -- drop referenced primary key should fail
+SQL> drop table if exists emp;
 
+Succeed.
+
+SQL> drop table if exists dept;
+
+Succeed.
+
+SQL> create table dept(deptno number(2), dname varchar2(20), constraint deptno_id primary key(deptno));
+
+Succeed.
+
+SQL> create table emp(empno number(4) primary key, ename varchar2(20), deptno number(2));
+
+Succeed.
+
+SQL> alter table emp add constraint emp_deptno_fk foreign key(deptno) references dept(deptno);
+
+Succeed.
+
+SQL> 
+SQL> insert into dept values(10, 'Test');
+
+1 rows affected.
+
+SQL> insert into dept values(20, 'Develop');
+
+1 rows affected.
+
+SQL> insert into dept values(30, 'HR');
+
+1 rows affected.
+
+SQL> insert into dept values(40, 'Sales');
+
+1 rows affected.
+
+SQL> insert into dept values(50, 'Finance');
+
+1 rows affected.
+
+SQL> 
+SQL> insert into emp values(0001, 'Nancy', 10);
+
+1 rows affected.
+
+SQL> insert into emp values(0002, 'Tom', 10);
+
+1 rows affected.
+
+SQL> insert into emp values(0003, 'Anne', 20);
+
+1 rows affected.
+
+SQL> insert into emp values(0004, 'Alice', 30);
+
+1 rows affected.
+
+SQL> insert into emp values(0005, 'Gaby', 40);
+
+1 rows affected.
+
+SQL> insert into emp values(0006, 'Lynette', 30);
+
+1 rows affected.
+
+SQL> 
+SQL> alter table dept drop constraint deptno_id;
+
+OG-00847, This unique/primary key is referenced by some foreign keys
+SQL> 
+SQL> drop table emp;
+
+Succeed.
+
+SQL> drop table dept;
+
+Succeed.
+
+SQL> 
 
 

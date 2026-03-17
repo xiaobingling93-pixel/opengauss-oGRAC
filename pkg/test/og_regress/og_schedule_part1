@@ -36,6 +36,7 @@ test: og_listagg
 test: bison_parser_2
 test: og_sequence_restart
 test: og_ddl_parse
+test: og_foreign_key
 test: og_3rd_pkg
 test: og_extract_timezone
 test: og_cond_reorganise
