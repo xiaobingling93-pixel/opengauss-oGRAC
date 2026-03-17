@@ -485,12 +485,27 @@ func_download_3rdparty()
     if [[ x"${proxy_user}" != x"" ]]; then
         export http_proxy=http://${proxy_user}:${proxy_pwd}@${proxy_url}
         export https_proxy=${http_proxy}
-        export no_proxy=127.0.0.1,.huawei.com,localhost,local,.local
+        export no_proxy=127.0.0.1,localhost,local,.local
     fi
-    git clone https://gitee.com/cantian-repo/cantian-repo.git
-    rm -rf open_source
-    mv cantian-repo open_source
-    cd -
+
+    rm -rf open_source/*
+    cd open_source
+
+    # openGauss third_party repo (contains zstd / openssl / huawei_secure_c, etc.)
+    git clone https://gitcode.com/opengauss/openGauss-third_party.git -b master --depth 1
+    # pcre2: use src-openeuler repo
+    git clone https://gitcode.com/src-openeuler/pcre2.git -b openEuler-24.03-LTS-SP3
+
+    # zlib: use src-openeuler repo
+    git clone https://gitcode.com/src-openeuler/zlib.git -b openEuler-24.03-LTS-SP3
+
+    # protobuf-all: use src-openeuler repo
+    git clone https://gitcode.com/src-openeuler/protobuf.git -b openEuler-22.03-LTS-SP4
+
+    # protobuf-c: use src-openeuler repo
+    git clone https://gitcode.com/src-openeuler/protobuf-c.git -b openEuler-24.03-LTS-SP1
+
+    cd ${DOWNLOAD_PATH}/build
 
     echo "start compile 3rdparty : "
     sh compile_opensource_new.sh

@@ -173,7 +173,7 @@ if [[ -f ../patch_list ]]; then
     done < ../patch_list
 fi
 mkdir -p "${OPEN_SOURCE}/openssl/install"
-./config --prefix="${OPEN_SOURCE}/openssl/install" shared
+./config --prefix="${OPEN_SOURCE}/openssl/install" shared -Wno-error
 if [[ ${OS_ARCH} =~ "x86_64" ]]; then
     export CPU_CORES_NUM_x86=`cat /proc/cpuinfo |grep "cores" |wc -l`
     make -j${CPU_CORES_NUM_x86}
@@ -201,7 +201,11 @@ cd ${OPEN_SOURCE}/zlib/zlib-1.2.13
 mkdir -p ${OPEN_SOURCE}/zlib/include
 mkdir -p ${LIBRARY}/zlib/lib
 cp zconf.h zlib.h ${OPEN_SOURCE}/zlib/include
-CFLAGS='-Wall -Wtrampolines -fno-common -fvisibility=default -fstack-protector-strong -fPIC --param ssp-buffer-size=4 -D_FORTIFY_SOURCE=2 -O2 -Wl,-z,relro,-z,now,-z,noexecstack -march=armv8-a+crc' ./configure
+if [[ ${OS_ARCH} =~ "aarch64" ]]; then
+    CFLAGS='-Wall -Wtrampolines -fno-common -fvisibility=default -fstack-protector-strong -fPIC --param ssp-buffer-size=4 -D_FORTIFY_SOURCE=2 -O2 -Wl,-z,relro,-z,now,-z,noexecstack -march=armv8-a+crc' ./configure
+else
+    CFLAGS='-Wall -Wtrampolines -fno-common -fvisibility=default -fstack-protector-strong -fPIC --param ssp-buffer-size=4 -D_FORTIFY_SOURCE=2 -O2 -Wl,-z,relro,-z,now,-z,noexecstack' ./configure
+fi
 make -sj
 tar -cvf libz.tar libz.so*;cp libz.tar libz.so* ${LIBRARY}/zlib/lib/
 
