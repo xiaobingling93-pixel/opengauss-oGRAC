@@ -82,6 +82,10 @@ void sql_bitmap_union(join_tbl_bitmap_t *a, join_tbl_bitmap_t *b, join_tbl_bitma
 
 bool8 sql_bitmap_overlap(join_tbl_bitmap_t* a, join_tbl_bitmap_t* b)
 {
+    if (a == NULL || b == NULL) {
+        return OG_FALSE;
+    }
+
     for (uint32 i = 0; i < BITMAP_WORD_COUNT; i++) {
         if ((a->words[i] & b->words[i]) != 0) {
             return OG_TRUE;
