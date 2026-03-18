@@ -46,6 +46,7 @@
 #include "ogsql_distinct_rewrite.h"
 #include "ogsql_join_elimination.h"
 #include "ogsql_pushdown_orderby.h"
+#include "ogsql_transf_cartesian_join.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -223,6 +224,8 @@ status_t ogsql_apply_rule_set_2(sql_stmt_t *statement, sql_query_t *qry)
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_select_erase);
     // transform sub-select to table
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_subquery_rewrite);
+    // transform cartesian join(push down grouped aggregation).
+    OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_cartesian_join);
     // transform sub_select by hash mtrl.
     OGSQL_RETURN_IF_APPLY_RULE_ERR(statement, qry, og_transf_var_subquery_rewrite);
     // transform to eliminate outer join.
