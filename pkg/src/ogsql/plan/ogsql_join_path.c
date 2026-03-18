@@ -561,8 +561,7 @@ static status_t sql_distribute_jinfo_to_jtables(join_assist_t* ja, sql_join_node
     }
 
     (void)sql_check_outerjoin_delayed(ja, join_info);
-    if (!sql_bitmap_empty(outerjoin_nonnullable) &&
-        sql_bitmap_overlap(&join_info->table_ids, outerjoin_nonnullable)) {
+    if (sql_bitmap_overlap(&join_info->table_ids, outerjoin_nonnullable)) {
         sql_bitmap_union(&join_info->table_ids, ojscope, &join_info->table_ids);
         if (join_info->outer_tableids == NULL) {
             OG_RETURN_IFERR(sql_alloc_mem(ja->stmt->context, sizeof(join_tbl_bitmap_t),
@@ -571,6 +570,8 @@ static status_t sql_distribute_jinfo_to_jtables(join_assist_t* ja, sql_join_node
 
         sql_bitmap_init(join_info->outer_tableids);
         sql_bitmap_copy(outerjoin_nonnullable, join_info->outer_tableids);
+    } else if (sql_bitmap_empty(outerjoin_nonnullable)) {
+        join_info->jinfo_flag |= COND_IS_FILTER;
     }
 
     if ((join_info->jinfo_flag & COND_HAS_ROWNUM) && join_node == NULL) {
