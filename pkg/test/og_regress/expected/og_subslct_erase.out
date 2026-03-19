@@ -61,7 +61,7 @@ EXPLAIN PLAN OUTPUT
 Predicate Information (identified by id):                       
 -----------------------------------------                       
     2 - filter: SSE_T1.B = 2                                    
-    3 - filter: SSE_T1.B = 2 AND SSE_T1.A = SSE_T2.A            
+    3 - filter: SSE_T1.A = SSE_T2.A                             
 
 12 rows fetched.
 

@@ -63,6 +63,7 @@ typedef struct st_cond_node {
     cond_node_type_t type;
     bool32 processed;
     bool8 join_pushed;
+    bool8 reject_null;
     struct st_cond_node *left;
     struct st_cond_node *right;
     cmp_node_t *cmp; /* only used for node type is COND_NODE_COMPARE */

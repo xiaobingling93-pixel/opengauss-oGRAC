@@ -1,0 +1,747 @@
+
+
+SQL> DROP TABLE IF EXISTS t1;
+
+Succeed.
+
+SQL> CREATE TABLE t1 (id INT PRIMARY KEY, name VARCHAR(100), age INT);
+
+Succeed.
+
+SQL> DROP TABLE IF EXISTS t2;
+
+Succeed.
+
+SQL> CREATE TABLE t2 (id INT PRIMARY KEY, t1_id INT, value VARCHAR(100), CONSTRAINT fk_t2_t1 FOREIGN KEY (t1_id) REFERENCES t1(id));
+
+Succeed.
+
+SQL> DROP TABLE IF EXISTS t3;
+
+Succeed.
+
+SQL> CREATE TABLE t3 (id INT PRIMARY KEY, t2_id INT, data VARCHAR(100));
+
+Succeed.
+
+SQL> INSERT INTO t1 VALUES (1, 'Alice', 25), (2, 'Bob', 30), (3, 'Charlie', 35);
+
+3 rows affected.
+
+SQL> INSERT INTO t2 VALUES (1, 1, 'A'), (2, 2, 'B'), (3, 3, 'C');
+
+3 rows affected.
+
+SQL> INSERT INTO t3 VALUES (1, 1, 'X'), (2, 2, 'Y'), (3, 3, 'Z');
+
+3 rows affected.
+
+SQL> CREATE UNIQUE INDEX idx_t2_t1_id ON t2(t1_id);
+
+Succeed.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.id IS NOT NULL;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   NESTED LOOPS          |       |      | 1    | 20000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+-------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: T2.ID IS NOT NULL  AND T1.ID = T2.T1_ID         
+
+11 rows fetched.
+
+SQL> SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.id IS NOT NULL;
+
+ID           NAME                                                             AGE          ID           T1_ID        VALUE                                                           
+------------ ---------------------------------------------------------------- ------------ ------------ ------------ ----------------------------------------------------------------
+1            Alice                                                            25           1            1            A                                                               
+2            Bob                                                              30           2            2            B                                                               
+3            Charlie                                                          35           3            3            C                                                               
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.value = 'A';
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   NESTED LOOPS          |       |      | 1    | 20000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+-------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: T2.VALUE = 'A' AND T1.ID = T2.T1_ID             
+
+11 rows fetched.
+
+SQL> SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.value = 'A';
+
+ID           NAME                                                             AGE          ID           T1_ID        VALUE                                                           
+------------ ---------------------------------------------------------------- ------------ ------------ ------------ ----------------------------------------------------------------
+1            Alice                                                            25           1            1            A                                                               
+
+1 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   NESTED LOOPS OUTER    |       |      | 1    | 20000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+-------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: T1.ID = T2.T1_ID                                
+
+11 rows fetched.
+
+SQL> SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id;
+
+ID           NAME                                                             AGE          ID           T1_ID        VALUE                                                           
+------------ ---------------------------------------------------------------- ------------ ------------ ------------ ----------------------------------------------------------------
+1            Alice                                                            25           1            1            A                                                               
+2            Bob                                                              30           2            2            B                                                               
+3            Charlie                                                          35           3            3            C                                                               
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id LEFT JOIN t3 ON t2.id = t3.t2_id WHERE t2.id IS NOT NULL AND t3.id IS NOT NULL;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 1    | 30000 | 0         |       |        |
+| 1  |   NESTED LOOPS            |       |      | 1    | 30000 | 0         |       |        |
+| 2  |     NESTED LOOPS          |       |      | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T3   | 0    | 10000 | 0         |       |        |
+| 5  |       TABLE ACCESS FULL   | SYS   | T1   | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: T2.ID IS NOT NULL                               
+    4 - filter: T3.ID IS NOT NULL  AND T2.ID = T3.T2_ID         
+    5 - filter: T1.ID = T2.T1_ID                                
+
+15 rows fetched.
+
+SQL> SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id LEFT JOIN t3 ON t2.id = t3.t2_id WHERE t2.id IS NOT NULL AND t3.id IS NOT NULL;
+
+ID           NAME                                                             AGE          ID           T1_ID        VALUE                                                            ID           T2_ID        DATA                                                            
+------------ ---------------------------------------------------------------- ------------ ------------ ------------ ---------------------------------------------------------------- ------------ ------------ ----------------------------------------------------------------
+1            Alice                                                            25           1            1            A                                                                1            1            X                                                               
+2            Bob                                                              30           2            2            B                                                                2            2            Y                                                               
+3            Charlie                                                          35           3            3            C                                                                3            3            Z                                                               
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT t1.*, t2.value FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   NESTED LOOPS OUTER    |       |      | 1    | 20000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+-------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: T1.ID = T2.T1_ID                                
+
+11 rows fetched.
+
+SQL> SELECT t1.*, t2.value FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id;
+
+ID           NAME                                                             AGE          VALUE                                                           
+------------ ---------------------------------------------------------------- ------------ ----------------------------------------------------------------
+1            Alice                                                            25           A                                                               
+2            Bob                                                              30           B                                                               
+3            Charlie                                                          35           C                                                               
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT t1.*, t2.value, t2.id FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   NESTED LOOPS OUTER    |       |      | 1    | 20000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+-------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: T1.ID = T2.T1_ID                                
+
+11 rows fetched.
+
+SQL> SELECT t1.*, t2.value, t2.id FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id;
+
+ID           NAME                                                             AGE          VALUE                                                            ID          
+------------ ---------------------------------------------------------------- ------------ ---------------------------------------------------------------- ------------
+1            Alice                                                            25           A                                                                1           
+2            Bob                                                              30           B                                                                2           
+3            Charlie                                                          35           C                                                                3           
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.value IS NOT NULL;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   NESTED LOOPS          |       |      | 1    | 20000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+-------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: T2.VALUE IS NOT NULL  AND T1.ID = T2.T1_ID      
+
+11 rows fetched.
+
+SQL> SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.value IS NOT NULL;
+
+ID           NAME                                                             AGE         
+------------ ---------------------------------------------------------------- ------------
+1            Alice                                                            25          
+2            Bob                                                              30          
+3            Charlie                                                          35          
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT DISTINCT t1.* FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 0    | 10008 | 0         |       |        |
+| 1  |   HASH DISTINCT         |       |      | 0    | 10008 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+-------------------------------------------------------------------------------------------
+
+7 rows fetched.
+
+SQL> SELECT DISTINCT t1.* FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id;
+
+ID           NAME                                                             AGE         
+------------ ---------------------------------------------------------------- ------------
+1            Alice                                                            25          
+2            Bob                                                              30          
+3            Charlie                                                          35          
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT t1.id, MAX(t2.value) FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id GROUP BY t1.id;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |      | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS OUTER    |       |      | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: T1.ID = T2.T1_ID                                
+
+12 rows fetched.
+
+SQL> SELECT t1.id, MAX(t2.value) FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id GROUP BY t1.id;
+
+ID           MAX(T2.VALUE)                                                   
+------------ ----------------------------------------------------------------
+2            B                                                               
+1            A                                                               
+3            C                                                               
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT t1.id, COUNT(t2.id) FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id GROUP BY t1.id;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |      | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS OUTER    |       |      | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: T1.ID = T2.T1_ID                                
+
+12 rows fetched.
+
+SQL> SELECT t1.id, COUNT(t2.id) FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id GROUP BY t1.id;
+
+ID           COUNT(T2.ID)        
+------------ --------------------
+2            1                   
+1            1                   
+3            1                   
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 FULL JOIN t2 ON t1.id = t2.t1_id WHERE t1.id IS NOT NULL;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   NESTED LOOPS OUTER    |       |      | 1    | 20000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+-------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: T1.ID IS NOT NULL                               
+    3 - filter: T1.ID = T2.T1_ID                                
+
+12 rows fetched.
+
+SQL> SELECT * FROM t1 FULL JOIN t2 ON t1.id = t2.t1_id WHERE t1.id IS NOT NULL;
+
+ID           NAME                                                             AGE          ID           T1_ID        VALUE                                                           
+------------ ---------------------------------------------------------------- ------------ ------------ ------------ ----------------------------------------------------------------
+1            Alice                                                            25           1            1            A                                                               
+2            Bob                                                              30           2            2            B                                                               
+3            Charlie                                                          35           3            3            C                                                               
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 FULL JOIN t2 ON t1.id = t2.t1_id WHERE t2.id IS NOT NULL;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   NESTED LOOPS OUTER    |       |      | 1    | 20000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+-------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: T2.ID IS NOT NULL                               
+    3 - filter: T1.ID = T2.T1_ID                                
+
+12 rows fetched.
+
+SQL> SELECT * FROM t1 FULL JOIN t2 ON t1.id = t2.t1_id WHERE t2.id IS NOT NULL;
+
+ID           NAME                                                             AGE          ID           T1_ID        VALUE                                                           
+------------ ---------------------------------------------------------------- ------------ ------------ ------------ ----------------------------------------------------------------
+1            Alice                                                            25           1            1            A                                                               
+2            Bob                                                              30           2            2            B                                                               
+3            Charlie                                                          35           3            3            C                                                               
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.id IS NOT NULL OR t1.age > 30;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   FILTER                  |       |      | 1    | 20000 | 0         |       |        |
+| 2  |     NESTED LOOPS OUTER    |       |      | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - filter: T2.ID IS NOT NULL  OR T1.AGE > 30               
+    4 - filter: T1.ID = T2.T1_ID                                
+
+13 rows fetched.
+
+SQL> SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.id IS NOT NULL OR t1.age > 30;
+
+ID           NAME                                                             AGE          ID           T1_ID        VALUE                                                           
+------------ ---------------------------------------------------------------- ------------ ------------ ------------ ----------------------------------------------------------------
+1            Alice                                                            25           1            1            A                                                               
+2            Bob                                                              30           2            2            B                                                               
+3            Charlie                                                          35           3            3            C                                                               
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.id IS NOT NULL AND t2.value = 'A';
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   NESTED LOOPS          |       |      | 1    | 20000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+-------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: T2.VALUE = 'A' AND T1.ID = T2.T1_ID AND T2.ID IS NOT NULL 
+
+11 rows fetched.
+
+SQL> SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.id IS NOT NULL AND t2.value = 'A';
+
+ID           NAME                                                             AGE          ID           T1_ID        VALUE                                                           
+------------ ---------------------------------------------------------------- ------------ ------------ ------------ ----------------------------------------------------------------
+1            Alice                                                            25           1            1            A                                                               
+
+1 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 WHERE EXISTS (SELECT 1 FROM t2 LEFT JOIN t3 ON t2.id = t3.t2_id WHERE t2.t1_id = t1.id AND t3.id IS NOT NULL);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 0    | 10000 | 0         |       |        |
+| 1  |   KERNEL FILTER           |       |      | 0    | 10000 | 0         |       |        |
+| 2  |     TABLE ACCESS FULL     | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 3  |     NESTED LOOPS          |       |      | 1    | 20000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+| 5  |         TABLE ACCESS FULL | SYS   | T3   | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    2 - filter: EXISTS(SELECT 1 FROM T2 INNER JOIN  T3 WHERE T3.ID IS NOT NULL  AND T2.T1_ID = T1.ID AND T2.ID = T3.T2_ID)
+    4 - filter: T2.T1_ID = T1.ID                                
+    5 - filter: T3.ID IS NOT NULL  AND T2.ID = T3.T2_ID         
+
+15 rows fetched.
+
+SQL> SELECT * FROM t1 WHERE EXISTS (SELECT 1 FROM t2 LEFT JOIN t3 ON t2.id = t3.t2_id WHERE t2.t1_id = t1.id AND t3.id IS NOT NULL);
+
+ID           NAME                                                             AGE         
+------------ ---------------------------------------------------------------- ------------
+1            Alice                                                            25          
+2            Bob                                                              30          
+3            Charlie                                                          35          
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.id IS NULL;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   FILTER                  |       |      | 1    | 20000 | 0         |       |        |
+| 2  |     NESTED LOOPS OUTER    |       |      | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - filter: T2.ID IS NULL                                   
+    4 - filter: T1.ID = T2.T1_ID                                
+
+13 rows fetched.
+
+SQL> SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.id IS NULL;
+
+ID           NAME                                                             AGE          ID           T1_ID        VALUE                                                           
+------------ ---------------------------------------------------------------- ------------ ------------ ------------ ----------------------------------------------------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.id > 0;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   NESTED LOOPS          |       |      | 1    | 20000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+-------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: T2.ID > 0 AND T1.ID = T2.T1_ID                  
+
+11 rows fetched.
+
+SQL> SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.id > 0;
+
+ID           NAME                                                             AGE          ID           T1_ID        VALUE                                                           
+------------ ---------------------------------------------------------------- ------------ ------------ ------------ ----------------------------------------------------------------
+1            Alice                                                            25           1            1            A                                                               
+2            Bob                                                              30           2            2            B                                                               
+3            Charlie                                                          35           3            3            C                                                               
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.id + t1.age > 50;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   FILTER                  |       |      | 1    | 20000 | 0         |       |        |
+| 2  |     NESTED LOOPS OUTER    |       |      | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    1 - filter: T2.ID + T1.AGE > 50                             
+    4 - filter: T1.ID = T2.T1_ID                                
+
+13 rows fetched.
+
+SQL> SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.id + t1.age > 50;
+
+ID           NAME                                                             AGE          ID           T1_ID        VALUE                                                           
+------------ ---------------------------------------------------------------- ------------ ------------ ------------ ----------------------------------------------------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.id IN (1, 2, 3);
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   NESTED LOOPS          |       |      | 1    | 20000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+-------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: T2.ID IN (1, 2, 3) AND T1.ID = T2.T1_ID         
+
+11 rows fetched.
+
+SQL> SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.id IN (1, 2, 3);
+
+ID           NAME                                                             AGE          ID           T1_ID        VALUE                                                           
+------------ ---------------------------------------------------------------- ------------ ------------ ------------ ----------------------------------------------------------------
+1            Alice                                                            25           1            1            A                                                               
+2            Bob                                                              30           2            2            B                                                               
+3            Charlie                                                          35           3            3            C                                                               
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.id BETWEEN 1 AND 10;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   NESTED LOOPS          |       |      | 1    | 20000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+-------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: T2.ID BETWEEN 1 AND 10 AND T1.ID = T2.T1_ID     
+
+11 rows fetched.
+
+SQL> SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id WHERE t2.id BETWEEN 1 AND 10;
+
+ID           NAME                                                             AGE          ID           T1_ID        VALUE                                                           
+------------ ---------------------------------------------------------------- ------------ ------------ ------------ ----------------------------------------------------------------
+1            Alice                                                            25           1            1            A                                                               
+2            Bob                                                              30           2            2            B                                                               
+3            Charlie                                                          35           3            3            C                                                               
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT t1.id, CASE WHEN t2.id IS NOT NULL THEN t2.value ELSE 'NULL' END FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+-------------------------------------------------------------------------------------------
+| Id | Operation               | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+-------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT        |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   NESTED LOOPS OUTER    |       |      | 1    | 20000 | 0         |       |        |
+| 2  |       TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 3  |       TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+-------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: T1.ID = T2.T1_ID                                
+
+11 rows fetched.
+
+SQL> SELECT t1.id, CASE WHEN t2.id IS NOT NULL THEN t2.value ELSE 'NULL' END FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id;
+
+ID           CASE WHEN T2.ID IS NOT NULL THEN T2.VALUE ELSE 'NULL' END       
+------------ ----------------------------------------------------------------
+1            A                                                               
+2            B                                                               
+3            C                                                               
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id ORDER BY t2.value;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   QUERY SORT ORDER BY     |       |      | 1    | 20000 | 0         |       |        |
+| 2  |     NESTED LOOPS OUTER    |       |      | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: T1.ID = T2.T1_ID                                
+
+12 rows fetched.
+
+SQL> SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id ORDER BY t2.value;
+
+ID           NAME                                                             AGE          ID           T1_ID        VALUE                                                           
+------------ ---------------------------------------------------------------- ------------ ------------ ------------ ----------------------------------------------------------------
+1            Alice                                                            25           1            1            A                                                               
+2            Bob                                                              30           2            2            B                                                               
+3            Charlie                                                          35           3            3            C                                                               
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id LIMIT 10;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 1    | 40000 | 0         |       |        |
+| 1  |   QUERY LIMIT             |       |      | 1    | 40000 | 0         |       |        |
+| 2  |     NESTED LOOPS OUTER    |       |      | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: T1.ID = T2.T1_ID                                
+
+12 rows fetched.
+
+SQL> SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id LIMIT 10;
+
+ID           NAME                                                             AGE          ID           T1_ID        VALUE                                                           
+------------ ---------------------------------------------------------------- ------------ ------------ ------------ ----------------------------------------------------------------
+1            Alice                                                            25           1            1            A                                                               
+2            Bob                                                              30           2            2            B                                                               
+3            Charlie                                                          35           3            3            C                                                               
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id FOR UPDATE;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |      | 1    | 20000 | 0         |       |        |
+| 1  |   FOR UPDATE              |       |      | 1    | 20000 | 0         |       |        |
+| 2  |     NESTED LOOPS OUTER    |       |      | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | T1   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | T2   | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: T1.ID = T2.T1_ID                                
+
+12 rows fetched.
+
+SQL> SELECT * FROM t1 LEFT JOIN t2 ON t1.id = t2.t1_id FOR UPDATE;
+ID           NAME                                                             AGE          ID           T1_ID        VALUE                                                           
+------------ ---------------------------------------------------------------- ------------ ------------ ------------ ----------------------------------------------------------------
+1            Alice                                                            25           1            1            A                                                               
+2            Bob                                                              30           2            2            B                                                               
+3            Charlie                                                          35           3            3            C                                                               
+
+3 rows fetched.
+
+
+
+

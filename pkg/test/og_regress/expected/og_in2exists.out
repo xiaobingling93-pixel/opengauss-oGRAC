@@ -384,26 +384,22 @@ SQL> explain plan for
 
 EXPLAIN PLAN OUTPUT                                             
 ----------------------------------------------------------------
-------------------------------------------------------------------------------------------------------------
-| Id | Operation                   | Owner | Name              | Rows | Cost  | StartCost | Bytes | Remark |
-------------------------------------------------------------------------------------------------------------
-| 0  | SELECT STATEMENT            |       |                   | 1    | 20000 | 0         |       |        |
-| 1  |   KERNEL FILTER             |       |                   | 1    | 20000 | 0         |       |        |
-| 2  |     NESTED LOOPS OUTER      |       |                   | 1    | 20000 | 0         |       |        |
-| 3  |       KERNEL FILTER         |       |                   | 0    | 10000 | 0         |       |        |
-| 4  |         TABLE ACCESS FULL   | SYS   | NOT_IN_NULL_T2 T1 | 0    | 10000 | 0         |       |        |
-| 5  |           TABLE ACCESS FULL | SYS   | NOT_IN_NULL_T2 T3 | 0    | 10000 | 0         |       |        |
-| 6  |       KERNEL FILTER         |       |                   | 0    | 10000 | 0         |       |        |
-| 7  |         TABLE ACCESS FULL   | SYS   | NOT_IN_NULL_T1 T2 | 0    | 10000 | 0         |       |        |
-| 8  |           TABLE ACCESS FULL | SYS   | NOT_IN_NULL_T2 T3 | 0    | 10000 | 0         |       |        |
-| 9  |       TABLE ACCESS FULL     | SYS   | NOT_IN_NULL_T2 T3 | 0    | 10000 | 0         |       |        |
-------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name              | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |                   | 1    | 20000 | 0         |       |        |
+| 1  |   FILTER                  |       |                   | 1    | 20000 | 0         |       |        |
+| 2  |     NESTED LOOPS OUTER    |       |                   | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | NOT_IN_NULL_T2 T1 | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | NOT_IN_NULL_T1 T2 | 0    | 10000 | 0         |       |        |
+| 5  |     TABLE ACCESS FULL     | SYS   | NOT_IN_NULL_T2 T3 | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------------
 Predicate Information (identified by id):                       
 -----------------------------------------                       
-    4 - filter: T1.C1 NOT IN ((SELECT NULL FROM NOT_IN_NULL_T2 T3))
-    7 - filter: T1.C1 NOT IN ((SELECT NULL FROM NOT_IN_NULL_T2 T3)) AND T1.C2 = T2.C2
+    1 - filter: T1.C1 NOT IN ((SELECT NULL FROM NOT_IN_NULL_T2 T3))
+    4 - filter: T1.C2 = T2.C2                                   
 
-18 rows fetched.
+14 rows fetched.
 
 SQL> select * from not_in_null_t2 t1 left join not_in_null_t1 t2 on t1.c2=t2.c2 where t1.c1 not in (select null from not_in_null_t2 t3);
 
