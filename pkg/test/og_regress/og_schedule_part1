@@ -51,3 +51,4 @@ test: og_connect_by
 test: og_create_view_with_read_only
 test: og_distinct_eli
 test: og_pl
+test: og_join_elimination
