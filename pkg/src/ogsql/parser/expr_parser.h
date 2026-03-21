@@ -281,6 +281,8 @@ status_t sql_create_expr_tree(sql_stmt_t *stmt, expr_tree_t **expr, og_type_t ty
     source_location_t loc);
 status_t sql_create_int_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, int val, source_location_t loc);
 status_t sql_create_float_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, const char* val, source_location_t loc);
+status_t sql_create_binary_float_double_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, const char* val,
+    source_location_t loc);
 status_t sql_create_string_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, const char* val, source_location_t loc);
 status_t sql_create_hex_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, const char* val, source_location_t loc);
 status_t sql_create_bool_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, bool32 val, source_location_t loc);

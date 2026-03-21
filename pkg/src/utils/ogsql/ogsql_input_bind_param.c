@@ -105,6 +105,7 @@ static ogconn_type_t ogsql_sql_get_bind_data_type(text_t *confirm_text)
         { "TIMESTAMP",        OGCONN_TYPE_TIMESTAMP },
         { "BLOB",             OGCONN_TYPE_STRING },
         { "CLOB",             OGCONN_TYPE_STRING },
+        { "NCLOB",            OGCONN_TYPE_STRING },
         { "DECIMAL",          OGCONN_TYPE_DECIMAL },
         { "NUMBER",           OGCONN_TYPE_NUMBER },
         { "NUMBER2",          OGCONN_TYPE_NUMBER2 },
