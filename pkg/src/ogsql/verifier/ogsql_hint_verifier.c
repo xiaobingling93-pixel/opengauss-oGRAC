@@ -46,6 +46,7 @@ sql_opt_param_t g_opt_param_hint[] = {
     { { (char *)"_OPTIM_ORDER_BY_ELIMINATION", 27 },        OPT_ORDER_BY_ELIMINATION},
     { { (char *)"_OPTIM_DISTINCT_ELIMINATION", 28 },         OPT_DISTINCT_ELIMINATION},
     { { (char *)"_OPTIM_OR_EXPANSION", 19 },                OPT_OR_EXPANSION},
+    { { (char *)"_OPTIM_ORDER_BY_PLACEMENT", 25 },          OPT_ORDER_BY_PLACEMENT},
 };
 
 static sql_hint_t g_hint_infos[] = {
