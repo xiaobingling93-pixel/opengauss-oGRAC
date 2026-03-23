@@ -1,0 +1,2066 @@
+
+
+SQL> -- 部门表
+SQL> DROP TABLE IF EXISTS departments;
+
+Succeed.
+
+SQL> CREATE TABLE departments (
+  2     dept_id INT PRIMARY KEY,
+  3     dept_name VARCHAR(50),
+  4     location VARCHAR(50)
+  5 );
+
+Succeed.
+
+SQL> 
+SQL> -- 员工表
+SQL> DROP TABLE IF EXISTS employees;
+
+Succeed.
+
+SQL> CREATE TABLE employees (
+  2     emp_id INT PRIMARY KEY,
+  3     emp_name VARCHAR(50),
+  4     dept_id INT,
+  5     salary DECIMAL(10,2),
+  6     hire_date DATE
+  7 );
+
+Succeed.
+
+SQL> 
+SQL> -- 订单表
+SQL> DROP TABLE IF EXISTS orders;
+
+Succeed.
+
+SQL> CREATE TABLE orders (
+  2     order_id INT PRIMARY KEY,
+  3     cust_id INT,
+  4     emp_id INT,
+  5     amount DECIMAL(10,2),
+  6     order_date DATE
+  7 );
+
+Succeed.
+
+SQL> 
+SQL> -- 客户表
+SQL> DROP TABLE IF EXISTS customers;
+
+Succeed.
+
+SQL> CREATE TABLE customers (
+  2     cust_id INT PRIMARY KEY,
+  3     cust_name VARCHAR(50),
+  4     city VARCHAR(50)
+  5 );
+
+Succeed.
+
+SQL> 
+SQL> -- 产品表
+SQL> DROP TABLE IF EXISTS products;
+
+Succeed.
+
+SQL> CREATE TABLE products (
+  2     prod_id INT PRIMARY KEY,
+  3     prod_name VARCHAR(50),
+  4     category VARCHAR(30),
+  5     price DECIMAL(10,2)
+  6 );
+
+Succeed.
+
+SQL> 
+SQL> -- 销售表
+SQL> DROP TABLE IF EXISTS sales;
+
+Succeed.
+
+SQL> CREATE TABLE sales (
+  2     sale_id INT PRIMARY KEY,
+  3     prod_id INT,
+  4     emp_id INT,
+  5     quantity INT,
+  6     sale_date DATE
+  7 );
+
+Succeed.
+
+SQL> 
+SQL> -- 部门数据
+SQL> INSERT INTO departments VALUES
+  2 (1, 'Sales', 'New York'),
+  3 (2, 'Engineering', 'San Francisco'),
+  4 (3, 'Marketing', 'Chicago'),
+  5 (4, 'HR', 'Boston'),
+  6 (5, 'Finance', 'New York');
+
+5 rows affected.
+
+SQL> 
+SQL> -- 员工数据
+SQL> INSERT INTO employees VALUES
+  2 (101, 'Alice', 1, 8000.00, '2020-01-15'),
+  3 (102, 'Bob', 1, 7500.00, '2020-03-20'),
+  4 (103, 'Charlie', 2, 12000.00, '2019-06-10'),
+  5 (104, 'David', 2, 11000.00, '2019-08-05'),
+  6 (105, 'Eve', 3, 6500.00, '2021-02-28'),
+  7 (106, 'Frank', 3, 6200.00, '2021-05-12'),
+  8 (107, 'Grace', 4, 5500.00, '2022-01-10'),
+  9 (108, 'Henry', 4, 5300.00, '2022-03-15'),
+ 10 (109, 'Ivy', 5, 7000.00, '2020-11-01'),
+ 11 (110, 'Jack', 5, 6800.00, '2021-07-19');
+
+10 rows affected.
+
+SQL> 
+SQL> -- 客户数据
+SQL> INSERT INTO customers VALUES
+  2 (201, 'ABC Corp', 'New York'),
+  3 (202, 'XYZ Inc', 'San Francisco'),
+  4 (203, 'Tech Solutions', 'Chicago'),
+  5 (204, 'Global Trade', 'Boston'),
+  6 (205, 'Best Buy', 'New York');
+
+5 rows affected.
+
+SQL> 
+SQL> -- 订单数据
+SQL> INSERT INTO orders VALUES
+  2 (301, 201, 101, 1500.00, '2023-01-10'),
+  3 (302, 201, 102, 2300.00, '2023-01-15'),
+  4 (303, 202, 103, 5000.00, '2023-02-05'),
+  5 (304, 202, 104, 4200.00, '2023-02-10'),
+  6 (305, 203, 105, 1800.00, '2023-03-01'),
+  7 (306, 203, 106, 2100.00, '2023-03-05'),
+  8 (307, 204, 107, 900.00, '2023-04-12'),
+  9 (308, 204, 108, 1100.00, '2023-04-15'),
+ 10 (309, 205, 109, 3200.00, '2023-05-20'),
+ 11 (310, 205, 110, 2800.00, '2023-05-25');
+
+10 rows affected.
+
+SQL> 
+SQL> -- 产品数据
+SQL> INSERT INTO products VALUES
+  2 (401, 'Laptop', 'Electronics', 800.00),
+  3 (402, 'Mouse', 'Electronics', 25.00),
+  4 (403, 'Keyboard', 'Electronics', 45.00),
+  5 (404, 'Monitor', 'Electronics', 300.00),
+  6 (405, 'Desk', 'Furniture', 150.00),
+  7 (406, 'Chair', 'Furniture', 200.00);
+
+6 rows affected.
+
+SQL> 
+SQL> -- 销售数据
+SQL> INSERT INTO sales VALUES
+  2 (501, 401, 101, 5, '2023-01-05'),
+  3 (502, 402, 101, 20, '2023-01-06'),
+  4 (503, 403, 102, 15, '2023-01-10'),
+  5 (504, 404, 103, 3, '2023-02-01'),
+  6 (505, 401, 104, 2, '2023-02-15'),
+  7 (506, 405, 105, 4, '2023-03-01'),
+  8 (507, 406, 106, 6, '2023-03-10'),
+  9 (508, 401, 107, 1, '2023-04-01'),
+ 10 (509, 402, 108, 10, '2023-04-15'),
+ 11 (510, 403, 109, 8, '2023-05-01');
+
+10 rows affected.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, MIN(e.salary) FROM employees e cross join  departments d GROUP BY d.dept_name, e.hire_date;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |               | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY                 |       |               | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS                |       |               | 1    | 20000 | 0         |       |        |
+| 3  |         SUBSELECT               | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 4  |           HASH GROUP BY         |       |               | 0    | 10000 | 0         |       |        |
+| 5  |               TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL       | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------------
+
+11 rows fetched.
+
+SQL> SELECT d.dept_name, MIN(e.salary) FROM employees e cross join  departments d GROUP BY d.dept_name, e.hire_date;
+
+DEPT_NAME                                          MIN(E.SALARY)                           
+-------------------------------------------------- ----------------------------------------
+Finance                                            11000                                   
+HR                                                 11000                                   
+Sales                                              7500                                    
+Sales                                              6500                                    
+Sales                                              12000                                   
+Engineering                                        5300                                    
+Engineering                                        6200                                    
+Sales                                              5500                                    
+HR                                                 6500                                    
+Marketing                                          7500                                    
+Marketing                                          12000                                   
+Marketing                                          8000                                    
+HR                                                 5300                                    
+HR                                                 6200                                    
+Finance                                            12000                                   
+Marketing                                          5500                                    
+Marketing                                          5300                                    
+HR                                                 7500                                    
+Engineering                                        7500                                    
+HR                                                 7000                                    
+Marketing                                          6800                                    
+Sales                                              8000                                    
+Engineering                                        12000                                   
+Finance                                            6200                                    
+Marketing                                          6500                                    
+Marketing                                          6200                                    
+Marketing                                          7000                                    
+Finance                                            7000                                    
+HR                                                 6800                                    
+Engineering                                        7000                                    
+Engineering                                        6800                                    
+Finance                                            5300                                    
+Finance                                            7500                                    
+Finance                                            8000                                    
+Marketing                                          11000                                   
+HR                                                 8000                                    
+Finance                                            6500                                    
+Engineering                                        8000                                    
+Engineering                                        6500                                    
+Sales                                              6800                                    
+HR                                                 5500                                    
+Engineering                                        11000                                   
+Sales                                              7000                                    
+Sales                                              5300                                    
+Sales                                              11000                                   
+Engineering                                        5500                                    
+Sales                                              6200                                    
+Finance                                            6800                                    
+HR                                                 12000                                   
+Finance                                            5500                                    
+
+50 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, MAX(e.salary) FROM employees e cross join  departments d GROUP BY d.dept_name, e.hire_date;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |               | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY                 |       |               | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS                |       |               | 1    | 20000 | 0         |       |        |
+| 3  |         SUBSELECT               | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 4  |           HASH GROUP BY         |       |               | 0    | 10000 | 0         |       |        |
+| 5  |               TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL       | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------------
+
+11 rows fetched.
+
+SQL> SELECT d.dept_name, MAX(e.salary) FROM employees e cross join  departments d GROUP BY d.dept_name, e.hire_date;
+
+DEPT_NAME                                          MAX(E.SALARY)                           
+-------------------------------------------------- ----------------------------------------
+Finance                                            11000                                   
+HR                                                 11000                                   
+Sales                                              7500                                    
+Sales                                              6500                                    
+Sales                                              12000                                   
+Engineering                                        5300                                    
+Engineering                                        6200                                    
+Sales                                              5500                                    
+HR                                                 6500                                    
+Marketing                                          7500                                    
+Marketing                                          12000                                   
+Marketing                                          8000                                    
+HR                                                 5300                                    
+HR                                                 6200                                    
+Finance                                            12000                                   
+Marketing                                          5500                                    
+Marketing                                          5300                                    
+HR                                                 7500                                    
+Engineering                                        7500                                    
+HR                                                 7000                                    
+Marketing                                          6800                                    
+Sales                                              8000                                    
+Engineering                                        12000                                   
+Finance                                            6200                                    
+Marketing                                          6500                                    
+Marketing                                          6200                                    
+Marketing                                          7000                                    
+Finance                                            7000                                    
+HR                                                 6800                                    
+Engineering                                        7000                                    
+Engineering                                        6800                                    
+Finance                                            5300                                    
+Finance                                            7500                                    
+Finance                                            8000                                    
+Marketing                                          11000                                   
+HR                                                 8000                                    
+Finance                                            6500                                    
+Engineering                                        8000                                    
+Engineering                                        6500                                    
+Sales                                              6800                                    
+HR                                                 5500                                    
+Engineering                                        11000                                   
+Sales                                              7000                                    
+Sales                                              5300                                    
+Sales                                              11000                                   
+Engineering                                        5500                                    
+Sales                                              6200                                    
+Finance                                            6800                                    
+HR                                                 12000                                   
+Finance                                            5500                                    
+
+50 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, SUM(e.salary) FROM employees e cross join  departments d GROUP BY d.dept_name, e.hire_date;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |               | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |               | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+
+9 rows fetched.
+
+SQL> SELECT d.dept_name, SUM(e.salary) FROM employees e cross join  departments d GROUP BY d.dept_name, e.hire_date;
+
+DEPT_NAME                                          SUM(E.SALARY)                           
+-------------------------------------------------- ----------------------------------------
+Finance                                            11000                                   
+HR                                                 11000                                   
+Sales                                              7500                                    
+Sales                                              6500                                    
+Sales                                              12000                                   
+Engineering                                        5300                                    
+Engineering                                        6200                                    
+Sales                                              5500                                    
+HR                                                 6500                                    
+Marketing                                          7500                                    
+Marketing                                          12000                                   
+Marketing                                          8000                                    
+HR                                                 5300                                    
+HR                                                 6200                                    
+Finance                                            12000                                   
+Marketing                                          5500                                    
+Marketing                                          5300                                    
+HR                                                 7500                                    
+Engineering                                        7500                                    
+HR                                                 7000                                    
+Marketing                                          6800                                    
+Sales                                              8000                                    
+Engineering                                        12000                                   
+Finance                                            6200                                    
+Marketing                                          6500                                    
+Marketing                                          6200                                    
+Marketing                                          7000                                    
+Finance                                            7000                                    
+HR                                                 6800                                    
+Engineering                                        7000                                    
+Engineering                                        6800                                    
+Finance                                            5300                                    
+Finance                                            7500                                    
+Finance                                            8000                                    
+Marketing                                          11000                                   
+HR                                                 8000                                    
+Finance                                            6500                                    
+Engineering                                        8000                                    
+Engineering                                        6500                                    
+Sales                                              6800                                    
+HR                                                 5500                                    
+Engineering                                        11000                                   
+Sales                                              7000                                    
+Sales                                              5300                                    
+Sales                                              11000                                   
+Engineering                                        5500                                    
+Sales                                              6200                                    
+Finance                                            6800                                    
+HR                                                 12000                                   
+Finance                                            5500                                    
+
+50 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, MIN(e.salary) FROM employees e cross join  departments d GROUP BY d.dept_name, e.hire_date LIMIT 10;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |               | 1    | 80032 | 8         |       |        |
+| 1  |   QUERY LIMIT               |       |               | 1    | 80032 | 8         |       |        |
+| 2  |     HASH GROUP BY           |       |               | 1    | 40016 | 8         |       |        |
+| 3  |       NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
+
+10 rows fetched.
+
+SQL> SELECT d.dept_name, MIN(e.salary) FROM employees e cross join  departments d GROUP BY d.dept_name, e.hire_date LIMIT 10;
+
+DEPT_NAME                                          MIN(E.SALARY)                           
+-------------------------------------------------- ----------------------------------------
+Finance                                            11000                                   
+HR                                                 11000                                   
+Sales                                              7500                                    
+Sales                                              6500                                    
+Sales                                              12000                                   
+Engineering                                        5300                                    
+Engineering                                        6200                                    
+Sales                                              5500                                    
+HR                                                 6500                                    
+Marketing                                          7500                                    
+
+10 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, MIN(e.salary) FROM employees e cross join  departments d WHERE e.ROWID > 100 GROUP BY d.dept_name, e.hire_date;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |               | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |               | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: ROWID > 100                                     
+
+12 rows fetched.
+
+SQL> SELECT d.dept_name, MIN(e.salary) FROM employees e cross join  departments d WHERE e.ROWID > 100 GROUP BY d.dept_name, e.hire_date;
+
+DEPT_NAME                                          MIN(E.SALARY)                           
+-------------------------------------------------- ----------------------------------------
+Finance                                            11000                                   
+HR                                                 11000                                   
+Sales                                              7500                                    
+Sales                                              6500                                    
+Sales                                              12000                                   
+Engineering                                        5300                                    
+Engineering                                        6200                                    
+Sales                                              5500                                    
+HR                                                 6500                                    
+Marketing                                          7500                                    
+Marketing                                          12000                                   
+Marketing                                          8000                                    
+HR                                                 5300                                    
+HR                                                 6200                                    
+Finance                                            12000                                   
+Marketing                                          5500                                    
+Marketing                                          5300                                    
+HR                                                 7500                                    
+Engineering                                        7500                                    
+HR                                                 7000                                    
+Marketing                                          6800                                    
+Sales                                              8000                                    
+Engineering                                        12000                                   
+Finance                                            6200                                    
+Marketing                                          6500                                    
+Marketing                                          6200                                    
+Marketing                                          7000                                    
+Finance                                            7000                                    
+HR                                                 6800                                    
+Engineering                                        7000                                    
+Engineering                                        6800                                    
+Finance                                            5300                                    
+Finance                                            7500                                    
+Finance                                            8000                                    
+Marketing                                          11000                                   
+HR                                                 8000                                    
+Finance                                            6500                                    
+Engineering                                        8000                                    
+Engineering                                        6500                                    
+Sales                                              6800                                    
+HR                                                 5500                                    
+Engineering                                        11000                                   
+Sales                                              7000                                    
+Sales                                              5300                                    
+Sales                                              11000                                   
+Engineering                                        5500                                    
+Sales                                              6200                                    
+Finance                                            6800                                    
+HR                                                 12000                                   
+Finance                                            5500                                    
+
+50 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, MIN(e.salary) FROM employees e cross join  departments d GROUP BY d.dept_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |               | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY                 |       |               | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS                |       |               | 1    | 20000 | 0         |       |        |
+| 3  |         SUBSELECT               | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 4  |           AGGR                  |       |               | 1    | 10000 | 0         |       |        |
+| 5  |               TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL       | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------------
+
+11 rows fetched.
+
+SQL> SELECT d.dept_name, MIN(e.salary) FROM employees e cross join  departments d GROUP BY d.dept_name;
+
+DEPT_NAME                                          MIN(E.SALARY)                           
+-------------------------------------------------- ----------------------------------------
+Finance                                            5300                                    
+Marketing                                          5300                                    
+Sales                                              5300                                    
+HR                                                 5300                                    
+Engineering                                        5300                                    
+
+5 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, MIN(e.salary), MAX(e.salary) FROM employees e cross join  departments d GROUP BY d.dept_name, e.hire_date;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |               | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY                 |       |               | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS                |       |               | 1    | 20000 | 0         |       |        |
+| 3  |         SUBSELECT               | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 4  |           HASH GROUP BY         |       |               | 0    | 10000 | 0         |       |        |
+| 5  |               TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL       | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------------
+
+11 rows fetched.
+
+SQL> SELECT d.dept_name, MIN(e.salary), MAX(e.salary) FROM employees e cross join  departments d GROUP BY d.dept_name, e.hire_date;
+
+DEPT_NAME                                          MIN(E.SALARY)                            MAX(E.SALARY)                           
+-------------------------------------------------- ---------------------------------------- ----------------------------------------
+Finance                                            11000                                    11000                                   
+HR                                                 11000                                    11000                                   
+Sales                                              7500                                     7500                                    
+Sales                                              6500                                     6500                                    
+Sales                                              12000                                    12000                                   
+Engineering                                        5300                                     5300                                    
+Engineering                                        6200                                     6200                                    
+Sales                                              5500                                     5500                                    
+HR                                                 6500                                     6500                                    
+Marketing                                          7500                                     7500                                    
+Marketing                                          12000                                    12000                                   
+Marketing                                          8000                                     8000                                    
+HR                                                 5300                                     5300                                    
+HR                                                 6200                                     6200                                    
+Finance                                            12000                                    12000                                   
+Marketing                                          5500                                     5500                                    
+Marketing                                          5300                                     5300                                    
+HR                                                 7500                                     7500                                    
+Engineering                                        7500                                     7500                                    
+HR                                                 7000                                     7000                                    
+Marketing                                          6800                                     6800                                    
+Sales                                              8000                                     8000                                    
+Engineering                                        12000                                    12000                                   
+Finance                                            6200                                     6200                                    
+Marketing                                          6500                                     6500                                    
+Marketing                                          6200                                     6200                                    
+Marketing                                          7000                                     7000                                    
+Finance                                            7000                                     7000                                    
+HR                                                 6800                                     6800                                    
+Engineering                                        7000                                     7000                                    
+Engineering                                        6800                                     6800                                    
+Finance                                            5300                                     5300                                    
+Finance                                            7500                                     7500                                    
+Finance                                            8000                                     8000                                    
+Marketing                                          11000                                    11000                                   
+HR                                                 8000                                     8000                                    
+Finance                                            6500                                     6500                                    
+Engineering                                        8000                                     8000                                    
+Engineering                                        6500                                     6500                                    
+Sales                                              6800                                     6800                                    
+HR                                                 5500                                     5500                                    
+Engineering                                        11000                                    11000                                   
+Sales                                              7000                                     7000                                    
+Sales                                              5300                                     5300                                    
+Sales                                              11000                                    11000                                   
+Engineering                                        5500                                     5500                                    
+Sales                                              6200                                     6200                                    
+Finance                                            6800                                     6800                                    
+HR                                                 12000                                    12000                                   
+Finance                                            5500                                     5500                                    
+
+50 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, MIN(d.dept_id) FROM employees e cross join  departments d GROUP BY d.dept_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------
+| Id | Operation                       | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT                |       |               | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY                 |       |               | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS                |       |               | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL       | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 4  |         SUBSELECT               | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+| 5  |           HASH GROUP BY         |       |               | 0    | 10000 | 0         |       |        |
+| 6  |               TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------------
+
+11 rows fetched.
+
+SQL> SELECT d.dept_name, MIN(d.dept_id) FROM employees e cross join  departments d GROUP BY d.dept_name;
+
+DEPT_NAME                                          MIN(D.DEPT_ID)
+-------------------------------------------------- --------------
+Finance                                            5             
+Marketing                                          3             
+Sales                                              1             
+HR                                                 4             
+Engineering                                        2             
+
+5 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, MIN(e.salary) FROM employees e, departments d WHERE e.dept_id = d.dept_id GROUP BY d.dept_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |               | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |               | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: E.DEPT_ID = D.DEPT_ID                           
+
+12 rows fetched.
+
+SQL> SELECT d.dept_name, MIN(e.salary) FROM employees e, departments d WHERE e.dept_id = d.dept_id GROUP BY d.dept_name;
+
+DEPT_NAME                                          MIN(E.SALARY)                           
+-------------------------------------------------- ----------------------------------------
+Finance                                            6800                                    
+Marketing                                          6200                                    
+Sales                                              7500                                    
+HR                                                 5300                                    
+Engineering                                        11000                                   
+
+5 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT c.city, MAX(o.amount) FROM orders o, customers c WHERE o.cust_id = c.cust_id GROUP BY c.city;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |             | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |             | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | ORDERS O    | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | CUSTOMERS C | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: O.CUST_ID = C.CUST_ID                           
+
+12 rows fetched.
+
+SQL> SELECT c.city, MAX(o.amount) FROM orders o, customers c WHERE o.cust_id = c.cust_id GROUP BY c.city;
+
+CITY                                               MAX(O.AMOUNT)                           
+-------------------------------------------------- ----------------------------------------
+Boston                                             1100                                    
+Chicago                                            2100                                    
+San Francisco                                      5000                                    
+New York                                           3200                                    
+
+4 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT p.category, MAX(s.quantity) FROM sales s, products p WHERE s.prod_id = p.prod_id GROUP BY p.category;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name       | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |            | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |            | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |            | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | SALES S    | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | PRODUCTS P | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: S.PROD_ID = P.PROD_ID                           
+
+12 rows fetched.
+
+SQL> SELECT p.category, MAX(s.quantity) FROM sales s, products p WHERE s.prod_id = p.prod_id GROUP BY p.category;
+
+CATEGORY                       MAX(S.QUANTITY)
+------------------------------ ---------------
+Electronics                    20             
+Furniture                      6              
+
+2 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.location, MIN(e.salary), MAX(e.salary) FROM employees e, departments d WHERE e.dept_id = d.dept_id GROUP BY d.location;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |               | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |               | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: E.DEPT_ID = D.DEPT_ID                           
+
+12 rows fetched.
+
+SQL> SELECT d.location, MIN(e.salary), MAX(e.salary) FROM employees e, departments d WHERE e.dept_id = d.dept_id GROUP BY d.location;
+
+LOCATION                                           MIN(E.SALARY)                            MAX(E.SALARY)                           
+-------------------------------------------------- ---------------------------------------- ----------------------------------------
+Boston                                             5300                                     5500                                    
+Chicago                                            6200                                     6500                                    
+San Francisco                                      11000                                    12000                                   
+New York                                           6800                                     8000                                    
+
+4 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT c.cust_name, MIN(o.amount) FROM orders o, customers c WHERE o.cust_id = c.cust_id GROUP BY c.cust_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |             | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |             | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | ORDERS O    | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | CUSTOMERS C | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: O.CUST_ID = C.CUST_ID                           
+
+12 rows fetched.
+
+SQL> SELECT c.cust_name, MIN(o.amount) FROM orders o, customers c WHERE o.cust_id = c.cust_id GROUP BY c.cust_name;
+
+CUST_NAME                                          MIN(O.AMOUNT)                           
+-------------------------------------------------- ----------------------------------------
+Best Buy                                           2800                                    
+ABC Corp                                           1500                                    
+Global Trade                                       900                                     
+XYZ Inc                                            4200                                    
+Tech Solutions                                     1800                                    
+
+5 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT p.prod_name, MAX(s.quantity) FROM sales s, products p WHERE s.prod_id = p.prod_id GROUP BY p.prod_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name       | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |            | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |            | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |            | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | SALES S    | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | PRODUCTS P | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: S.PROD_ID = P.PROD_ID                           
+
+12 rows fetched.
+
+SQL> SELECT p.prod_name, MAX(s.quantity) FROM sales s, products p WHERE s.prod_id = p.prod_id GROUP BY p.prod_name;
+
+PROD_NAME                                          MAX(S.QUANTITY)
+-------------------------------------------------- ---------------
+Keyboard                                           15             
+Desk                                               4              
+Laptop                                             5              
+Monitor                                            3              
+Mouse                                              20             
+Chair                                              6              
+
+6 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, MIN(e.hire_date) FROM employees e, departments d WHERE e.dept_id = d.dept_id GROUP BY d.dept_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |               | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |               | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: E.DEPT_ID = D.DEPT_ID                           
+
+12 rows fetched.
+
+SQL> SELECT d.dept_name, MIN(e.hire_date) FROM employees e, departments d WHERE e.dept_id = d.dept_id GROUP BY d.dept_name;
+
+DEPT_NAME                                          MIN(E.HIRE_DATE)      
+-------------------------------------------------- ----------------------
+Finance                                            2020-11-01 00:00:00   
+Marketing                                          2021-02-28 00:00:00   
+Sales                                              2020-01-15 00:00:00   
+HR                                                 2022-01-10 00:00:00   
+Engineering                                        2019-06-10 00:00:00   
+
+5 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT c.city, MAX(o.order_date) FROM orders o, customers c WHERE o.cust_id = c.cust_id GROUP BY c.city;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |             | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |             | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | ORDERS O    | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | CUSTOMERS C | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: O.CUST_ID = C.CUST_ID                           
+
+12 rows fetched.
+
+SQL> SELECT c.city, MAX(o.order_date) FROM orders o, customers c WHERE o.cust_id = c.cust_id GROUP BY c.city;
+
+CITY                                               MAX(O.ORDER_DATE)     
+-------------------------------------------------- ----------------------
+Boston                                             2023-04-15 00:00:00   
+Chicago                                            2023-03-05 00:00:00   
+San Francisco                                      2023-02-10 00:00:00   
+New York                                           2023-05-25 00:00:00   
+
+4 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT p.category, MIN(p.price), MAX(s.quantity) FROM products p, sales s WHERE p.prod_id = s.prod_id GROUP BY p.category;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name       | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |            | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |            | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |            | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | PRODUCTS P | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | SALES S    | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: P.PROD_ID = S.PROD_ID                           
+
+12 rows fetched.
+
+SQL> SELECT p.category, MIN(p.price), MAX(s.quantity) FROM products p, sales s WHERE p.prod_id = s.prod_id GROUP BY p.category;
+
+CATEGORY                       MIN(P.PRICE)                             MAX(S.QUANTITY)
+------------------------------ ---------------------------------------- ---------------
+Electronics                    25                                       20             
+Furniture                      150                                      6              
+
+2 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.location, MAX(e.salary) FROM employees e, departments d WHERE e.dept_id = d.dept_id AND e.salary > 6000 GROUP BY d.location;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |               | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |               | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: E.SALARY > 6000                                 
+    4 - filter: E.DEPT_ID = D.DEPT_ID                           
+
+13 rows fetched.
+
+SQL> SELECT d.location, MAX(e.salary) FROM employees e, departments d WHERE e.dept_id = d.dept_id AND e.salary > 6000 GROUP BY d.location;
+
+LOCATION                                           MAX(E.SALARY)                           
+-------------------------------------------------- ----------------------------------------
+Chicago                                            6500                                    
+San Francisco                                      12000                                   
+New York                                           8000                                    
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT c.city, MIN(o.amount) FROM orders o, customers c WHERE o.cust_id = c.cust_id AND o.amount > 1000 GROUP BY c.city;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |             | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |             | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | ORDERS O    | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | CUSTOMERS C | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: O.AMOUNT > 1000                                 
+    4 - filter: O.CUST_ID = C.CUST_ID                           
+
+13 rows fetched.
+
+SQL> SELECT c.city, MIN(o.amount) FROM orders o, customers c WHERE o.cust_id = c.cust_id AND o.amount > 1000 GROUP BY c.city;
+
+CITY                                               MIN(O.AMOUNT)                           
+-------------------------------------------------- ----------------------------------------
+Boston                                             1100                                    
+Chicago                                            1800                                    
+San Francisco                                      4200                                    
+New York                                           1500                                    
+
+4 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT p.category, MAX(s.quantity) FROM sales s, products p WHERE s.prod_id = p.prod_id AND s.quantity > 5 GROUP BY p.category;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name       | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |            | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |            | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |            | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | SALES S    | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | PRODUCTS P | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    3 - filter: S.QUANTITY > 5                                  
+    4 - filter: S.PROD_ID = P.PROD_ID                           
+
+13 rows fetched.
+
+SQL> SELECT p.category, MAX(s.quantity) FROM sales s, products p WHERE s.prod_id = p.prod_id AND s.quantity > 5 GROUP BY p.category;
+
+CATEGORY                       MAX(S.QUANTITY)
+------------------------------ ---------------
+Electronics                    20             
+Furniture                      6              
+
+2 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, MIN(e.salary) FROM employees e, departments d WHERE e.dept_id = d.dept_id AND d.location = 'New York' GROUP BY d.dept_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |               | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |               | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: D.LOCATION = 'New York' AND E.DEPT_ID = D.DEPT_ID
+
+12 rows fetched.
+
+SQL> SELECT d.dept_name, MIN(e.salary) FROM employees e, departments d WHERE e.dept_id = d.dept_id AND d.location = 'New York' GROUP BY d.dept_name;
+
+DEPT_NAME                                          MIN(E.SALARY)                           
+-------------------------------------------------- ----------------------------------------
+Finance                                            6800                                    
+Sales                                              7500                                    
+
+2 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT c.cust_name, MAX(o.amount) FROM orders o, customers c WHERE o.cust_id = c.cust_id AND c.city = 'Chicago' GROUP BY c.cust_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |             | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |             | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | ORDERS O    | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | CUSTOMERS C | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: C.CITY = 'Chicago' AND O.CUST_ID = C.CUST_ID    
+
+12 rows fetched.
+
+SQL> SELECT c.cust_name, MAX(o.amount) FROM orders o, customers c WHERE o.cust_id = c.cust_id AND c.city = 'Chicago' GROUP BY c.cust_name;
+
+CUST_NAME                                          MAX(O.AMOUNT)                           
+-------------------------------------------------- ----------------------------------------
+Tech Solutions                                     2100                                    
+
+1 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT p.prod_name, MIN(s.sale_date) FROM sales s, products p WHERE s.prod_id = p.prod_id AND p.category = 'Electronics' GROUP BY p.prod_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name       | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |            | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |            | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |            | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | SALES S    | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | PRODUCTS P | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: P.CATEGORY = 'Electronics' AND S.PROD_ID = P.PROD_ID
+
+12 rows fetched.
+
+SQL> SELECT p.prod_name, MIN(s.sale_date) FROM sales s, products p WHERE s.prod_id = p.prod_id AND p.category = 'Electronics' GROUP BY p.prod_name;
+
+PROD_NAME                                          MIN(S.SALE_DATE)      
+-------------------------------------------------- ----------------------
+Keyboard                                           2023-01-10 00:00:00   
+Laptop                                             2023-01-05 00:00:00   
+Monitor                                            2023-02-01 00:00:00   
+Mouse                                              2023-01-06 00:00:00   
+
+4 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, COUNT(e.emp_id) FROM employees e, departments d WHERE e.dept_id = d.dept_id GROUP BY d.dept_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |               | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |               | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: E.DEPT_ID = D.DEPT_ID                           
+
+12 rows fetched.
+
+SQL> SELECT d.dept_name, COUNT(e.emp_id) FROM employees e, departments d WHERE e.dept_id = d.dept_id GROUP BY d.dept_name;
+
+DEPT_NAME                                          COUNT(E.EMP_ID)     
+-------------------------------------------------- --------------------
+Finance                                            2                   
+Marketing                                          2                   
+Sales                                              2                   
+HR                                                 2                   
+Engineering                                        2                   
+
+5 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT c.city, SUM(o.amount) FROM orders o, customers c WHERE o.cust_id = c.cust_id GROUP BY c.city;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |             | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |             | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | ORDERS O    | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | CUSTOMERS C | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: O.CUST_ID = C.CUST_ID                           
+
+12 rows fetched.
+
+SQL> SELECT c.city, SUM(o.amount) FROM orders o, customers c WHERE o.cust_id = c.cust_id GROUP BY c.city;
+
+CITY                                               SUM(O.AMOUNT)                           
+-------------------------------------------------- ----------------------------------------
+Boston                                             2000                                    
+Chicago                                            3900                                    
+San Francisco                                      9200                                    
+New York                                           9800                                    
+
+4 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT p.category, AVG(s.quantity) FROM sales s, products p WHERE s.prod_id = p.prod_id GROUP BY p.category;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name       | Rows | Cost  | StartCost | Bytes | Remark |
+---------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |            | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |            | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |            | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | SALES S    | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | PRODUCTS P | 0    | 10000 | 0         |       |        |
+---------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: S.PROD_ID = P.PROD_ID                           
+
+12 rows fetched.
+
+SQL> SELECT p.category, AVG(s.quantity) FROM sales s, products p WHERE s.prod_id = p.prod_id GROUP BY p.category;
+
+CATEGORY                       AVG(S.QUANTITY)                         
+------------------------------ ----------------------------------------
+Electronics                    8                                       
+Furniture                      5                                       
+
+2 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, MIN(e.salary), MAX(e.salary), AVG(e.salary) FROM employees e, departments d WHERE e.dept_id = d.dept_id GROUP BY d.dept_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |               | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |               | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: E.DEPT_ID = D.DEPT_ID                           
+
+12 rows fetched.
+
+SQL> SELECT d.dept_name, MIN(e.salary), MAX(e.salary), AVG(e.salary) FROM employees e, departments d WHERE e.dept_id = d.dept_id GROUP BY d.dept_name;
+
+DEPT_NAME                                          MIN(E.SALARY)                            MAX(E.SALARY)                            AVG(E.SALARY)                           
+-------------------------------------------------- ---------------------------------------- ---------------------------------------- ----------------------------------------
+Finance                                            6800                                     7000                                     6900                                    
+Marketing                                          6200                                     6500                                     6350                                    
+Sales                                              7500                                     8000                                     7750                                    
+HR                                                 5300                                     5500                                     5400                                    
+Engineering                                        11000                                    12000                                    11500                                   
+
+5 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT c.city, MIN(o.amount), MAX(o.amount), SUM(o.amount) FROM orders o, customers c WHERE o.cust_id = c.cust_id GROUP BY c.city;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+----------------------------------------------------------------------------------------------------
+| Id | Operation                 | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+----------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT          |       |             | 1    | 40016 | 8         |       |        |
+| 1  |   HASH GROUP BY           |       |             | 1    | 40016 | 8         |       |        |
+| 2  |     NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 3  |         TABLE ACCESS FULL | SYS   | ORDERS O    | 0    | 10000 | 0         |       |        |
+| 4  |         TABLE ACCESS FULL | SYS   | CUSTOMERS C | 0    | 10000 | 0         |       |        |
+----------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: O.CUST_ID = C.CUST_ID                           
+
+12 rows fetched.
+
+SQL> SELECT c.city, MIN(o.amount), MAX(o.amount), SUM(o.amount) FROM orders o, customers c WHERE o.cust_id = c.cust_id GROUP BY c.city;
+
+CITY                                               MIN(O.AMOUNT)                            MAX(O.AMOUNT)                            SUM(O.AMOUNT)                           
+-------------------------------------------------- ---------------------------------------- ---------------------------------------- ----------------------------------------
+Boston                                             900                                      1100                                     2000                                    
+Chicago                                            1800                                     2100                                     3900                                    
+San Francisco                                      4200                                     5000                                     9200                                    
+New York                                           1500                                     3200                                     9800                                    
+
+4 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, MIN(e.salary) FROM employees e, departments d, orders o WHERE e.dept_id = d.dept_id AND e.emp_id = o.emp_id GROUP BY d.dept_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |               | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |               | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |               | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | ORDERS O      | 0    | 10000 | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: E.DEPT_ID = D.DEPT_ID                           
+    6 - filter: E.EMP_ID = O.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT d.dept_name, MIN(e.salary) FROM employees e, departments d, orders o WHERE e.dept_id = d.dept_id AND e.emp_id = o.emp_id GROUP BY d.dept_name;
+
+DEPT_NAME                                          MIN(E.SALARY)                           
+-------------------------------------------------- ----------------------------------------
+Finance                                            6800                                    
+Marketing                                          6200                                    
+Sales                                              7500                                    
+HR                                                 5300                                    
+Engineering                                        11000                                   
+
+5 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT c.city, MAX(o.amount) FROM orders o, customers c, employees e WHERE o.cust_id = c.cust_id AND o.emp_id = e.emp_id GROUP BY c.city;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |             | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |             | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | ORDERS O    | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | CUSTOMERS C | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | EMPLOYEES E | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: O.CUST_ID = C.CUST_ID                           
+    6 - filter: O.EMP_ID = E.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT c.city, MAX(o.amount) FROM orders o, customers c, employees e WHERE o.cust_id = c.cust_id AND o.emp_id = e.emp_id GROUP BY c.city;
+
+CITY                                               MAX(O.AMOUNT)                           
+-------------------------------------------------- ----------------------------------------
+Boston                                             1100                                    
+Chicago                                            2100                                    
+San Francisco                                      5000                                    
+New York                                           3200                                    
+
+4 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT p.category, MAX(s.quantity) FROM sales s, products p, employees e WHERE s.prod_id = p.prod_id AND s.emp_id = e.emp_id GROUP BY p.category;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |             | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |             | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | SALES S     | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | PRODUCTS P  | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | EMPLOYEES E | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: S.PROD_ID = P.PROD_ID                           
+    6 - filter: S.EMP_ID = E.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT p.category, MAX(s.quantity) FROM sales s, products p, employees e WHERE s.prod_id = p.prod_id AND s.emp_id = e.emp_id GROUP BY p.category;
+
+CATEGORY                       MAX(S.QUANTITY)
+------------------------------ ---------------
+Electronics                    20             
+Furniture                      6              
+
+2 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.location, MIN(e.salary) FROM employees e, departments d, sales s WHERE e.dept_id = d.dept_id AND e.emp_id = s.emp_id GROUP BY d.location;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |               | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |               | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |               | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | SALES S       | 0    | 10000 | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: E.DEPT_ID = D.DEPT_ID                           
+    6 - filter: E.EMP_ID = S.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT d.location, MIN(e.salary) FROM employees e, departments d, sales s WHERE e.dept_id = d.dept_id AND e.emp_id = s.emp_id GROUP BY d.location;
+
+LOCATION                                           MIN(E.SALARY)                           
+-------------------------------------------------- ----------------------------------------
+Boston                                             5300                                    
+Chicago                                            6200                                    
+San Francisco                                      11000                                   
+New York                                           7000                                    
+
+4 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT c.cust_name, MAX(o.amount) FROM orders o, customers c, products p WHERE o.cust_id = c.cust_id AND o.order_id = p.prod_id GROUP BY c.cust_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |             | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |             | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | ORDERS O    | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | CUSTOMERS C | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | PRODUCTS P  | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: O.CUST_ID = C.CUST_ID                           
+    6 - filter: O.ORDER_ID = P.PROD_ID                          
+
+15 rows fetched.
+
+SQL> SELECT c.cust_name, MAX(o.amount) FROM orders o, customers c, products p WHERE o.cust_id = c.cust_id AND o.order_id = p.prod_id GROUP BY c.cust_name;
+
+CUST_NAME                                          MAX(O.AMOUNT)                           
+-------------------------------------------------- ----------------------------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT p.prod_name, MIN(s.sale_date) FROM sales s, products p, employees e WHERE s.prod_id = p.prod_id AND s.emp_id = e.emp_id GROUP BY p.prod_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |             | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |             | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | SALES S     | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | PRODUCTS P  | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | EMPLOYEES E | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: S.PROD_ID = P.PROD_ID                           
+    6 - filter: S.EMP_ID = E.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT p.prod_name, MIN(s.sale_date) FROM sales s, products p, employees e WHERE s.prod_id = p.prod_id AND s.emp_id = e.emp_id GROUP BY p.prod_name;
+
+PROD_NAME                                          MIN(S.SALE_DATE)      
+-------------------------------------------------- ----------------------
+Keyboard                                           2023-01-10 00:00:00   
+Desk                                               2023-03-01 00:00:00   
+Laptop                                             2023-01-05 00:00:00   
+Monitor                                            2023-02-01 00:00:00   
+Mouse                                              2023-01-06 00:00:00   
+Chair                                              2023-03-10 00:00:00   
+
+6 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, MIN(e.hire_date), MAX(e.salary) FROM employees e, departments d, orders o WHERE e.dept_id = d.dept_id AND e.emp_id = o.emp_id GROUP BY d.dept_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |               | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |               | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |               | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | ORDERS O      | 0    | 10000 | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: E.DEPT_ID = D.DEPT_ID                           
+    6 - filter: E.EMP_ID = O.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT d.dept_name, MIN(e.hire_date), MAX(e.salary) FROM employees e, departments d, orders o WHERE e.dept_id = d.dept_id AND e.emp_id = o.emp_id GROUP BY d.dept_name;
+
+DEPT_NAME                                          MIN(E.HIRE_DATE)       MAX(E.SALARY)                           
+-------------------------------------------------- ---------------------- ----------------------------------------
+Finance                                            2020-11-01 00:00:00    7000                                    
+Marketing                                          2021-02-28 00:00:00    6500                                    
+Sales                                              2020-01-15 00:00:00    8000                                    
+HR                                                 2022-01-10 00:00:00    5500                                    
+Engineering                                        2019-06-10 00:00:00    12000                                   
+
+5 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT c.city, MIN(o.order_date), MAX(o.amount) FROM orders o, customers c, employees e WHERE o.cust_id = c.cust_id AND o.emp_id = e.emp_id GROUP BY c.city;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |             | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |             | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | ORDERS O    | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | CUSTOMERS C | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | EMPLOYEES E | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: O.CUST_ID = C.CUST_ID                           
+    6 - filter: O.EMP_ID = E.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT c.city, MIN(o.order_date), MAX(o.amount) FROM orders o, customers c, employees e WHERE o.cust_id = c.cust_id AND o.emp_id = e.emp_id GROUP BY c.city;
+
+CITY                                               MIN(O.ORDER_DATE)      MAX(O.AMOUNT)                           
+-------------------------------------------------- ---------------------- ----------------------------------------
+Boston                                             2023-04-12 00:00:00    1100                                    
+Chicago                                            2023-03-01 00:00:00    2100                                    
+San Francisco                                      2023-02-05 00:00:00    5000                                    
+New York                                           2023-01-10 00:00:00    3200                                    
+
+4 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT p.category, MIN(p.price), MAX(s.quantity) FROM products p, sales s, employees e WHERE p.prod_id = s.prod_id AND s.emp_id = e.emp_id GROUP BY p.category;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |             | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |             | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | PRODUCTS P  | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | SALES S     | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | EMPLOYEES E | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: P.PROD_ID = S.PROD_ID                           
+    6 - filter: S.EMP_ID = E.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT p.category, MIN(p.price), MAX(s.quantity) FROM products p, sales s, employees e WHERE p.prod_id = s.prod_id AND s.emp_id = e.emp_id GROUP BY p.category;
+
+CATEGORY                       MIN(P.PRICE)                             MAX(S.QUANTITY)
+------------------------------ ---------------------------------------- ---------------
+Electronics                    25                                       20             
+Furniture                      150                                      6              
+
+2 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.location, MAX(e.salary) FROM employees e, departments d, sales s WHERE e.dept_id = d.dept_id AND e.emp_id = s.emp_id AND e.salary > 6000 GROUP BY d.location;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |               | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |               | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |               | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | SALES S       | 0    | 10000 | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: E.SALARY > 6000                                 
+    5 - filter: E.DEPT_ID = D.DEPT_ID                           
+    6 - filter: E.EMP_ID = S.EMP_ID                             
+
+16 rows fetched.
+
+SQL> SELECT d.location, MAX(e.salary) FROM employees e, departments d, sales s WHERE e.dept_id = d.dept_id AND e.emp_id = s.emp_id AND e.salary > 6000 GROUP BY d.location;
+
+LOCATION                                           MAX(E.SALARY)                           
+-------------------------------------------------- ----------------------------------------
+Chicago                                            6500                                    
+San Francisco                                      12000                                   
+New York                                           8000                                    
+
+3 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT c.city, MIN(o.amount) FROM orders o, customers c, employees e WHERE o.cust_id = c.cust_id AND o.emp_id = e.emp_id AND o.amount > 1000 GROUP BY c.city;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |             | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |             | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | ORDERS O    | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | CUSTOMERS C | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | EMPLOYEES E | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: O.AMOUNT > 1000                                 
+    5 - filter: O.CUST_ID = C.CUST_ID                           
+    6 - filter: O.EMP_ID = E.EMP_ID                             
+
+16 rows fetched.
+
+SQL> SELECT c.city, MIN(o.amount) FROM orders o, customers c, employees e WHERE o.cust_id = c.cust_id AND o.emp_id = e.emp_id AND o.amount > 1000 GROUP BY c.city;
+
+CITY                                               MIN(O.AMOUNT)                           
+-------------------------------------------------- ----------------------------------------
+Boston                                             1100                                    
+Chicago                                            1800                                    
+San Francisco                                      4200                                    
+New York                                           1500                                    
+
+4 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT p.category, MAX(s.quantity) FROM sales s, products p, departments d WHERE s.prod_id = p.prod_id AND s.emp_id = d.dept_id AND s.quantity > 5 GROUP BY p.category;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |               | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |               | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |               | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | SALES S       | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | PRODUCTS P    | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    4 - filter: S.QUANTITY > 5                                  
+    5 - filter: S.PROD_ID = P.PROD_ID                           
+    6 - filter: S.EMP_ID = D.DEPT_ID                            
+
+16 rows fetched.
+
+SQL> SELECT p.category, MAX(s.quantity) FROM sales s, products p, departments d WHERE s.prod_id = p.prod_id AND s.emp_id = d.dept_id AND s.quantity > 5 GROUP BY p.category;
+
+CATEGORY                       MAX(S.QUANTITY)
+------------------------------ ---------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, MIN(e.salary) FROM employees e, departments d, orders o WHERE e.dept_id = d.dept_id AND e.emp_id = o.emp_id AND d.location = 'New York' GROUP BY d.dept_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |               | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |               | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |               | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | ORDERS O      | 0    | 10000 | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: D.LOCATION = 'New York' AND E.DEPT_ID = D.DEPT_ID
+    6 - filter: E.EMP_ID = O.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT d.dept_name, MIN(e.salary) FROM employees e, departments d, orders o WHERE e.dept_id = d.dept_id AND e.emp_id = o.emp_id AND d.location = 'New York' GROUP BY d.dept_name;
+
+DEPT_NAME                                          MIN(E.SALARY)                           
+-------------------------------------------------- ----------------------------------------
+Finance                                            6800                                    
+Sales                                              7500                                    
+
+2 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT c.cust_name, MAX(o.amount) FROM orders o, customers c, products p WHERE o.cust_id = c.cust_id AND o.order_id = p.prod_id AND c.city = 'Chicago' GROUP BY c.cust_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |             | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |             | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | ORDERS O    | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | CUSTOMERS C | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | PRODUCTS P  | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: C.CITY = 'Chicago' AND O.CUST_ID = C.CUST_ID    
+    6 - filter: O.ORDER_ID = P.PROD_ID                          
+
+15 rows fetched.
+
+SQL> SELECT c.cust_name, MAX(o.amount) FROM orders o, customers c, products p WHERE o.cust_id = c.cust_id AND o.order_id = p.prod_id AND c.city = 'Chicago' GROUP BY c.cust_name;
+
+CUST_NAME                                          MAX(O.AMOUNT)                           
+-------------------------------------------------- ----------------------------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT p.prod_name, MIN(s.sale_date) FROM sales s, products p, departments d WHERE s.prod_id = p.prod_id AND s.emp_id = d.dept_id AND p.category = 'Electronics' GROUP BY p.prod_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |               | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |               | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |               | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | SALES S       | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | PRODUCTS P    | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: P.CATEGORY = 'Electronics' AND S.PROD_ID = P.PROD_ID
+    6 - filter: S.EMP_ID = D.DEPT_ID                            
+
+15 rows fetched.
+
+SQL> SELECT p.prod_name, MIN(s.sale_date) FROM sales s, products p, departments d WHERE s.prod_id = p.prod_id AND s.emp_id = d.dept_id AND p.category = 'Electronics' GROUP BY p.prod_name;
+
+PROD_NAME                                          MIN(S.SALE_DATE)      
+-------------------------------------------------- ----------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, COUNT(e.emp_id) FROM employees e, departments d, orders o WHERE e.dept_id = d.dept_id AND e.emp_id = o.emp_id GROUP BY d.dept_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |               | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |               | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |               | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | ORDERS O      | 0    | 10000 | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: E.DEPT_ID = D.DEPT_ID                           
+    6 - filter: E.EMP_ID = O.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT d.dept_name, COUNT(e.emp_id) FROM employees e, departments d, orders o WHERE e.dept_id = d.dept_id AND e.emp_id = o.emp_id GROUP BY d.dept_name;
+
+DEPT_NAME                                          COUNT(E.EMP_ID)     
+-------------------------------------------------- --------------------
+Finance                                            2                   
+Marketing                                          2                   
+Sales                                              2                   
+HR                                                 2                   
+Engineering                                        2                   
+
+5 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT c.city, SUM(o.amount) FROM orders o, customers c, employees e WHERE o.cust_id = c.cust_id AND o.emp_id = e.emp_id GROUP BY c.city;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |             | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |             | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | ORDERS O    | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | CUSTOMERS C | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | EMPLOYEES E | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: O.CUST_ID = C.CUST_ID                           
+    6 - filter: O.EMP_ID = E.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT c.city, SUM(o.amount) FROM orders o, customers c, employees e WHERE o.cust_id = c.cust_id AND o.emp_id = e.emp_id GROUP BY c.city;
+
+CITY                                               SUM(O.AMOUNT)                           
+-------------------------------------------------- ----------------------------------------
+Boston                                             2000                                    
+Chicago                                            3900                                    
+San Francisco                                      9200                                    
+New York                                           9800                                    
+
+4 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT p.category, AVG(s.quantity) FROM sales s, products p, departments d WHERE s.prod_id = p.prod_id AND s.emp_id = d.dept_id GROUP BY p.category;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |               | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |               | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |               | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | SALES S       | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | PRODUCTS P    | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: S.PROD_ID = P.PROD_ID                           
+    6 - filter: S.EMP_ID = D.DEPT_ID                            
+
+15 rows fetched.
+
+SQL> SELECT p.category, AVG(s.quantity) FROM sales s, products p, departments d WHERE s.prod_id = p.prod_id AND s.emp_id = d.dept_id GROUP BY p.category;
+
+CATEGORY                       AVG(S.QUANTITY)                         
+------------------------------ ----------------------------------------
+
+0 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, MIN(e.salary), MAX(e.salary), AVG(e.salary) FROM employees e, departments d, sales s WHERE e.dept_id = d.dept_id AND e.emp_id = s.emp_id GROUP BY d.dept_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |               | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |               | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |               | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | SALES S       | 0    | 10000 | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: E.DEPT_ID = D.DEPT_ID                           
+    6 - filter: E.EMP_ID = S.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT d.dept_name, MIN(e.salary), MAX(e.salary), AVG(e.salary) FROM employees e, departments d, sales s WHERE e.dept_id = d.dept_id AND e.emp_id = s.emp_id GROUP BY d.dept_name;
+
+DEPT_NAME                                          MIN(E.SALARY)                            MAX(E.SALARY)                            AVG(E.SALARY)                           
+-------------------------------------------------- ---------------------------------------- ---------------------------------------- ----------------------------------------
+Finance                                            7000                                     7000                                     7000                                    
+Marketing                                          6200                                     6500                                     6350                                    
+Sales                                              7500                                     8000                                     7833.33333333333333333333333333333333333
+HR                                                 5300                                     5500                                     5400                                    
+Engineering                                        11000                                    12000                                    11500                                   
+
+5 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT c.city, MIN(o.amount), MAX(o.amount), SUM(o.amount) FROM orders o, customers c, employees e WHERE o.cust_id = c.cust_id AND o.emp_id = e.emp_id GROUP BY c.city;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |             | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |             | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | ORDERS O    | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | CUSTOMERS C | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | EMPLOYEES E | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: O.CUST_ID = C.CUST_ID                           
+    6 - filter: O.EMP_ID = E.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT c.city, MIN(o.amount), MAX(o.amount), SUM(o.amount) FROM orders o, customers c, employees e WHERE o.cust_id = c.cust_id AND o.emp_id = e.emp_id GROUP BY c.city;
+
+CITY                                               MIN(O.AMOUNT)                            MAX(O.AMOUNT)                            SUM(O.AMOUNT)                           
+-------------------------------------------------- ---------------------------------------- ---------------------------------------- ----------------------------------------
+Boston                                             900                                      1100                                     2000                                    
+Chicago                                            1800                                     2100                                     3900                                    
+San Francisco                                      4200                                     5000                                     9200                                    
+New York                                           1500                                     3200                                     9800                                    
+
+4 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.location, MIN(e.hire_date), MAX(o.order_date) FROM employees e, departments d, orders o WHERE e.dept_id = d.dept_id AND e.emp_id = o.emp_id GROUP BY d.location;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |               | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |               | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |               | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | ORDERS O      | 0    | 10000 | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: E.DEPT_ID = D.DEPT_ID                           
+    6 - filter: E.EMP_ID = O.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT d.location, MIN(e.hire_date), MAX(o.order_date) FROM employees e, departments d, orders o WHERE e.dept_id = d.dept_id AND e.emp_id = o.emp_id GROUP BY d.location;
+
+LOCATION                                           MIN(E.HIRE_DATE)       MAX(O.ORDER_DATE)     
+-------------------------------------------------- ---------------------- ----------------------
+Boston                                             2022-01-10 00:00:00    2023-04-15 00:00:00   
+Chicago                                            2021-02-28 00:00:00    2023-03-05 00:00:00   
+San Francisco                                      2019-06-10 00:00:00    2023-02-10 00:00:00   
+New York                                           2020-01-15 00:00:00    2023-05-25 00:00:00   
+
+4 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT p.category, MAX(s.sale_date), MIN(p.price) FROM products p, sales s, employees e WHERE p.prod_id = s.prod_id AND s.emp_id = e.emp_id GROUP BY p.category;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |             | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |             | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | PRODUCTS P  | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | SALES S     | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | EMPLOYEES E | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: P.PROD_ID = S.PROD_ID                           
+    6 - filter: S.EMP_ID = E.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT p.category, MAX(s.sale_date), MIN(p.price) FROM products p, sales s, employees e WHERE p.prod_id = s.prod_id AND s.emp_id = e.emp_id GROUP BY p.category;
+
+CATEGORY                       MAX(S.SALE_DATE)       MIN(P.PRICE)                            
+------------------------------ ---------------------- ----------------------------------------
+Electronics                    2023-05-01 00:00:00    25                                      
+Furniture                      2023-03-10 00:00:00    150                                     
+
+2 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT c.cust_name, MIN(o.order_date), MAX(o.amount) FROM customers c, orders o, employees e WHERE c.cust_id = o.cust_id AND o.emp_id = e.emp_id GROUP BY c.cust_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name        | Rows | Cost  | StartCost | Bytes | Remark |
+------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |             | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |             | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |             | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |             | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | CUSTOMERS C | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | ORDERS O    | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | EMPLOYEES E | 0    | 10000 | 0         |       |        |
+------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: C.CUST_ID = O.CUST_ID                           
+    6 - filter: O.EMP_ID = E.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT c.cust_name, MIN(o.order_date), MAX(o.amount) FROM customers c, orders o, employees e WHERE c.cust_id = o.cust_id AND o.emp_id = e.emp_id GROUP BY c.cust_name;
+
+CUST_NAME                                          MIN(O.ORDER_DATE)      MAX(O.AMOUNT)                           
+-------------------------------------------------- ---------------------- ----------------------------------------
+Best Buy                                           2023-05-20 00:00:00    3200                                    
+ABC Corp                                           2023-01-10 00:00:00    2300                                    
+Global Trade                                       2023-04-12 00:00:00    1100                                    
+XYZ Inc                                            2023-02-05 00:00:00    5000                                    
+Tech Solutions                                     2023-03-01 00:00:00    2100                                    
+
+5 rows fetched.
+
+SQL> 
+SQL> EXPLAIN SELECT d.dept_name, COUNT(o.order_id), MIN(e.salary) FROM departments d, employees e, orders o WHERE d.dept_id = e.dept_id AND e.emp_id = o.emp_id GROUP BY d.dept_name;
+
+EXPLAIN PLAN OUTPUT                                             
+----------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------
+| Id | Operation                   | Owner | Name          | Rows | Cost  | StartCost | Bytes | Remark |
+--------------------------------------------------------------------------------------------------------
+| 0  | SELECT STATEMENT            |       |               | 1    | 60016 | 8         |       |        |
+| 1  |   HASH GROUP BY             |       |               | 1    | 60016 | 8         |       |        |
+| 2  |     NESTED LOOPS            |       |               | 1    | 30000 | 0         |       |        |
+| 3  |       NESTED LOOPS          |       |               | 1    | 20000 | 0         |       |        |
+| 4  |           TABLE ACCESS FULL | SYS   | DEPARTMENTS D | 0    | 10000 | 0         |       |        |
+| 5  |           TABLE ACCESS FULL | SYS   | EMPLOYEES E   | 0    | 10000 | 0         |       |        |
+| 6  |         TABLE ACCESS FULL   | SYS   | ORDERS O      | 0    | 10000 | 0         |       |        |
+--------------------------------------------------------------------------------------------------------
+Predicate Information (identified by id):                       
+-----------------------------------------                       
+    5 - filter: D.DEPT_ID = E.DEPT_ID                           
+    6 - filter: E.EMP_ID = O.EMP_ID                             
+
+15 rows fetched.
+
+SQL> SELECT d.dept_name, COUNT(o.order_id), MIN(e.salary) FROM departments d, employees e, orders o WHERE d.dept_id = e.dept_id AND e.emp_id = o.emp_id GROUP BY d.dept_name;
+DEPT_NAME                                          COUNT(O.ORDER_ID)    MIN(E.SALARY)                           
+-------------------------------------------------- -------------------- ----------------------------------------
+Finance                                            2                    6800                                    
+Marketing                                          2                    6200                                    
+Sales                                              2                    7500                                    
+HR                                                 2                    5300                                    
+Engineering                                        2                    11000                                   
+
+5 rows fetched.
+
+
+
+
