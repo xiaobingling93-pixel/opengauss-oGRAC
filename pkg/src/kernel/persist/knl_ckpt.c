@@ -1101,6 +1101,8 @@ static void ckpt_copy_item(knl_session_t *session, buf_ctrl_t *ctrl, buf_ctrl_t 
     CM_MFENCE;
     to_flush_ctrl->is_dirty = 0;
     to_flush_ctrl->is_remote_dirty = 0;
+    to_flush_ctrl->is_edp = 0;
+    to_flush_ctrl->edp_map = 0;
 
     ogx->group.items[ogx->group.count].ctrl = to_flush_ctrl;
     ogx->group.items[ogx->group.count].buf_id = ogx->group.count;
@@ -1247,6 +1249,7 @@ static status_t ckpt_prepare_normal(knl_session_t *session, ckpt_context_t *ogx,
                     *need_exit = OG_TRUE;
                     break;
                 }
+                to_flush_ctrl->ckpt_enque_time = KNL_NOW(session);
                 continue;
             }
 
@@ -2228,12 +2231,14 @@ void ckpt_enque_page(knl_session_t *session)
     queue->count += session->dirty_count;
 
     /** set log truncate point for every dirty page in current session */
+    date_t enque_time = KNL_NOW(session);  // record time when added to checkpoint queue
     for (i = 0; i < session->dirty_count; i++) {
         knl_panic(session->dirty_pages[i]->in_ckpt == OG_FALSE);
         if (!DB_IS_PRIMARY(&session->kernel->db)) {
             session->dirty_pages[i]->curr_node_idx = queue->curr_node_idx;
         }
         session->dirty_pages[i]->trunc_point = queue->trunc_point;
+        session->dirty_pages[i]->ckpt_enque_time = enque_time;  // record time when added to checkpoint queue
         session->dirty_pages[i]->in_ckpt = OG_TRUE;
     }
 
@@ -3025,6 +3030,7 @@ void ckpt_remove_df_page(knl_session_t *session, datafile_t *df, bool32 need_dis
             curr->is_dirty = 0;
             curr->is_remote_dirty = 0;
             curr->is_edp = 0;
+            curr->edp_map = 0;
             buf_expire_page(session, curr->page_id);
             pop_count++;
         }
@@ -3141,8 +3147,10 @@ static status_t ckpt_clean_prepare_normal(knl_session_t *session, ckpt_context_t
                              ogx->edp_group.count);
             knl_panic(DCS_BUF_CTRL_NOT_OWNER(session, shift));
             buf_unlatch(session, shift, OG_FALSE);
-            (void)(dtc_add_to_edp_group(session, &ogx->edp_group, OG_CKPT_GROUP_SIZE(session), shift->page_id,
-                                        shift->page->lsn));
+            if (dtc_add_to_edp_group(session, &ogx->edp_group, OG_CKPT_GROUP_SIZE(session), shift->page_id,
+                shift->page->lsn)) {
+                shift->ckpt_enque_time = KNL_NOW(session);
+            }
             return OG_SUCCESS;
         }
 

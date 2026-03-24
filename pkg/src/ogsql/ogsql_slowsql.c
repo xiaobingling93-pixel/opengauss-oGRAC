@@ -34,8 +34,10 @@
 #define MAX_PLAN_TEXT 8000
 #define MAX_PARAM_LEN 4096
 
-#define SLOWSQL_FORMAT "%c%d|%s|%s|%d|%s|%llu|\"%s\"|%010u|%010u|\"%s\"%c \"%s\"\n%c"
-#define SLOWSQL_EXPLAIN_FORMAT "%c%d|%s|%s|%d|%s|%llu|\"%s\"|%010u|%010u|\"%s\"\n%c\"%s\"\n%c"
+#define SLOWSQL_FORMAT "%c%d|%s|%s|%d|%s|%llu|\"%s\"|%010u|%010u|%llu|%llu|%llu|%llu|%llu|%llu|" \
+                       "%llu|%llu|%llu|%llu|%llu|%s|%llu|%llu|%s|%llu|%llu|%s|%llu|%llu|\"%s\"%c \"%s\"\n%c"
+#define SLOWSQL_EXPLAIN_FORMAT "%c%d|%s|%s|%d|%s|%llu|\"%s\"|%010u|%010u|%llu|%llu|%llu|%llu|%llu|%llu|" \
+                               "%llu|%llu|%llu|%llu|%llu|%s|%llu|%llu|%s|%llu|%llu|%s|%llu|%llu|\"%s\"\n%c\"%s\"\n%c"
 
 static bool32 og_slowsql_get_sql_text(sql_stmt_t *statement, text_t *sql_text)
 {
@@ -377,10 +379,33 @@ static bool32 og_slowsql_collect_params_and_stage(sql_stmt_t *statement, session
     }
 }
 
+typedef struct st_top_event {
+    const char *event_name;
+    uint64 event_time;
+    uint64 event_count;
+} top_event_t;
+
+static void get_top3_wait_event(slowsql_stat_t *stat, top_event_t *top_event)
+{
+    for (int i = 0; i < TOP_EVENT_NUM; i++) {
+        if (stat->top_event[i].event_time == 0) {
+            top_event[i].event_name = "NULL";
+            top_event[i].event_time = 0;
+            top_event[i].event_count = 0;
+            continue;
+        }
+        top_event[i].event_name = knl_get_event_desc(stat->top_event[i].event_id)->name;
+        top_event[i].event_time = stat->top_event[i].event_time;
+        top_event[i].event_count = stat->top_event[i].event_count;
+    }
+}
+
 static void og_slowsql_log_slow_sql_execution(void *stmt_handle, uint64 exec_duration)
 {
     sql_stmt_t *statement = (sql_stmt_t *)stmt_handle;
     session_t *session = statement->session;
+    slowsql_stat_t slowsql_stat = statement->slowsql_stat;
+    vm_stat_t *vm_stat = &statement->vm_stat;
     if (og_slowsql_should_skip_logging(statement, session)) {
         return;
     }
@@ -419,15 +444,23 @@ static void og_slowsql_log_slow_sql_execution(void *stmt_handle, uint64 exec_dur
     (void)cm_inet_ntop((struct sockaddr *)&SESSION_PIPE(session)->link.tcp.remote.addr, client_ip, CM_MAX_IP_LEN);
     const char *param_str = (param_buf[0] == '\0') ? "NULL" : param_buf;
     const char *plan_str = (plan_buf[0] == '\0') ? "NULL" : plan_buf;
+    top_event_t top_event[TOP_EVENT_NUM] = { 0 };
+    get_top3_wait_event(&slowsql_stat, top_event);
     OG_LOG_SLOWSQL(sql_text.len, format, SLOWSQL_HEAD, session->curr_tenant_id, timestamp, stage,
-                   session->knl_session.id, client_ip, exec_duration, param_str, statement->context->ctrl.hash_value,
-                   explain_hash, sql_text.str, SLOWSQL_STR_SPLIT, plan_str, SLOWSQL_TAIL);
+                    session->knl_session.id, client_ip, exec_duration, param_str, statement->context->ctrl.hash_value,
+                    explain_hash, slowsql_stat.disk_reads, slowsql_stat.buffer_gets, slowsql_stat.cr_gets, slowsql_stat.dirty_count,
+                    slowsql_stat.processed_rows, slowsql_stat.cpu_time, slowsql_stat.io_wait_time, slowsql_stat.con_wait_time,
+                    slowsql_stat.reparse_time, vm_stat->alloc_pages, vm_stat->max_open_pages,
+                    top_event[0].event_name, top_event[0].event_time, top_event[0].event_count,
+                    top_event[1].event_name, top_event[1].event_time, top_event[1].event_count,
+                    top_event[2].event_name, top_event[2].event_time, top_event[2].event_count,
+                    sql_text.str, SLOWSQL_STR_SPLIT, plan_str, SLOWSQL_TAIL);
 
     /* Record statistics */
     if (cm_log_param_instance()->slowsql_print_enable && statement->stat != NULL) {
         og_slowsql_collect_stats(statement, exec_duration);
     }
-
+    
     OGSQL_RESTORE_STACK(statement);
 }
 

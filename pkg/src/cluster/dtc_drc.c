@@ -613,9 +613,12 @@ drc_buf_res_t *drc_get_buf_res_by_pageid(knl_session_t *session, page_id_t pagid
 static void drc_clean_buf_res(drc_buf_res_t *buf_res)
 {
     knl_panic(buf_res->claimed_owner == OG_INVALID_ID8);
+    buf_res->need_recover = OG_FALSE;
+    buf_res->need_flush = OG_FALSE;
     if (buf_res->readonly_copies) {
         buf_res->claimed_owner = drc_select_one_instance_from_readonly_copy(buf_res->readonly_copies);
         buf_res->pending = DRC_RES_SHARE_ACTION;
+        buf_res->reform_promote = OG_TRUE;
         knl_panic(buf_res->mode == DRC_LOCK_SHARE);
         drc_bitmap64_clear(&buf_res->readonly_copies, buf_res->claimed_owner);
     } else if (buf_res->edp_map != 0) {
@@ -1457,6 +1460,9 @@ status_t drc_request_page_owner(knl_session_t *session, page_id_t pagid, drc_req
         buf_res->converting.req_info.req_time = req_info->req_time;
         buf_res->converting.next = OG_INVALID_ID32;
         buf_res->pending = DRC_RES_INVALID_ACTION;
+        buf_res->need_recover = OG_FALSE;
+        buf_res->need_flush = OG_FALSE;
+        buf_res->reform_promote = OG_FALSE;
 
         DRC_LIST_INIT(&buf_res->convert_q);
 
@@ -1527,6 +1533,7 @@ allocated:
     if (buf_res->claimed_owner == OG_INVALID_ID8) {
         if (OGRAC_SESSION_IN_RECOVERY(session) || g_rc_ctx->status >= REFORM_RECOVER_DONE ||
             dtc_dcs_readable(session, pagid)) {
+            buf_res->need_recover = OGRAC_SESSION_IN_RECOVERY(session);
             drc_clean_buf_res(buf_res);
         } else {
             cm_spin_unlock(&bucket->lock);
@@ -2197,6 +2204,7 @@ static status_t drc_create_lock_res(drid_t *lock_id, drc_res_bucket_t *bucket)
     lock_res->converting.req_info = g_invalid_req_info;
     lock_res->converting.next = OG_INVALID_ID32;
     lock_res->granted_map = 0;
+    lock_res->claimed_owner = OG_INVALID_ID8;
     DRC_LIST_INIT(&lock_res->convert_q);
 
     DTC_DRC_DEBUG_INF("[DRC][%u/%u/%u/%u/%u][create lock res]:res index:%u, curr mode=%u, "
@@ -2702,12 +2710,17 @@ status_t drc_claim_lock_owner(knl_session_t *session, drid_t *lock_id, lock_clai
               lock_res->res_id.type == DR_TYPE_TABLE);
     drc_bitmap64_set(&lock_res->granted_map, claim_info->new_id);
     lock_res->mode = lock_res->converting.req_info.req_mode;
+    // update claimed_owner when a new owner is claimed
+    if (lock_res->claimed_owner == OG_INVALID_ID8 && claim_info->mode == DRC_LOCK_EXCLUSIVE) {
+        lock_res->claimed_owner = claim_info->new_id;
+    }
 
     DTC_DRC_DEBUG_INF("[DRC][%u/%u/%u/%u/%u][after claim]:res index:%u, curr mode=%u, claim mode=%u,"
-                      "granted map:%llu, from %d, sid:%d, q count:%u, converting:%u",
+                      "granted map:%llu, claimed owner:%u, from %d, sid:%d, q count:%u, converting:%u",
                       lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, lock_res->idx,
-                      lock_res->mode, claim_info->mode, lock_res->granted_map, claim_info->new_id, claim_info->inst_sid,
-                      lock_res->convert_q.count, lock_res->converting.req_info.inst_id);
+                      lock_res->mode, claim_info->mode, lock_res->granted_map, lock_res->claimed_owner,
+                      claim_info->new_id, claim_info->inst_sid, lock_res->convert_q.count,
+                      lock_res->converting.req_info.inst_id);
 
     drc_convert_lock_owner(lock_res);
 
@@ -2741,6 +2754,17 @@ status_t drc_release_lock_owner(uint8 old_id, drid_t *lock_id)
     drc_bitmap64_clear(&lock_res->granted_map, old_id);
     if (lock_res->granted_map == 0) {
         lock_res->mode = DRC_LOCK_NULL;
+        lock_res->claimed_owner = OG_INVALID_ID8;
+    } else {
+        // update claimed_owner to the first granted instance
+        uint64 granted_map = lock_res->granted_map;
+        lock_res->claimed_owner = OG_INVALID_ID8;
+        for (uint8 i = 0; i < OG_MAX_INSTANCES; i++) {
+            if (drc_bitmap64_exist(&granted_map, i)) {
+                lock_res->claimed_owner = i;
+                break;
+            }
+        }
     }
 
     if ((lock_res->granted_map > 0) || (lock_res->converting.req_info.inst_id != OG_INVALID_ID8)) {
@@ -2817,6 +2841,8 @@ static drc_local_lock_res_t *drc_create_local_lock_res(drid_t *lock_id)
     lock_res->res_id = *lock_id;
     lock_res->is_locked = OG_FALSE;
     lock_res->is_owner = OG_FALSE;
+    lock_res->is_releasing = OG_FALSE;
+    lock_res->align1 = 0;
     lock_res->count = 0;
     lock_res->lock = 0;
     lock_res->lockc = 0;
@@ -2878,6 +2904,7 @@ status_t drc_lock_local_lock_res_by_id_for_recycle(knl_session_t *session, drid_
         return OG_ERROR;
     }
     lock_res->is_locked = OG_TRUE;
+    lock_res->is_releasing = OG_FALSE;
     latch_stat->stat = LATCH_STATUS_X;
     drc_unlock_local_resx(lock_res);
     return OG_SUCCESS;
@@ -2896,6 +2923,7 @@ static status_t drc_unlock_local_lock_res_by_id_for_recycle(drid_t *lock_id)
     drc_lock_local_resx(lock_res);
     drc_get_local_latch_statx(lock_res, &latch_stat);
     lock_res->is_locked = OG_FALSE;
+    lock_res->is_releasing = OG_FALSE;
     latch_stat->stat = LATCH_STATUS_IDLE;
     drc_unlock_local_resx(lock_res);
     return OG_SUCCESS;
@@ -3247,6 +3275,7 @@ void drc_clean_local_lock_res(drc_local_lock_res_t *lock_res)
     cm_spin_lock(&lock_res->lock, NULL);
     lock_res->is_owner = OG_FALSE;
     lock_res->is_locked = OG_FALSE;
+    lock_res->is_releasing = OG_FALSE;
     lock_res->latch_stat.lock_mode = DRC_LOCK_NULL;
     lock_res->latch_stat.shared_count = 0;
     lock_res->latch_stat.stat = LATCH_STATUS_IDLE;
@@ -4645,6 +4674,7 @@ status_t drc_send_lock_master_blk(knl_session_t *session, drc_remaster_task_t *r
         }
         res_msg = (drc_lock_res_msg_t *)((uint8 *)msg + offset);
         res_msg->granted_map = lock_res->granted_map;
+        res_msg->claimed_owner = lock_res->claimed_owner;
         res_msg->le_num = (lock_res->converting.req_info.inst_id == OG_INVALID_ID8) ? 0
                                                                                     : (1 + lock_res->convert_q.count);
         res_msg->mode = lock_res->mode;
@@ -4741,6 +4771,7 @@ void dtc_init_lock_res(drc_master_res_t *lock_res, drc_lock_res_msg_t *res_msg, 
     uint32 le_num = res_msg->le_num;
 
     lock_res->granted_map = res_msg->granted_map;
+    lock_res->claimed_owner = res_msg->claimed_owner;
     lock_res->mode = res_msg->mode;
     lock_res->res_id = res_msg->res_id;
     lock_res->lock = 0;
@@ -6009,6 +6040,9 @@ void drc_rcy_page_info(void *page_info, uint8 inst_id, uint32 item_idx, uint32 *
     } else if (rcy_pinfo->lock_mode == DRC_LOCK_SHARE) {
         drc_bitmap64_set(&buf_res->readonly_copies, inst_id);
     }
+    buf_res->need_recover = (buf_res->claimed_owner == OG_INVALID_ID8) ? OG_TRUE : OG_FALSE;
+    buf_res->need_flush = OG_FALSE;
+    buf_res->reform_promote = OG_FALSE;
 
     buf_res->edp_map = 0;
     if (rcy_pinfo->is_edp) {
@@ -6296,6 +6330,8 @@ void drc_get_page_owner_id_for_rcy(knl_session_t *session, page_id_t pagid, uint
     if (NULL == buf_res) {
         cm_spin_unlock(&bucket->lock);
         *id = OG_INVALID_ID8;
+        buf_res->need_recover = OG_TRUE;
+        buf_res->need_flush = OG_FALSE;
         return;
     }
 
@@ -6308,6 +6344,7 @@ void drc_get_page_owner_id_for_rcy(knl_session_t *session, page_id_t pagid, uint
     } else {
         *id = buf_res->claimed_owner;
     }
+    buf_res->need_recover = (*id == OG_INVALID_ID8) ? OG_TRUE : OG_FALSE;
     cm_spin_unlock(&bucket->lock);
 
     return;
@@ -7156,6 +7193,7 @@ status_t drc_rcy_lock_res_info(knl_session_t *session, drc_recovery_lock_res_t *
     req_info->req_version = DRC_GET_CURR_REFORM_VERSION;
     req_info->lsn = OG_INVALID_ID64;
     cm_spin_unlock(&bucket->lock);
+
     lock_claim_info_t claim_info;
     claim_info.new_id = inst_id;
     claim_info.inst_sid = OG_INVALID_ID16;

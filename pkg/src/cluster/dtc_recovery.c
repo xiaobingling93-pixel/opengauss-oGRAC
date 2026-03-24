@@ -4456,6 +4456,7 @@ status_t dtc_add_dirtypage_for_recovery(knl_session_t *session, page_id_t page_i
     buf_bucket_t *bucket = buf_find_bucket(session, page_id);
     cm_spin_lock(&bucket->lock, &session->stat->spin_stat.stat_bucket);
     buf_ctrl_t *ctrl = buf_find_from_bucket(bucket, page_id);
+    drc_buf_res_t *buf_res = drc_get_buf_res_by_pageid(session, page_id);
     if (!ctrl || ctrl->lock_mode == DRC_LOCK_NULL) {
         /* If the page is not in memory or lock mode is null, the partial recovery for that page can't be skipped,
            as the page on disk may be not the latest one. */
@@ -4468,6 +4469,7 @@ status_t dtc_add_dirtypage_for_recovery(knl_session_t *session, page_id_t page_i
     if (!ctrl->is_dirty) {
         ctrl->is_dirty = OG_TRUE;
         ckpt_enque_one_page(session, ctrl);
+        buf_res->need_flush = OG_TRUE;
     }
     cm_spin_unlock(&bucket->lock);
     return OG_SUCCESS;

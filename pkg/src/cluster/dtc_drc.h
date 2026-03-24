@@ -100,6 +100,7 @@ typedef struct st_drc_master_res {
     uint8 mode;
     uint16 part_id;
     uint64 granted_map;
+    uint8 claimed_owner;
     drc_lock_item_t converting;
     drc_lock_q_t convert_q;
     drc_list_node_t node;
@@ -121,6 +122,8 @@ typedef struct st_drc_local_lock_res {
 
     bool8 is_owner;
     bool8 is_locked;
+    bool8 is_releasing;  // local lock is in DLS release-ownership path
+    uint8 align1;   // aligned for bool8 is_releasing
     uint16 count;  // only for dls tablelock
 
     spinlock_t lock;
@@ -170,6 +173,9 @@ typedef struct st_drc_buf_res {
     drc_list_node_t node;
     uint64 lsn;
     uint64 readonly_copies;
+    bool8 need_recover;
+    bool8 need_flush;
+    bool8 reform_promote;
 } drc_buf_res_t;
 
 typedef struct st_drc_edp_info {
@@ -510,7 +516,8 @@ typedef struct st_drc_buf_res_msg {
 typedef struct st_drc_lock_res_msg {
     drid_t res_id;
     uint8 mode;
-    uint8 reserve[3];
+    uint8 claimed_owner;
+    uint8 reserve[2];
     uint32 le_num;
     uint64 granted_map;
 } drc_lock_res_msg_t;

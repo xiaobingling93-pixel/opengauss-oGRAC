@@ -618,6 +618,8 @@ void sql_reset_plsql_resource(sql_stmt_t *stmt)
 
 static void sql_reset_stmt_resource(sql_stmt_t *stmt)
 {
+    slowsql_stat_t init_stat = { 0 };
+    stmt->slowsql_stat = init_stat;
     stmt->query_scn = OG_INVALID_ID64;
     stmt->gts_scn = OG_INVALID_ID64;
     stmt->is_explain = OG_FALSE;

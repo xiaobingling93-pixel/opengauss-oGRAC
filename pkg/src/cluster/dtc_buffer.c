@@ -318,6 +318,7 @@ bool32 dtc_dcs_readable(knl_session_t *session, page_id_t page_id)
     if (IS_INVALID_PAGID(page_id)) {
         return OG_FALSE;
     }
+
     bool32 page_need_recover = dtc_page_in_rcyset(session, page_id);
     return !page_need_recover;
 }

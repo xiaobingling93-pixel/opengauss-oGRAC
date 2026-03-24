@@ -250,6 +250,7 @@ static void dcs_handle_page_from_owner(knl_session_t *session, buf_ctrl_t *ctrl,
 
     knl_panic(mode == ack->mode);
     ctrl->lock_mode = mode;
+    ctrl->edp_map = (ack->edp_map) & (~(1ULL << session->kernel->id));
     ctrl->is_fixed = 0;
     if (ctrl->lock_mode == DRC_LOCK_EXCLUSIVE) {
         ctrl->is_edp = 0;
@@ -265,14 +266,16 @@ static void dcs_handle_page_from_owner(knl_session_t *session, buf_ctrl_t *ctrl,
     } else {
         ctrl->load_status = (uint8)BUF_IS_LOADED;
     }
+    ctrl->in_recovery = OGRAC_SESSION_IN_RECOVERY(session);
 
     DTC_DCS_DEBUG_INF(
-        "[DCS][%u-%u][%s]: handle page from owner, lock mode=%u, edp=%d, src_id=%u, src_sid=%u, dest_id=%u, dest_sid=%u, mode=%u, dirty=%u, remote dirty=%u,"
-        "remote remote diry=%u, page pcn=%d, page lsn=%llu, sync lsn=%llu, sync scn=%llu, page_type=%u, load_status=%d",
+        "[DCS][%u-%u][%s]: handle page from owner, lock mode=%u, edp=%d, edp_map=%llu, src_id=%u, src_sid=%u,"
+        "dest_id=%u, dest_sid=%u, mode=%u, dirty=%u, remote dirty=%u, remote remote diry=%u, page pcn=%d,"
+        "page lsn=%llu, sync lsn=%llu, sync scn=%llu, page_type=%u, load_status=%d, in_recovery=%d",
         ctrl->page_id.file, ctrl->page_id.page, MES_CMD2NAME(msg->head->cmd), ctrl->lock_mode, ctrl->is_edp,
-        msg->head->src_inst, msg->head->src_sid, msg->head->dst_inst, msg->head->dst_sid, mode, ctrl->is_dirty,
-        ctrl->is_remote_dirty, DCS_ACK_PG_IS_REMOTE_DIRTY(msg), ctrl->page->pcn, ctrl->page->lsn, ack->lsn, ack->scn,
-        ((heap_page_t *)ctrl->page)->head.type, ctrl->load_status);
+        ctrl->edp_map, msg->head->src_inst, msg->head->src_sid, msg->head->dst_inst, msg->head->dst_sid, mode,
+        ctrl->is_dirty, ctrl->is_remote_dirty, DCS_ACK_PG_IS_REMOTE_DIRTY(msg), ctrl->page->pcn, ctrl->page->lsn,
+        ack->lsn, ack->scn, ((heap_page_t *)ctrl->page)->head.type, ctrl->load_status, ctrl->in_recovery);
 }
 
 static status_t dcs_send_ask_master_req(knl_session_t *session, uint8 master_id, buf_ctrl_t *ctrl,
@@ -330,9 +333,11 @@ static inline void dcs_set_ctrl4granted(knl_session_t *session, buf_ctrl_t *ctrl
     // first load of this page, give X mode directly
     // master already marked X mode.
     ctrl->lock_mode = DRC_LOCK_EXCLUSIVE;
+    ctrl->edp_map = 0;
     ctrl->is_fixed = 0;
     ctrl->force_request = 0;
     ctrl->transfer_status = BUF_TRANS_NONE;
+    ctrl->in_recovery = OGRAC_SESSION_IN_RECOVERY(session);
     DTC_DCS_DEBUG_INF("[DCS][%u-%u][dcs set ctrl4granted] success", ctrl->page_id.file, ctrl->page_id.page);
 }
 
@@ -354,6 +359,7 @@ static inline void dcs_set_ctrl4already_owner(knl_session_t *session, buf_ctrl_t
         CM_ASSERT(req_mode == DRC_LOCK_SHARE);
     }
     ctrl->transfer_status = BUF_TRANS_NONE;
+    ctrl->in_recovery = OGRAC_SESSION_IN_RECOVERY(session);
 
 #ifdef DB_DEBUG_VERSION
     if (ctrl->load_status == BUF_NEED_LOAD) {
@@ -823,9 +829,15 @@ status_t static inline dcs_owner_transfer_page(knl_session_t *session, uint8 own
 
     if (page_req->req_mode == DRC_LOCK_EXCLUSIVE) {
         knl_panic(!ctrl->is_marked && !ctrl->is_readonly);
+        // will transfer owner, set edp map
+        ask_page.edp_map = ctrl->edp_map;
+        if (ctrl->is_dirty || ctrl->is_remote_dirty) {
+            ask_page.edp_map = ask_page.edp_map | (1ULL << session->kernel->id);
+        }
     } else {
         // send read-only copy, don't change owner
         knl_panic(flag != MES_FLAG_READONLY2X);
+        ask_page.edp_map = 0;
     }
 
     knl_begin_session_wait(session, DCS_TRANSFER_PAGE, OG_TRUE);
@@ -3321,6 +3333,7 @@ void dcs_buf_clean_ctrl_edp(knl_session_t *session, buf_ctrl_t *ctrl, bool32 nee
     ctrl->is_dirty = 0;
     ctrl->is_remote_dirty = 0;
     ctrl->is_edp = 0;
+    ctrl->edp_map = 0;
     if (need_lock) {
         cm_spin_unlock(&bucket->lock);
     }

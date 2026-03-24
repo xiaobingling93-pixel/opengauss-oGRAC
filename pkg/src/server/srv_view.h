@@ -141,6 +141,7 @@ typedef enum en_dynview_id {
     DYN_VIEW_DRC_RES_MAP,    // dispaly txn_res_map/local_txn_map/local_lock_map
     DYN_VIEW_BUF_CTRL_INFO,  // display pages buf ctrl.
     DYN_VIEW_DRC_LOCAL_LOCK_INFO,
+    DYN_VIEW_DSS_TIME_STATS,  // DSS interface time statistics
     DYN_VIEW_DTC_CONVERTING_PAGE_CNT,
     DYN_VIEW_DTC_BUFFER_CTRL, // VS X$BH
     DYN_VIEW_DTC_MES_STAT,
