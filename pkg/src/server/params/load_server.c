@@ -139,6 +139,8 @@ static status_t srv_init_loggers(void)
     PRTS_RETURN_IFERR(snprintf_s(file_name, OG_FILE_NAME_BUFFER_SIZE, OG_MAX_FILE_NAME_LEN, "%s/slowsql/%s",
         log_param->log_home, "ogracd.lsql"));
     cm_log_init(LOG_SLOWSQL, file_name);
+    log_file_handle = cm_log_logger_file(LOG_SLOWSQL);
+    cm_log_open_file(log_file_handle);
 
     PRTS_RETURN_IFERR(snprintf_s(file_name, OG_FILE_NAME_BUFFER_SIZE, OG_MAX_FILE_NAME_LEN, "%s/opt/%s",
         log_param->log_home, "ogracd.opt"));

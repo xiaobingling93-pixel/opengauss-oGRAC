@@ -161,7 +161,8 @@ typedef struct st_ctx_accum {
     date_t first_load_time;    // Timestamp of the parent creation time
     date_t last_load_time;     // Time at which the query plan (heap 6) was loaded into the library cache
     atomic_t last_active_time; // TIme at which the query plan was last active
-    uint64 parse_time;         // sql parse time
+    uint64 parse_time;         // sql parse time (hard parse, microseconds)
+    uint64 soft_parse_time;    // last soft-parse validation cost (og_check_sql_ctx_valid), microseconds
     int64 proc_oid;            // Program identifier
     uint16 proc_line;          // program line number
 
@@ -182,6 +183,17 @@ typedef struct st_exec_prev_stat {
     uint64 dcs_net_time;     // oGRAC network buffer read
 } exec_prev_stat_t;
 
+typedef struct st_event_time {
+    uint64 event_id;
+    uint64 event_time;
+    uint64 event_count;
+} event_time_t;
+
+typedef struct st_event_stat {
+    uint64 event_count;
+    uint64 event_time;
+} event_stat_t;
+
 typedef struct st_ctx_prev_stat {
     struct timeval tv_start;
     uint64 processed_rows;
@@ -196,6 +208,9 @@ typedef struct st_ctx_prev_stat {
     uint64 io_wait_time;  // user io wait
     uint64 con_wait_time; // concurrency wait
     uint64 dcs_net_time;
+    uint64 parse_time;
+    uint64 dirty_count;
+    event_stat_t wait_event[WAIT_EVENT_COUNT];
 
     // stat info about datafile
     atomic_t scattered_reads;

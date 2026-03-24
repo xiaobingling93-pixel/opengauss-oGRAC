@@ -190,6 +190,7 @@ static status_t dls_process_unlock_table(knl_session_t *session, drid_t *lock_id
         return OG_SUCCESS;
     }
     drc_lock_local_resx(lock_res);
+    lock_res->is_releasing = OG_TRUE;
     drc_get_local_latch_statx(lock_res, &latch_stat);
 
     knl_panic(latch_stat->lock_mode != DRC_LOCK_NULL);
@@ -200,6 +201,7 @@ static status_t dls_process_unlock_table(knl_session_t *session, drid_t *lock_id
         knl_panic(latch_stat->lock_mode == DRC_LOCK_EXCLUSIVE);
         latch_stat->lock_mode = DRC_LOCK_SHARE;
     }
+    lock_res->is_releasing = OG_FALSE;
     drc_unlock_local_resx(lock_res);
     unlock_table_local(session, entry, session->kernel->dtc_attr.inst_id, OG_FALSE);
     dc_close(&dc);
@@ -265,6 +267,7 @@ static status_t dls_process_release_ownership(knl_session_t *session, drid_t *lo
     drc_local_latch *latch_stat;
     drc_local_lock_res_t *lock_res;
     uint32 times = 0;
+    bool8 releasing_marked = OG_FALSE;
 
     DTC_DLS_DEBUG_INF("[DLS] release lock(%u/%u/%u/%u/%u)", lock_id->type, lock_id->uid, lock_id->id, lock_id->idx,
                       lock_id->part);
@@ -293,14 +296,20 @@ static status_t dls_process_release_ownership(knl_session_t *session, drid_t *lo
             return OG_SUCCESS;
         }
         drc_lock_local_resx(lock_res);
+        if (!releasing_marked) {
+            lock_res->is_releasing = OG_TRUE;
+            releasing_marked = OG_TRUE;
+        }
         drc_get_local_lock_statx(lock_res, &is_locked, &is_owner);
         if (is_locked && (lock_id->type == DR_TYPE_SHUTDOWN)) {
+            lock_res->is_releasing = OG_FALSE;
             drc_unlock_local_resx(lock_res);
             OG_LOG_RUN_WAR("[DLS] lock type is DR_TYPE_SHUTDOWN, do not wait for release");
             return OG_ERROR;
         }
 
         if (release_timeout_ticks != OG_INVALID_ID32 && times >= release_timeout_ticks) {
+            lock_res->is_releasing = OG_FALSE;
             drc_unlock_local_resx(lock_res);
             OG_LOG_DEBUG_WAR("[DLS] release latch(%u/%u/%u/%u/%u) timeout", lock_id->type, lock_id->uid, lock_id->id,
                              lock_id->idx, lock_id->part);
@@ -321,6 +330,7 @@ static status_t dls_process_release_ownership(knl_session_t *session, drid_t *lo
                            "cur_version=%llu",
                            lock_id->type, lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, req_version,
                            DRC_GET_CURR_REFORM_VERSION);
+            lock_res->is_releasing = OG_FALSE;
             drc_unlock_local_resx(lock_res);
             return OG_ERROR;
         }
@@ -331,10 +341,12 @@ static status_t dls_process_release_ownership(knl_session_t *session, drid_t *lo
             if (latch_stat->lock_mode == DRC_LOCK_NULL) {
                 OG_LOG_RUN_ERR("[DLS] release lock(%u/%u/%u/%u/%u) failed, invalid lock mode", lock_id->type,
                                lock_id->uid, lock_id->id, lock_id->idx, lock_id->part);
+                lock_res->is_releasing = OG_FALSE;
                 drc_unlock_local_resx(lock_res);
                 return OG_ERROR;
             }
             if (dls_broadcast_btree_split(session, lock_id, mode) != OG_SUCCESS) {
+                lock_res->is_releasing = OG_FALSE;
                 drc_unlock_local_resx(lock_res);
                 return OG_ERROR;
             }
@@ -352,6 +364,7 @@ static status_t dls_process_release_ownership(knl_session_t *session, drid_t *lo
                 latch_stat->lock_mode = DRC_LOCK_SHARE;
                 drc_set_local_lock_statx(lock_res, OG_FALSE, OG_TRUE);
             }
+            lock_res->is_releasing = OG_FALSE;
             drc_unlock_local_resx(lock_res);
             DTC_DLS_DEBUG_INF("[DLS] release spinlock(%u/%u/%u/%u/%u) successfully, curr mode:%d", lock_id->type,
                               lock_id->uid, lock_id->id, lock_id->idx, lock_id->part, latch_stat->lock_mode);
@@ -407,10 +420,12 @@ static status_t dls_process_try_release_ownership(knl_session_t *session, drid_t
     }
 
     drc_lock_local_resx(lock_res);
+    lock_res->is_releasing = OG_TRUE;
     drc_get_local_latch_statx(lock_res, &latch_stat);
     if (latch_stat->lock_mode == DRC_LOCK_NULL) {
         OG_LOG_RUN_ERR("[DLS] release lock(%u/%u/%u/%u/%u) failed, invalid lock mode", lock_id->type, lock_id->uid,
                        lock_id->id, lock_id->idx, lock_id->part);
+        lock_res->is_releasing = OG_FALSE;
         drc_unlock_local_resx(lock_res);
         return OG_ERROR;
     }
@@ -423,6 +438,7 @@ static status_t dls_process_try_release_ownership(knl_session_t *session, drid_t
         latch_stat->lock_mode = DRC_LOCK_SHARE;
         drc_set_local_lock_statx(lock_res, OG_FALSE, OG_TRUE);
     }
+    lock_res->is_releasing = OG_FALSE;
     drc_unlock_local_resx(lock_res);
     DTC_DLS_DEBUG_INF("[DLS] release spinlock(%u/%u/%u/%u/%u) successfully", lock_id->type, lock_id->uid, lock_id->id,
                       lock_id->idx, lock_id->part);

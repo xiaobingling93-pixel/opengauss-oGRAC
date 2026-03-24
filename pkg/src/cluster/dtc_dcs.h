@@ -179,6 +179,7 @@ typedef struct st_msg_ask_page_ack {
     knl_scn_t scn;
     drc_lock_mode_e mode;
     uint64 req_version;
+    uint64 edp_map;
 } msg_ask_page_ack_t;
 
 typedef struct st_msg_edpinfo_req {

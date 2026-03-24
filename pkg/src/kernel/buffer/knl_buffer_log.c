@@ -28,6 +28,7 @@
 #include "knl_buffer_access.h"
 #include "rc_reform.h"
 #include "dtc_recovery.h"
+#include "dtc_drc.h"
 
 static void buf_enter_invalid_page(knl_session_t *session, latch_mode_t mode)
 {
@@ -94,17 +95,23 @@ void rd_enter_page(knl_session_t *session, log_entry_t *log)
 
     // for partial recover in master node of cluster
     if (DB_IS_CLUSTER(session) && rc_is_master()) {
-        bool32 need_recover = dtc_rcy_page_in_rcyset(page_id);
-        // skip this page if it is not in recovery set
-        if (!need_recover) {
-            if ((dtc_add_dirtypage_for_recovery(session, page_id) == OG_SUCCESS)) {
-                buf_enter_invalid_page(session, LATCH_MODE_X);
-                session->page_stack.is_skip[session->page_stack.depth - 1] = OG_TRUE;
-                OG_LOG_DEBUG_INF("[DTC RCY] skip enter page [%u-%u] due to no need, pcn=%u", page_id.file, page_id.page,
-                    redo->pcn);
-                return;
+        buf_bucket_t *bucket = buf_find_bucket(session, page_id);
+        drc_buf_res_t *buf_res = drc_get_buf_res_by_pageid(session, page_id);
+        if (buf_res != NULL) {
+            cm_spin_lock(&bucket->lock, &session->stat->spin_stat.stat_bucket);
+            buf_res->need_recover = dtc_rcy_page_in_rcyset(page_id);
+            cm_spin_unlock(&bucket->lock);
+            // skip this page if it is not in recovery set
+            if (!buf_res->need_recover) {
+                if ((dtc_add_dirtypage_for_recovery(session, page_id) == OG_SUCCESS)) {
+                    buf_enter_invalid_page(session, LATCH_MODE_X);
+                    session->page_stack.is_skip[session->page_stack.depth - 1] = OG_TRUE;
+                    OG_LOG_DEBUG_INF("[DTC RCY] skip enter page [%u-%u] due to no need, pcn=%u",
+                        page_id.file, page_id.page, redo->pcn);
+                    return;
+                }
+                dtc_rcy_page_update_need_replay(page_id);
             }
-            dtc_rcy_page_update_need_replay(page_id);
         }
     }
 
@@ -196,6 +203,13 @@ void rd_leave_page(knl_session_t *session, log_entry_t *log)
      * for page is set soft_damge, we must ensure it been flushed to disk.
      */
     if ((!is_skip || is_soft_damage) && changed) {
+        buf_bucket_t *bucket = buf_find_bucket(session, ctrl->page_id);
+        drc_buf_res_t *buf_res = drc_get_buf_res_by_pageid(session, ctrl->page_id);
+        if (buf_res != NULL) {
+            cm_spin_lock(&bucket->lock, &session->stat->spin_stat.stat_bucket);
+            buf_res->need_flush = OG_TRUE;
+            cm_spin_unlock(&bucket->lock);
+        }
         buf_leave_page(session, OG_TRUE);
     } else {
         buf_leave_page(session, OG_FALSE);

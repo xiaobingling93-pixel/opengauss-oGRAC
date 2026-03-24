@@ -118,7 +118,12 @@ status_t og_get_context_from_cache(sql_stmt_t *statement, text_t *ogsql, uint32 
     SET_STMT_CONTEXT(statement, ogx);
 
     if (ogx) {
+        timeval_t soft_beg;
+        (void)cm_gettimeofday(&soft_beg);
         if (og_check_sql_ctx_valid(statement, statement->context)) {
+            timeval_t soft_end;
+            (void)cm_gettimeofday(&soft_end);
+            ogx->stat.soft_parse_time = (uint64)TIMEVAL_DIFF_US(&soft_beg, &soft_end);
             ogx->module_kind = SESSION_CLIENT_KIND(statement->session);
             ogx->stat.parse_calls++;
             cm_recursive_unlock(&ogx_bucket->parsing_lock);
@@ -167,7 +172,12 @@ status_t og_cache_sql_context(sql_stmt_t *statement, context_bucket_t *ogx_bucke
     if (ogx) {
         SET_STMT_CONTEXT(statement, ogx);
         OG_LOG_DEBUG_INF("Duplicate SQL context found during caching, stmtid=%u", statement->id);
+        timeval_t soft_beg;
+        (void)cm_gettimeofday(&soft_beg);
         if (og_check_sql_ctx_valid(statement, statement->context)) {
+            timeval_t soft_end;
+            (void)cm_gettimeofday(&soft_end);
+            ogx->stat.soft_parse_time = (uint64)TIMEVAL_DIFF_US(&soft_beg, &soft_end);
             ogx->module_kind = SESSION_CLIENT_KIND(statement->session);
             ogx->stat.parse_calls++;
             sql_free_context(new_ogx);

@@ -573,8 +573,28 @@ static knl_column_t g_slowsql_view_columns[] = {
     { 6, "PARAMS",   0, 0, OG_TYPE_VARCHAR, 4096,                0, 0, OG_FALSE, 0, { 0 } },
     { 7, "SQL_ID",      0, 0, OG_TYPE_VARCHAR, 32,                  0, 0, OG_FALSE, 0, { 0 } },
     { 8, "EXPLAIN_ID",     0, 0, OG_TYPE_VARCHAR, 32,                  0, 0, OG_FALSE, 0, { 0 } },
-    { 9, "SQL_TEXT",      0, 0, OG_TYPE_VARCHAR, MAX_STR_DISPLAY_LEN, 0, 0, OG_FALSE, 0, { 0 } },
-    { 10, "EXPLAIN_TEXT", 0, 0, OG_TYPE_VARCHAR, MAX_STR_DISPLAY_LEN, 0, 0, OG_FALSE, 0, { 0 } },
+    { 9, "DISK_READ_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 10, "BUFFER_GET_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 11, "CR_GET_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 12, "DIRTY_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 13, "PROCESSED_ROWS", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 14, "CPU_ELAPSED_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 15, "IO_WAIT_ELAPSED_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 16, "CON_WAIT_ELAPSED_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 17, "PARSE_ELAPSED_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 18, "VM_ALLOC_PAGES", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 19, "VM_MAX_OPEN_PAGE_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 20, "TOP1_EVENT", 0, 0, OG_TYPE_VARCHAR, OG_MAX_NAME_LEN, 0, 0, OG_TRUE, 0, { 0 } },
+    { 21, "TOP1_WAIT_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 22, "TOP1_EVENT_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 23, "TOP2_EVENT", 0, 0, OG_TYPE_VARCHAR, OG_MAX_NAME_LEN, 0, 0, OG_TRUE, 0, { 0 } },
+    { 24, "TOP2_WAIT_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 25, "TOP2_EVENT_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 26, "TOP3_EVENT", 0, 0, OG_TYPE_VARCHAR, OG_MAX_NAME_LEN, 0, 0, OG_TRUE, 0, { 0 } },
+    { 27, "TOP3_WAIT_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 28, "TOP3_EVENT_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 29, "SQL_TEXT",      0, 0, OG_TYPE_VARCHAR, MAX_STR_DISPLAY_LEN, 0, 0, OG_FALSE, 0, { 0 } },
+    { 30, "EXPLAIN_TEXT", 0, 0, OG_TYPE_VARCHAR, MAX_STR_DISPLAY_LEN, 0, 0, OG_FALSE, 0, { 0 } },
 };
 
 /* decimal 0.001(1/1000) */
@@ -3086,28 +3106,33 @@ static status_t vw_me_fetch(knl_handle_t session, knl_cursor_t *cursor)
 
 static status_t vw_dynamic_view_fetch(knl_handle_t session, knl_cursor_t *cursor)
 {
-    uint64 id;
+    uint32 i;
     row_assist_t ra;
     knl_dynview_t view;
     dynview_desc_t *desc = NULL;
+    knl_session_t *knl_sess = (knl_session_t *)session;
+    knl_dynview_t *views = knl_sess->kernel->dyn_views;
+    uint32 count = knl_sess->kernel->dyn_view_count;
 
-    id = cursor->rowid.vmid;
-    if (id > (DYN_VIEW_SELF)) {
+    i = (uint32)cursor->rowid.vmid;
+    if (i >= count) {
         cursor->eof = OG_TRUE;
         return OG_SUCCESS;
     }
 
-    view = g_dynamic_views[id];
+    view = views[i];
     desc = view.describe(view.id);
-
-    if (desc != NULL) {
-        row_init(&ra, (char *)cursor->row, OG_MAX_ROW_SIZE, DYNAMIC_VIEW_COLS);
-        OG_RETURN_IFERR(row_put_str(&ra, desc->user));
-        OG_RETURN_IFERR(row_put_str(&ra, desc->name));
-        OG_RETURN_IFERR(row_put_int32(&ra, (int32)view.id));
-        OG_RETURN_IFERR(row_put_int32(&ra, (int32)desc->column_count));
-        cm_decode_row((char *)cursor->row, cursor->offsets, cursor->lens, &cursor->data_size);
+    if (desc == NULL) {
+        cursor->rowid.vmid++;
+        return OG_SUCCESS;
     }
+
+    row_init(&ra, (char *)cursor->row, OG_MAX_ROW_SIZE, DYNAMIC_VIEW_COLS);
+    OG_RETURN_IFERR(row_put_str(&ra, desc->user));
+    OG_RETURN_IFERR(row_put_str(&ra, desc->name));
+    OG_RETURN_IFERR(row_put_int32(&ra, (int32)view.id));
+    OG_RETURN_IFERR(row_put_int32(&ra, (int32)desc->column_count));
+    cm_decode_row((char *)cursor->row, cursor->offsets, cursor->lens, &cursor->data_size);
     cursor->rowid.vmid++;
 
     return OG_SUCCESS;
@@ -3115,24 +3140,27 @@ static status_t vw_dynamic_view_fetch(knl_handle_t session, knl_cursor_t *cursor
 
 static status_t vw_dynamic_view_column_fetch(knl_handle_t session, knl_cursor_t *cursor)
 {
-    uint64 view_id;
+    uint32 view_idx;
     uint64 col_id;
     row_assist_t ra;
     knl_dynview_t view;
     dynview_desc_t *desc = NULL;
+    knl_session_t *knl_sess = (knl_session_t *)session;
+    knl_dynview_t *views = knl_sess->kernel->dyn_views;
+    uint32 count = knl_sess->kernel->dyn_view_count;
 
     for (;;) {
-        view_id = cursor->rowid.vmid;
-        if (view_id > DYN_VIEW_SELF) {
+        view_idx = (uint32)cursor->rowid.vmid;
+        if (view_idx >= count) {
             cursor->eof = OG_TRUE;
             return OG_SUCCESS;
         }
 
-        view = g_dynamic_views[view_id];
+        view = views[view_idx];
         desc = view.describe(view.id);
-        if (cursor->rowid.vm_slot >= desc->column_count) {
-            cursor->rowid.vmid++;
+        if (desc == NULL || cursor->rowid.vm_slot >= desc->column_count) {
             cursor->rowid.vm_slot = 0;
+            cursor->rowid.vmid++;
             continue;
         }
         break;
@@ -4788,7 +4816,6 @@ static status_t vw_build_slowsql_row_data(char *buffer, uint32 buffer_size, knl_
     while (col_idx < STANDARD_SLOWSQL_COLS) {
         current_pos++;  // Skip field separator
 
-        /* Extract column value from buffer */
         text_t column_text;
         OG_RETVALUE_IFTRUE(!ogsql_slowsql_get_value(&current_pos, buffer, buffer_size, &column_text), OG_ERROR);
 
@@ -6989,6 +7016,7 @@ knl_dynview_t g_dynamic_views[] = {
     { DYN_VIEW_DRC_RES_MAP, vw_describe_dtc_local },
     { DYN_VIEW_BUF_CTRL_INFO, vw_describe_dtc_local },
     { DYN_VIEW_DRC_LOCAL_LOCK_INFO, vw_describe_dtc_local },
+    { DYN_VIEW_DSS_TIME_STATS, vw_describe_dtc_local },
     // ===Global dynamic view  for DTC begin===
     { DYN_VIEW_DTC_CONVERTING_PAGE_CNT, vw_describe_dtc },
     { DYN_VIEW_DTC_BUFFER_CTRL, vw_describe_dtc },

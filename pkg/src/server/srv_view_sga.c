@@ -32,6 +32,7 @@
 #include "knl_spm.h"
 #include "dtc_database.h"
 #include "expl_executor.h"
+#include "cm_hash.h"
 
 #define SGA_VALUE_BUFFER_NAME 40
 #define SGA_VALUE_BUFFER_LEN 40
@@ -134,25 +135,27 @@ static knl_column_t g_sql_execution_plan_columns[] = {
     { 4, "BUFFER_GET_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
     { 5, "CR_GET_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
     { 6, "SORT_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
-    { 7, "PARSE_ELAPSED_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
-    { 8, "IO_WAIT_ELAPSED_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
-    { 9, "CON_WAIT_ELAPSED_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
-    { 10, "CPU_ELAPSED_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
-    { 11, "TOTAL_ELAPSED_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
-    { 12, "LAST_LOAD_TIMESTAMP", 0, 0, OG_TYPE_DATE, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
-    { 13, "LAST_ACTIVE_TIMESTAMP", 0, 0, OG_TYPE_DATE, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
-    { 14, "REFERENCE_COUNT", 0, 0, OG_TYPE_INTEGER, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
-    { 15, "MEMORY_PAGES", 0, 0, OG_TYPE_INTEGER, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
-    { 16, "SHARED_MEMORY_SIZE", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
-    { 17, "VM_OPEN_PAGE_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
-    { 18, "VM_CLOSE_PAGE_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
-    { 19, "VM_SWAPIN_PAGE_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
-    { 20, "VM_FREE_PAGE_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
-    { 21, "PLAN_TEXT", 0, 0, OG_TYPE_VARCHAR, OG_MAX_COLUMN_SIZE, 0, 0, OG_TRUE, 0, { 0 } },
-    { 22, "VM_MAX_OPEN_PAGE_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
-    { 23, "VM_SWAPOUT_PAGE_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 7, "HARD_PARSE_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 8, "SOFT_PARSE_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 9, "IO_WAIT_ELAPSED_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 10, "CON_WAIT_ELAPSED_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 11, "CPU_ELAPSED_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 12, "TOTAL_ELAPSED_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 13, "LAST_LOAD_TIMESTAMP", 0, 0, OG_TYPE_DATE, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 14, "LAST_ACTIVE_TIMESTAMP", 0, 0, OG_TYPE_DATE, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 15, "REFERENCE_COUNT", 0, 0, OG_TYPE_INTEGER, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+    { 16, "MEMORY_PAGES", 0, 0, OG_TYPE_INTEGER, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+    { 17, "SHARED_MEMORY_SIZE", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 18, "VM_OPEN_PAGE_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 19, "VM_CLOSE_PAGE_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 20, "VM_SWAPIN_PAGE_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 21, "VM_FREE_PAGE_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 22, "PLAN_TEXT", 0, 0, OG_TYPE_VARCHAR, OG_MAX_COLUMN_SIZE, 0, 0, OG_TRUE, 0, { 0 } },
+    { 23, "VM_MAX_OPEN_PAGE_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
     { 24, "VM_SWAPOUT_PAGE_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
-    { 25, "SIGNATURE", 0, 0, OG_TYPE_VARCHAR, OG_MD5_SIZE, 0, 0, OG_FALSE, 0, { 0 } },
+    { 25, "VM_ALLOC_PAGE_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 26, "SIGNATURE", 0, 0, OG_TYPE_VARCHAR, OG_MD5_SIZE, 0, 0, OG_FALSE, 0, { 0 } },
+    { 27, "EXPLAIN_ID", 0, 0, OG_TYPE_VARCHAR, 32, 0, 0, OG_FALSE, 0, { 0 } },
 };
 
 static knl_column_t g_sga_stat_columns[] = {
@@ -1608,6 +1611,7 @@ static status_t vw_put_plan_time_metrics(row_assist_t *row, const sql_context_t 
 
     int64 time_metrics[] = {
         (int64)ctx->stat.parse_time,
+        (int64)ctx->stat.soft_parse_time,
         (int64)ctx->stat.io_wait_time,
         (int64)ctx->stat.con_wait_time,
         cpu_time,
@@ -1671,9 +1675,9 @@ static status_t vw_put_plan_vm_metrics(row_assist_t *row, const sql_context_t *c
         (int64)ctx->stat.vm_stat.close_pages,
         (int64)ctx->stat.vm_stat.swap_in_pages,
         (int64)ctx->stat.vm_stat.free_pages,
-        (int64)ctx->stat.vm_stat.alloc_pages,
         (int64)ctx->stat.vm_stat.max_open_pages,
-        (int64)ctx->stat.vm_stat.swap_out_pages
+        (int64)ctx->stat.vm_stat.swap_out_pages,
+        (int64)ctx->stat.vm_stat.alloc_pages
     };
 
     OG_RETURN_IFERR(vw_batch_put_int64(row, vm_metrics, VM_METRICS_TOTAL_COUNT));
@@ -1755,9 +1759,10 @@ static bool32 vw_validate_context_entity(sql_context_t *ctx)
     return OG_TRUE;
 }
 
-static bool32 vw_validate_context(sql_context_t *ctx)
+static status_t vw_validate_context(void *arg)
 {
-    return vw_validate_context_entity(ctx);
+    sql_context_t *ctx = (sql_context_t *)arg;
+    return (vw_validate_context_entity(ctx) == OG_TRUE) ? OG_SUCCESS : OG_ERROR;
 }
 
 static inline void vw_ogsql_func_plan_switch_next_ctx(knl_cursor_t *cursor, bool32 subctx)
@@ -1793,8 +1798,7 @@ static context_ctrl_t *vw_ogsql_func_plan_find_next_ctrl(context_pool_t *pool, k
             continue;
         }
 
-        status_t validate_status = vw_with_spin_lock(&ctrl->lock,
-                                                     (status_t (*)(void *))vw_validate_context, (void *)ctrl);
+        status_t validate_status = vw_with_spin_lock(&ctrl->lock, vw_validate_context, (void *)ctrl);
         if (validate_status == OG_SUCCESS && ctrl->valid) {
             ctrl->ref_count++;
             ctrl->exec_count++;
@@ -1829,6 +1833,46 @@ static status_t vw_op_signature(plan_row_op_ctx_t *op_ctx)
     return vw_put_ogsql_plan_func_signature(op_ctx->row, op_ctx->ctx);
 }
 
+/* Get explain_hash (hash of plan text) before stack is popped; same as dv_slow_sql.EXPLAIN_ID */
+static status_t vw_get_plan_explain_hash(sql_stmt_t *stmt, uint32 *explain_hash)
+{
+    char *buf = NULL;
+    text_t plan_text = { 0 };
+
+    OG_RETURN_IFERR(vw_alloc_sql_buffer(stmt, &buf));
+    plan_text.str = buf;
+    plan_text.len = OG_MAX_COLUMN_SIZE;
+
+    status_t status = expl_get_explain_text(stmt, &plan_text);
+    if (status != OG_SUCCESS) {
+        OGSQL_POP(stmt);
+        return OG_ERROR;
+    }
+    plan_text.len = (uint32)(plan_text.str - buf);
+    plan_text.str = buf;
+    if (plan_text.len > 0) {
+        plan_text.str[plan_text.len - 1] = '\0';
+    }
+    *explain_hash = cm_hash_text(&plan_text, INFINITE_HASH_RANGE);
+    OGSQL_POP(stmt);
+    return OG_SUCCESS;
+}
+
+/* PLAN_ID = hash(plan_text), same as dv_slow_sql.EXPLAIN_ID for joining */
+static status_t vw_op_plan_id(plan_row_op_ctx_t *op_ctx)
+{
+    uint32 explain_hash = 0;
+    char plan_id_buf[OG_MAX_UINT32_STRLEN + 1] = { 0 };
+
+    if (vw_get_plan_explain_hash(op_ctx->stmt, &explain_hash) != OG_SUCCESS) {
+        return row_put_str(op_ctx->row, "0000000000");
+    }
+    if (sprintf_s(plan_id_buf, sizeof(plan_id_buf), "%010u", explain_hash) < 0) {
+        return OG_ERROR;
+    }
+    return row_put_str(op_ctx->row, plan_id_buf);
+}
+
 static status_t vw_common_batch_execute(plan_row_op_func_t *op_funcs, size_t func_count, plan_row_op_ctx_t *op_ctx)
 {
     for (size_t i = 0; i < func_count; ++i) {
@@ -1859,7 +1903,8 @@ static status_t vw_ogsql_plan_func_row_put_core(row_assist_t *row, sql_context_t
 
     plan_row_op_func_t op_funcs[] = {
         vw_op_combined_core_operations,
-        vw_op_signature
+        vw_op_signature,
+        vw_op_plan_id
     };
 
     const size_t func_count = sizeof(op_funcs) / sizeof(*op_funcs);

@@ -91,6 +91,7 @@ status_t srv_device_init(const char *path)
     OG_RETURN_IFERR(cm_load_symbol(ops.handle, "dss_aio_post_pwrite", (void **)&ops.aio_post_pwrite));
     OG_RETURN_IFERR(cm_load_symbol(ops.handle, "dss_set_conn_opts", (void **)&ops.dss_set_conn_opts));
     OG_RETURN_IFERR(cm_load_symbol(ops.handle, "dss_set_default_conn_timeout", (void **)&ops.dss_set_def_conn_timeout));
+    OG_RETURN_IFERR(cm_load_symbol(ops.handle, "dss_get_time_stat", (void **)&ops.dss_get_time_stat));
 
     if (ops.handle != NULL) {
         cm_raw_device_register(&ops);

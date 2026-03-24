@@ -573,6 +573,8 @@ static uint32 buf_expire_normal(knl_session_t *session, buf_set_t *set, buf_ctrl
     if (SECUREC_UNLIKELY(expire_type == BUF_EXPIRE_PAGE)) {
         ctrl->is_resident = 0;
     }
+    ctrl->is_edp = 0;
+    ctrl->edp_map = 0;
 
     return 1; // successful number
 }

@@ -519,6 +519,8 @@ static void df_expire_buffer_page(knl_session_t *session, uint32 file_id)
         for (uint32 j = 0; j < buf_set->hwm; j++) {
             buf_ctrl = &buf_set->ctrls[j];
             if (buf_ctrl->page_id.file == file_id) {
+                buf_ctrl->is_edp = 0;
+                buf_ctrl->edp_map = 0;
                 buf_expire_page(session, buf_ctrl->page_id);
             }
         }

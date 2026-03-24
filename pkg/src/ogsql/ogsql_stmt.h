@@ -194,6 +194,20 @@ typedef struct st_first_exec_info {
 #define GET_VM_CTX(stmt) ((stmt)->vm_ctx)
 #define F_EXEC_VARS(stmt) ((stmt)->fexec_info.first_exec_vars)
 #define F_EXEC_VALUE(stmt, node) (&(stmt)->fexec_info.first_exec_vars[NODE_OPTMZ_IDX(node)])
+#define TOP_EVENT_NUM 3
+
+typedef struct st_slowsql_stat {
+    uint64 disk_reads;
+    uint64 buffer_gets;
+    uint64 cr_gets;
+    uint64 io_wait_time;
+    uint64 con_wait_time;
+    uint64 cpu_time;
+    uint64 reparse_time;
+    uint64 processed_rows;
+    uint64 dirty_count;
+    event_time_t top_event[TOP_EVENT_NUM];
+} slowsql_stat_t;
 
 typedef struct st_sql_stmt {
     session_t *session;     // owner session
@@ -307,6 +321,7 @@ typedef struct st_sql_stmt {
     date_t *plan_time; // record execution time of each plan
     uint32 plan_cnt;
     ogx_stat_t *stat;
+    slowsql_stat_t slowsql_stat;
     void *into;
     vm_lob_id_t *vm_lob_ids;
     galist_t *outlines; // record applied outlines

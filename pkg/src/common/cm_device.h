@@ -127,6 +127,27 @@ typedef enum en_dss_conn_opt_key {
     DSS_CONN_OPT_TIME_OUT = 0,
 } dss_conn_opt_key_e;
 
+typedef struct st_dss_time_stat_item {
+    unsigned long long total_wait_time;
+    unsigned long long max_single_time;
+    unsigned long long wait_count;
+} dss_time_stat_item_t;
+
+typedef enum en_dss_wait_event {
+    DSS_PREAD = 0,
+    DSS_PWRITE,
+    DSS_FREAD,
+    DSS_FWRITE,
+    DSS_PREAD_SYN_META,
+    DSS_PWRITE_SYN_META,
+    DSS_PREAD_DISK,
+    DSS_PWRITE_DISK,
+    DSS_FOPEN,
+    DSS_STAT,
+    DSS_FIND_FT_ON_SERVER,
+    DSS_EVT_COUNT,
+} dss_wait_event_e;
+
 typedef struct st_dss_stat *dss_stat_info_t;
 
 #define cm_device_size(type, handle) cm_seek_device((type), (handle), 0, SEEK_END)
@@ -187,6 +208,7 @@ bool32 cm_check_device_offset_valid(device_type_t type, int32 handle, int64 offs
 status_t cm_aio_prep_write_by_part(int32 handle, int64 offset, void *buf, int32 size, int32 part_id);
 status_t cm_sync_device_by_part(int32 handle, int32 part_id);
 status_t cm_cal_partid_by_pageid(uint64 page_id, uint32 page_size, uint32 *part_id);
+status_t cm_get_dss_time_stat(dss_time_stat_item_t *time_stat, int count);
 
 // callback for register raw device
 typedef status_t (*raw_open_device)(const char *name, uint32 flags, int32 *handle);
@@ -224,6 +246,7 @@ typedef int (*raw_stat)(const char *path, dss_stat_info_t item);
 typedef int (*raw_aio_post_pwrite)(void *iocb, int32 handle, size_t count, long long offset);
 typedef int (*raw_dss_set_conn_opts)(dss_conn_opt_key_e key, void *value);
 typedef int (*raw_dss_set_def_conn_timeout)(int timeout);
+typedef int (*raw_dss_get_time_stat)(dss_time_stat_item_t *time_stat, int count);
 
 typedef struct st_raw_device_op {
     void *handle;
@@ -259,6 +282,7 @@ typedef struct st_raw_device_op {
     raw_dss_set_conn_opts dss_set_conn_opts;
     raw_dss_set_def_conn_timeout dss_set_def_conn_timeout;
     raw_fallocate_device raw_fallocate;
+    raw_dss_get_time_stat dss_get_time_stat;
 } raw_device_op_t;
 
 // interface for register raw device callback function

@@ -1400,6 +1400,19 @@ status_t cm_fsync_device(device_type_t type, int32 handle)
     }
 }
 
+status_t cm_get_dss_time_stat(dss_time_stat_item_t *time_stat, int count)
+{
+    if (g_raw_device_op.dss_get_time_stat == NULL) {
+        OG_LOG_RUN_INF("DSS not enabled, dss_get_time_stat is null.");
+        return OG_ERROR;
+    }
+    if (g_raw_device_op.dss_get_time_stat(time_stat, count) != OG_SUCCESS) {
+        OG_LOG_RUN_ERR("Get dss time stat failed.");
+        return OG_ERROR;
+    }
+    return OG_SUCCESS;
+}
+
 #ifdef __cplusplus
 }
 #endif

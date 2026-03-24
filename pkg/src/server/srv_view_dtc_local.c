@@ -42,10 +42,12 @@
 #include "dml_executor.h"
 #include "mes_func.h"
 #include "dtc_drc.h"
+#include "dtc_recovery.h"
 #include "gdv_stmt.h"
 #include "gdv_context.h"
 #include "dtc_view.h"
 #include "cms_interface.h"
+#include "knl_page.h"
 
 static status_t drc_info_fetch(knl_handle_t se, knl_cursor_t *cursor);
 static status_t drc_buf_info_fetch(knl_handle_t se, knl_cursor_t *cursor);
@@ -54,6 +56,7 @@ static status_t drc_res_ratio_fetch(knl_handle_t se, knl_cursor_t *cursor);
 static status_t drc_global_res_fetch(knl_handle_t se, knl_cursor_t *cursor);
 static status_t drc_res_map_fetch(knl_handle_t se, knl_cursor_t *cursor);
 static status_t drc_buf_ctrl_fetch(knl_handle_t se, knl_cursor_t *cursor);
+static status_t dss_time_stats_fetch(knl_handle_t se, knl_cursor_t *cursor);
 
 char g_drc_res_name[][OG_DYNVIEW_NORMAL_LEN] = {
     {"PAGE_BUF"},
@@ -130,6 +133,13 @@ static knl_column_t g_drc_buf_info_columns[] = {
     { 11, "CONVERTING_REQ_RSN", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
     { 12, "PART_ID", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
     { 13, "READONLY_COPIES", 0, 0, OG_TYPE_BIGINT, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+    { 14, "LAST_EDP", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+    { 15, "IN_RECOVERY", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+    { 16, "REFORM_PROMOTE", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+    { 17, "LSN", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 18, "RECOVERY_SKIP", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+    { 19, "RECYCLING", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+    { 20, "MASTER_ID", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
 };
 
 static knl_column_t g_drc_res_ratio_columns[] = {
@@ -174,9 +184,17 @@ static knl_column_t g_buf_ctrl_info_columns[] = {
     { 13, "IN_CKPT", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
     { 14, "LOCK_MODE", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
     { 15, "IS_EDP", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
-    { 16, "REF_NUM", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
-    { 17, "LASTEST_LFN", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
-    { 18, "EDP_SCN", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 16, "EDP_SCN", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 17, "EDP_MAP", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 18, "REF_NUM", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+    { 19, "LASTEST_LFN", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 20, "NEED_FLUSH", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 21, "BEEN_LOADED", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+    { 22, "IN_RECOVERY", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+    { 23, "LAST_CKPT_TIME", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+    { 24, "IS_RESIDENT", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+    { 25, "IS_PINNED", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+    { 26, "PAGE_SCN", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
 };
 
 static knl_column_t g_drc_local_lock_info_columns[] = {
@@ -193,6 +211,33 @@ static knl_column_t g_drc_local_lock_info_columns[] = {
     { 10, "LATCH_SHARE_COUNT", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
     { 11, "LATCH_STAT", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
     { 12, "LATCH_SID", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+    { 13, "IS_RELEASING", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+    { 14, "LOCK_MODE", 0, 0, OG_TYPE_UINT32, sizeof(uint32), 0, 0, OG_FALSE, 0, { 0 } },
+};
+
+static knl_column_t g_dss_stats_columns[] = {
+    { 0, "PREAD_WAIT_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 1, "PREAD_WAIT_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 2, "PWRITE_WAIT_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 3, "PWRITE_WAIT_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 4, "PREAD_SYN_META_WAIT_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 5, "PREAD_SYN_META_WAIT_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 6, "PWRITE_SYN_META_WAIT_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 7, "PWRITE_SYN_META_WAIT_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 8, "PREAD_DISK_WAIT_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 9, "PREAD_DISK_WAIT_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 10, "PWRITE_DISK_WAIT_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 11, "PWRITE_DISK_WAIT_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 12, "FOPEN_WAIT_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 13, "FOPEN_WAIT_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 14, "STAT_WAIT_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 15, "STAT_WAIT_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 16, "FIND_FT_ON_SERVER_WAIT_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 17, "FIND_FT_ON_SERVER_WAIT_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 18, "LOCK_VG_WAIT_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 19, "LOCK_VG_WAIT_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 20, "LATCH_CONTEXT_WAIT_COUNT", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
+    { 21, "LATCH_CONTEXT_WAIT_TIME", 0, 0, OG_TYPE_BIGINT, sizeof(uint64), 0, 0, OG_FALSE, 0, { 0 } },
 };
 
 #define DRC_INFO_COLS (ELEMENT_COUNT(g_drc_info_columns))
@@ -202,6 +247,7 @@ static knl_column_t g_drc_local_lock_info_columns[] = {
 #define DRC_RES_MAP_COLS (ELEMENT_COUNT(g_drc_res_map_colums))
 #define BUF_CTRL_INFO_COLS (ELEMENT_COUNT(g_buf_ctrl_info_columns))
 #define DRC_LOCAL_LOCK_INFO_COLS (ELEMENT_COUNT(g_drc_local_lock_info_columns))
+#define DSS_STATS_INFO_COLS (ELEMENT_COUNT(g_dss_stats_columns))
 
 VW_DECL g_drc_info = { "SYS", "DV_DRC_INFO", DRC_INFO_COLS, g_drc_info_columns, drc_info_open, drc_info_fetch };
 VW_DECL g_drc_buf_info = { "SYS",         "DV_DRC_BUF_INFO", DRC_BUF_INFO_COLS, g_drc_buf_info_columns,
@@ -221,6 +267,8 @@ VW_DECL g_drc_local_lock_info = {
     "SYS",         "DV_DRC_LOCAL_LOCK_INFO", DRC_LOCAL_LOCK_INFO_COLS, g_drc_local_lock_info_columns,
     drc_info_open, drc_local_lock_info_fetch
 };
+VW_DECL g_dss_time_stats = { "SYS",         "DV_DSS_TIME_STATS", DSS_STATS_INFO_COLS, g_dss_stats_columns,
+    vw_common_open, dss_time_stats_fetch };
 
 dynview_desc_t *vw_describe_dtc_local(uint32 id)
 {
@@ -239,6 +287,8 @@ dynview_desc_t *vw_describe_dtc_local(uint32 id)
             return &g_buf_ctrl_info;
         case DYN_VIEW_DRC_LOCAL_LOCK_INFO:
             return &g_drc_local_lock_info;
+        case DYN_VIEW_DSS_TIME_STATS:
+            return &g_dss_time_stats;
         default:
             return NULL;
     }
@@ -276,6 +326,10 @@ static status_t drc_buf_info_fetch(knl_handle_t se, knl_cursor_t *cursor)
         tmp_buf_res = buf_res_begin + item_id;
     }
 
+    uint32 recycling = (tmp_buf_res->pending == DRC_RES_PENDING_ACTION) ? OG_TRUE : OG_FALSE;
+    uint8 master_id = OG_INVALID_ID8;
+    drc_get_page_master_id(tmp_buf_res->page_id, &master_id);
+
     row_assist_t ra;
     row_init(&ra, (char *)cursor->row, OG_MAX_ROW_SIZE, DRC_BUF_INFO_COLS);
     OG_RETURN_IFERR(row_put_uint32(&ra, (int32)tmp_buf_res->idx));
@@ -287,11 +341,18 @@ static status_t drc_buf_info_fetch(knl_handle_t se, knl_cursor_t *cursor)
     OG_RETURN_IFERR(row_put_str(&ra, drc_get_buf_lock_mode_str(tmp_buf_res->converting.req_info.curr_mode)));
     OG_RETURN_IFERR(row_put_str(&ra, drc_get_buf_lock_mode_str(tmp_buf_res->converting.req_info.req_mode)));
     OG_RETURN_IFERR(row_put_uint32(&ra, (int32)tmp_buf_res->convert_q.count));
-    OG_RETURN_IFERR(row_put_uint32(&ra, (int64)tmp_buf_res->edp_map));
+    OG_RETURN_IFERR(row_put_uint64(&ra, (int64)tmp_buf_res->edp_map));
     OG_RETURN_IFERR(row_put_uint32(&ra, (int32)tmp_buf_res->converting.req_info.inst_sid));
     OG_RETURN_IFERR(row_put_uint32(&ra, (int32)tmp_buf_res->converting.req_info.rsn));
     OG_RETURN_IFERR(row_put_uint32(&ra, (int32)tmp_buf_res->part_id));
-    OG_RETURN_IFERR(row_put_uint32(&ra, (int32)tmp_buf_res->readonly_copies));
+    OG_RETURN_IFERR(row_put_int64(&ra, (int64)tmp_buf_res->readonly_copies));
+    OG_RETURN_IFERR(row_put_uint32(&ra, (int32)tmp_buf_res->latest_edp));
+    OG_RETURN_IFERR(row_put_uint32(&ra, (int32)tmp_buf_res->need_recover));
+    OG_RETURN_IFERR(row_put_uint32(&ra, (int32)tmp_buf_res->reform_promote));
+    OG_RETURN_IFERR(row_put_int64(&ra, (int64)tmp_buf_res->lsn));
+    OG_RETURN_IFERR(row_put_uint32(&ra, (int32)tmp_buf_res->need_flush));
+    OG_RETURN_IFERR(row_put_uint32(&ra, (int32)recycling));
+    OG_RETURN_IFERR(row_put_uint32(&ra, (int32)master_id));
 
     cm_decode_row((char *)cursor->row, cursor->offsets, cursor->lens, &cursor->data_size);
 
@@ -340,6 +401,8 @@ static status_t get_local_lock_res_view(row_assist_t *ra, drc_local_lock_res_t *
     OG_RETURN_IFERR(row_put_uint32(ra, (uint32)local_lock_res->latch_stat.shared_count));
     OG_RETURN_IFERR(row_put_uint32(ra, (uint32)local_lock_res->latch_stat.stat));
     OG_RETURN_IFERR(row_put_uint32(ra, (uint32)local_lock_res->latch_stat.sid));
+    OG_RETURN_IFERR(row_put_uint32(ra, (uint32)local_lock_res->is_releasing));
+    OG_RETURN_IFERR(row_put_uint32(ra, (uint32)local_lock_res->lock));
     return OG_SUCCESS;
 }
 
@@ -512,6 +575,29 @@ static status_t drc_res_map_fetch(knl_handle_t se, knl_cursor_t *cursor)
     return OG_SUCCESS;
 }
 
+// Get page segment scn from page content (heap/btree data pages have seg_scn in page body)
+static inline uint64 buf_ctrl_get_page_scn(page_head_t *page)
+{
+    if (page == NULL) {
+        return 0;
+    }
+    switch ((page_type_t)page->type) {
+        case PAGE_TYPE_HEAP_DATA:
+        case PAGE_TYPE_PCRH_DATA: {
+            // heap_page_t: head(32), map(8), org_scn(8), seg_scn(8)
+            const uint32 heap_seg_scn_offset = PAGE_HEAD_SIZE + sizeof(map_index_t) + sizeof(knl_scn_t);
+            return *(uint64 *)((char *)page + heap_seg_scn_offset);
+        }
+        case PAGE_TYPE_BTREE_NODE:
+        case PAGE_TYPE_PCRB_NODE: {
+            // btree_page_t: head(32), seg_scn(8)
+            return *(uint64 *)((char *)page + sizeof(page_head_t));
+        }
+        default:
+            return 0;
+    }
+}
+
 static status_t drc_buf_ctrl_fetch(knl_handle_t se, knl_cursor_t *cursor)
 {
     row_assist_t ra;
@@ -549,9 +635,18 @@ static status_t drc_buf_ctrl_fetch(knl_handle_t se, knl_cursor_t *cursor)
         OG_RETURN_IFERR(row_put_uint32(&ra, (uint32)ctrl->in_ckpt));
         OG_RETURN_IFERR(row_put_uint32(&ra, (uint32)ctrl->lock_mode));
         OG_RETURN_IFERR(row_put_uint32(&ra, (uint32)ctrl->is_edp));
+        OG_RETURN_IFERR(row_put_int64(&ra, (int64)ctrl->edp_scn));
+        OG_RETURN_IFERR(row_put_int64(&ra, (int64)ctrl->edp_map));
         OG_RETURN_IFERR(row_put_uint32(&ra, (uint32)ctrl->ref_num));
         OG_RETURN_IFERR(row_put_int64(&ra, (int64)ctrl->lastest_lfn));
-        OG_RETURN_IFERR(row_put_int64(&ra, (int64)ctrl->edp_scn));
+        OG_RETURN_IFERR(row_put_int32(&ra, 0)); // buf ctrl don't need to flush
+        OG_RETURN_IFERR(row_put_uint32(&ra, (uint32)(ctrl->load_status == BUF_IS_LOADED)));
+        OG_RETURN_IFERR(row_put_uint32(&ra, (uint32)ctrl->in_recovery));
+        OG_RETURN_IFERR(row_put_uint64(&ra, (uint64)ctrl->ckpt_enque_time));
+        OG_RETURN_IFERR(row_put_uint32(&ra, (uint32)ctrl->is_resident));
+        OG_RETURN_IFERR(row_put_uint32(&ra, (uint32)ctrl->is_pinned));
+        OG_RETURN_IFERR(row_put_int64(&ra, (int64)buf_ctrl_get_page_scn(ctrl->page)));
+
         cm_decode_row((char *)cursor->row, cursor->offsets, cursor->lens, &cursor->data_size);
 
         cursor->rowid.vmid++;
@@ -560,5 +655,28 @@ static status_t drc_buf_ctrl_fetch(knl_handle_t se, knl_cursor_t *cursor)
     if (cursor->rowid.slot >= ogx->buf_set_count) {
         cursor->eof = OG_TRUE;
     }
+    return OG_SUCCESS;
+}
+
+static status_t dss_time_stats_fetch(knl_handle_t se, knl_cursor_t *cursor)
+{
+    row_assist_t ra;
+    dss_time_stat_item_t time_stat[DSS_EVT_COUNT] = {0};
+    knl_session_t *session = (knl_session_t *)se;
+
+    if (!session->kernel->attr.enable_dss || cm_get_dss_time_stat(time_stat, DSS_EVT_COUNT) != OG_SUCCESS ||
+        cursor->rowid.vmid > 0) {
+        cursor->eof = OG_TRUE;
+        return OG_SUCCESS;
+    }
+
+    row_init(&ra, (char *)cursor->row, OG_MAX_ROW_SIZE, DSS_STATS_INFO_COLS);
+    for (int i = 0; i < DSS_EVT_COUNT; i++) {
+        OG_RETURN_IFERR(row_put_int64(&ra, (int64)time_stat[i].wait_count));
+        OG_RETURN_IFERR(row_put_int64(&ra, (int64)time_stat[i].total_wait_time));
+    }
+    cm_decode_row((char *)cursor->row, cursor->offsets, cursor->lens, &cursor->data_size);
+    cursor->rowid.vmid++;
+
     return OG_SUCCESS;
 }

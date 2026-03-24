@@ -183,6 +183,16 @@ static inline bool8 supported_stat_ctx_type(sql_type_t type)
     return OG_FALSE;
 }
 
+static void sql_save_wait_event_stats(sql_stmt_t *stmt)
+{
+    knl_stat_t *knl_stat = stmt->session->knl_session.stat;
+    ogx_prev_stat_t *context_pre_stat = &stmt->session->ogx_prev_stat;
+    for (int i = 0; i < WAIT_EVENT_COUNT; i++) {
+        context_pre_stat->wait_event[i].event_count = knl_stat->wait_count[i];
+        context_pre_stat->wait_event[i].event_time = knl_stat->wait_time[i];
+    }
+}
+
 void sql_begin_ctx_stat(void *handle)
 {
     sql_stmt_t *stmt = (sql_stmt_t *)handle;
@@ -207,6 +217,8 @@ void sql_begin_ctx_stat(void *handle)
     context_pre_stat->con_wait_time = knl_stat->con_wait_time;
     context_pre_stat->dcs_net_time = knl_stat->dcs_net_time;
     context_pre_stat->sorts = knl_stat->sorts;
+    context_pre_stat->parse_time = stmt->session->stat.parses_time_elapse;
+    context_pre_stat->dirty_count = stmt->session->knl_session.dirty_count;
     context_pre_stat->processed_rows = knl_stat->processed_rows;
 
     sql_save_datafile_stats(stmt);
@@ -214,6 +226,7 @@ void sql_begin_ctx_stat(void *handle)
     sql_save_log_stats(stmt);
     sql_save_tempspace_stats(stmt);
     sql_save_tx_stats(stmt);
+    sql_save_wait_event_stats(stmt);
 
     (void)cm_gettimeofday(&context_pre_stat->tv_start);
     (void)cm_atomic_set(&stmt->context->stat.last_active_time, g_timer()->now);
@@ -395,6 +408,85 @@ static void sql_baseinfo_accumulate(sql_stmt_t *stmt, uint64 elapsed_time, ogx_s
     cm_atomic_add(&stat->processed_rows, proc_rows);
 }
 
+static int32 event_time_cmp(const void *a, const void *b)
+{
+    const event_time_t *event_time_a = (event_time_t *)a;
+    const event_time_t *event_time_b = (event_time_t *)b;
+
+    if (event_time_a->event_time > event_time_b->event_time) {
+        return -1;
+    } else if (event_time_a->event_time < event_time_b->event_time) {
+        return 1;
+    }
+
+    if (event_time_a->event_id > event_time_b->event_id) {
+        return 1;
+    } else if (event_time_a->event_id < event_time_b->event_id) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static void sql_get_top3_wait_event(sql_stmt_t *stmt, event_stat_t *event_stat, slowsql_stat_t *slowsql_stat)
+{
+    event_time_t *assist = NULL;
+    if (sql_push(stmt, sizeof(event_time_t) * WAIT_EVENT_COUNT, (void **)&assist) != OG_SUCCESS) {
+        return;
+    }
+    for (int i = 0; i < WAIT_EVENT_COUNT; i++) {
+        assist[i].event_id = i;
+        assist[i].event_time = event_stat[i].event_time;
+        assist[i].event_count = event_stat[i].event_count;
+    }
+    qsort(assist, WAIT_EVENT_COUNT, sizeof(event_time_t), event_time_cmp);
+    for (int i = 0; i < TOP_EVENT_NUM; i++) {
+        slowsql_stat->top_event[i].event_id = assist[i].event_id;
+        slowsql_stat->top_event[i].event_time = assist[i].event_time;
+        slowsql_stat->top_event[i].event_count = assist[i].event_count;
+    }
+}
+
+static void sql_slowsql_statinfo_accumulate(sql_stmt_t *stmt, uint64 passed_time, event_stat_t *event_stat)
+{
+    ogx_prev_stat_t *ogx_pre_stat = &stmt->session->ogx_prev_stat;
+    knl_stat_t *knl_stat = stmt->session->knl_session.stat;
+
+    stmt->slowsql_stat.disk_reads = (int64)(knl_stat->disk_reads - ogx_pre_stat->disk_reads);
+    stmt->slowsql_stat.buffer_gets = (int64)(knl_stat->buffer_gets - ogx_pre_stat->buffer_gets);
+    stmt->slowsql_stat.cr_gets = (int64)(knl_stat->cr_gets - ogx_pre_stat->cr_gets);
+    stmt->slowsql_stat.io_wait_time = (int64)(knl_stat->disk_read_time - ogx_pre_stat->io_wait_time);
+    stmt->slowsql_stat.con_wait_time = (int64)(knl_stat->con_wait_time - ogx_pre_stat->con_wait_time);
+    stmt->slowsql_stat.cpu_time = passed_time - stmt->slowsql_stat.io_wait_time - stmt->slowsql_stat.con_wait_time;
+    stmt->slowsql_stat.reparse_time = (int64)(stmt->session->stat.parses_time_elapse - ogx_pre_stat->parse_time);
+    stmt->slowsql_stat.dirty_count = (int64)(stmt->session->knl_session.dirty_count - ogx_pre_stat->dirty_count);
+    stmt->slowsql_stat.processed_rows = (int64)(knl_stat->processed_rows - ogx_pre_stat->processed_rows);
+    sql_get_top3_wait_event(stmt, event_stat, &stmt->slowsql_stat);
+}
+
+static void sql_get_wait_event_stat(sql_stmt_t *stmt, event_stat_t *event_stat)
+{
+    ogx_prev_stat_t *ogx_pre_stat = &stmt->session->ogx_prev_stat;
+    knl_stat_t *knl_stat = stmt->session->knl_session.stat;
+    for (int i = 0; i < WAIT_EVENT_COUNT; i++) {
+        event_stat[i].event_count = knl_stat->wait_count[i] - ogx_pre_stat->wait_event[i].event_count;
+        event_stat[i].event_time = knl_stat->wait_time[i] - ogx_pre_stat->wait_event[i].event_time;
+    }
+}
+
+static void sql_record_slowsql_stat(sql_stmt_t *stmt, uint64 passed_time)
+{
+    event_stat_t *event_stat_diff = NULL;
+    OGSQL_SAVE_STACK(stmt);
+    size_t alloc_size = sizeof(event_stat_t) * WAIT_EVENT_COUNT;
+    if (sql_push(stmt, alloc_size, (void **)&event_stat_diff) != OG_SUCCESS) {
+        return;
+    }
+    sql_get_wait_event_stat(stmt, event_stat_diff);
+    sql_slowsql_statinfo_accumulate(stmt, passed_time, event_stat_diff);
+    OGSQL_RESTORE_STACK(stmt);
+}
+
 static void sql_context_accumulate(sql_stmt_t *stmt, uint64 passed_time)
 {
     if (stmt->context == NULL) {
@@ -414,6 +506,8 @@ static void sql_context_accumulate(sql_stmt_t *stmt, uint64 passed_time)
     sql_log_statinfo_accumulate(stmt, context_stat);
     sql_tempspace_statinfo_accumulate(stmt, context_stat);
     sql_tx_statinfo_accumulate(stmt, context_stat);
+
+    sql_record_slowsql_stat(stmt, passed_time);
 
     if (!cm_log_param_instance()->slowsql_print_enable || stmt->stat == NULL) {
         return;

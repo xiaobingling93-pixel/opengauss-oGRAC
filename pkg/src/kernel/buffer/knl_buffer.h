@@ -160,6 +160,9 @@ typedef struct __attribute__((aligned(128))) st_buf_ctrl
 
     volatile uint8 is_edp;  // used only in DTC, 0: no, 1: yes, this page is old version, can be discard only after
                             // latest version in other instance is cleaned
+    volatile uint64 edp_map;          // used only in DTC, history dirty page map, dcs use it to recovery or CR read
+    volatile bool8 in_recovery;
+    volatile bool8 need_flush;
     volatile bool8 force_request;  // force to request page from remote
     volatile uint8 remote_access;  // remote access statistics
     volatile uint8 transfer_status;   // page transfer status, used only in TDC
@@ -169,6 +172,7 @@ typedef struct __attribute__((aligned(128))) st_buf_ctrl
 
     page_id_t page_id;
     date_t access_time;             // last access time
+    date_t ckpt_enque_time;         // time when page was last added to checkpoint queue
 
     uint32 curr_node_idx;
     log_point_t trunc_point;
