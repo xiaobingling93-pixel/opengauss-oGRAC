@@ -5947,9 +5947,11 @@ character:    CHARACTER opt_varying     { $$ = $2 ? "varchar": "char"; }
             | VARCHAR2                  { $$ = "varchar2"; }
         ;
 
-character_national: NCHAR               { $$ = "nchar"; }
-            | NVARCHAR                  { $$ = "nvarchar"; }
-            | NVARCHAR2                 { $$ = "nvarchar2"; }
+character_national: NCHAR opt_varying              { $$ = $2 ? "nvarchar" : "nchar"; }
+            | NVARCHAR                             { $$ = "nvarchar"; }
+            | NVARCHAR2                            { $$ = "nvarchar2"; }
+            | NATIONAL CHARACTER opt_varying       { $$ = $3 ? "nvarchar" : "nchar"; }
+            | NATIONAL CHAR_P opt_varying          { $$ = $3 ? "nvarchar" : "nchar"; }
         ;
 
 opt_varying:
@@ -6153,10 +6155,35 @@ AexprConst: ICONST
                 }
                 $$ = expr;
             }
+            | FCONST_F
+            {
+                expr_tree_t *expr = NULL;
+                if (sql_create_binary_float_double_const_expr(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &expr, $1, @1.loc) != OG_SUCCESS) {
+                    parser_yyerror("init const expr failed");
+                }
+                $$ = expr;
+            }
+            | FCONST_D
+            {
+                expr_tree_t *expr = NULL;
+                if (sql_create_binary_float_double_const_expr(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &expr, $1, @1.loc) != OG_SUCCESS) {
+                    parser_yyerror("init const expr failed");
+                }
+                $$ = expr;
+            }
             | SCONST
             {
                 expr_tree_t *expr = NULL;
                 if (sql_create_string_const_expr(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &expr, $1, @1.loc) != OG_SUCCESS) {
+                    parser_yyerror("init const expr failed");
+                }
+                $$ = expr;
+            }
+            | NCHAR SCONST
+            {
+                /* National character string literal (N'...') - treat as regular string */
+                expr_tree_t *expr = NULL;
+                if (sql_create_string_const_expr(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &expr, $2, @1.loc) != OG_SUCCESS) {
                     parser_yyerror("init const expr failed");
                 }
                 $$ = expr;

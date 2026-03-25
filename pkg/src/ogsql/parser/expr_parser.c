@@ -3163,6 +3163,24 @@ status_t sql_create_float_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, const
     return OG_SUCCESS;
 }
 
+status_t sql_create_binary_float_double_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, const char* val,
+    source_location_t loc)
+{
+    expr_node_t *node = NULL;
+
+    if (sql_init_expr_node(stmt, expr, &node, OG_TYPE_REAL, EXPR_NODE_CONST, loc) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+
+    if (cm_str2real(val, &node->value.v_real) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+    APPEND_CHAIN(&((*expr)->chain), node);
+    sql_generate_expr(*expr);
+
+    return OG_SUCCESS;
+}
+
 status_t sql_create_hex_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, const char* val, source_location_t loc)
 {
     expr_node_t *node = NULL;

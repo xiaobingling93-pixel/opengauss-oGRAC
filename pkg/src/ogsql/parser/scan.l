@@ -130,7 +130,8 @@ static void addlitchar(unsigned char ychar, core_yyscan_t yyscanner);
 static char *litbufdup(core_yyscan_t yyscanner);
 static status_t litbuf_udeescape(unsigned char escape, core_yyscan_t yyscanner, char **res);
 static unsigned char unescape_single_char(unsigned char c, core_yyscan_t yyscanner);
-static int    process_integer_literal(const char *token, YYSTYPE *lval, core_yyscan_t yyscanner);
+static int process_integer_literal(const char *token, YYSTYPE *lval, core_yyscan_t yyscanner);
+static status_t process_binary_float_double(char *token, int len, core_yyscan_t yyscanner, YYSTYPE *lval);
 static bool is_utf16_surrogate_first(uint32 c);
 static bool is_utf16_surrogate_second(uint32 c);
 static uint32 surrogate_pair_to_codepoint(uint32 first, uint32 second);
@@ -1090,33 +1091,29 @@ other            .
                     yyextra->is_hint_str = false;
                     return process_integer_literal(yytext, yylval, yyscanner);
                 }
-{decimalf}        {
-                    yyless(yyleng-1);
-                    SET_YYLLOC();
-                    FLEX_MEM_STRDUP(yylval->str, yytext);
-                    yyextra->is_hint_str = false;
-                    return FCONST;
+{decimalf}      {
+                    if (process_binary_float_double(yytext, yyleng, yyscanner, yylval) != OG_SUCCESS) {
+                        yyerror("number overflow");
+                    }
+                    return FCONST_F;
                 }
-{realf}            {
-                    yyless(yyleng-1);
-                    SET_YYLLOC();
-                    FLEX_MEM_STRDUP(yylval->str, yytext);
-                    yyextra->is_hint_str = false;
-                    return FCONST;
+{realf}         {
+                    if (process_binary_float_double(yytext, yyleng, yyscanner, yylval) != OG_SUCCESS) {
+                        yyerror("number overflow");
+                    }
+                    return FCONST_F;
                 }
-{decimald}        {
-                    yyless(yyleng-1);
-                    SET_YYLLOC();
-                    FLEX_MEM_STRDUP(yylval->str, yytext);
-                    yyextra->is_hint_str = false;
-                    return FCONST;
+{decimald}      {
+                    if (process_binary_float_double(yytext, yyleng, yyscanner, yylval) != OG_SUCCESS) {
+                        yyerror("number overflow");
+                    }
+                    return FCONST_D;
                 }
-{reald}            {
-                    yyless(yyleng-1);
-                    SET_YYLLOC();
-                    FLEX_MEM_STRDUP(yylval->str, yytext);
-                    yyextra->is_hint_str = false;
-                    return FCONST;
+{reald}         {
+                    if (process_binary_float_double(yytext, yyleng, yyscanner, yylval) != OG_SUCCESS) {
+                        yyerror("number overflow");
+                    }
+                    return FCONST_D;
                 }
 {real}            {
                     SET_YYLLOC();
@@ -1481,6 +1478,20 @@ process_integer_literal(const char *token, YYSTYPE *lval, core_yyscan_t yyscanne
     }
     lval->ival = val;
     return ICONST;
+}
+
+static status_t
+process_binary_float_double(char *token, int len, core_yyscan_t yyscanner, YYSTYPE *lval)
+{
+    yyextra->is_hint_str = false;
+    startlit();
+    addlit(token, len-1, yyscanner);
+    char *val = litbufdup(yyscanner);
+    if (handle_float_overflow(val, yyscanner, &val) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+    lval->str = val;
+    return OG_SUCCESS;
 }
 
 /*$$exclude in dialect begin*/
