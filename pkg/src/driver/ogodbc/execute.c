@@ -234,7 +234,7 @@ static SQLRETURN set_param_value(statement *stmt, bilist_t *params, SQLPOINTER *
     return SQL_SUCCESS;
 }
 
-static SQLRETURN bind_param_value(statement *stmt, SQLPOINTER *value, uint32 process)
+SQLRETURN bind_param_value(statement *stmt, SQLPOINTER *value, uint32 process)
 {
     uint32 index = 0;
     bilist_t *params = &(stmt->params);

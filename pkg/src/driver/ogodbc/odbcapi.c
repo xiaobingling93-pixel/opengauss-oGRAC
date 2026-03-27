@@ -440,3 +440,15 @@ SQLRETURN SQL_API SQLError(SQLHENV EnvironmentHandle, SQLHDBC ConnectionHandle,
     }
     return SQL_INVALID_HANDLE;
 }
+
+SQLRETURN SQL_API SQLParamData(SQLHSTMT StatementHandle, SQLPOINTER *ValuePtrPtr)
+{
+    if (StatementHandle == NULL) {
+        return SQL_INVALID_HANDLE;
+    }
+
+    statement *stmt = (statement *)StatementHandle;
+    connection_class *conn = stmt->conn;
+    clean_conn_handle(conn);
+    return bind_param_value(stmt, ValuePtrPtr, SQL_TRUE);
+}
