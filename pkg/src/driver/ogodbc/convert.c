@@ -1263,6 +1263,7 @@ static status_t write_data(statement *stmt, sql_input_data *input_data, SQLPOINT
                 return status;
             }
             os_len = nchars;
+            break;
         default:
             if (size == 0 || input_data->param_stream == NULL) {
                 return OG_SUCCESS;

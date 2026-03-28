@@ -33,4 +33,5 @@ SQLRETURN ograc_prepare(statement *stmt, const SQLCHAR *text);
 SQLRETURN ograc_execute(statement *stmt);
 SQLRETURN get_sql_error(char *err_msg, int err_no, SQLINTEGER *NativeError,
                         SQLCHAR *MessageText, SQLSMALLINT BufferLength);
+SQLRETURN bind_param_value(statement *stmt, SQLPOINTER *value, uint32 process);
 #endif
