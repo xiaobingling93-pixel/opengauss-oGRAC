@@ -1023,13 +1023,13 @@ status_t cms_check_res_running(uint32 res_id)
     return OG_SUCCESS;
 }
 
-status_t cms_check_dss_stat(cms_res_t res, cms_res_stat_t stat)
+status_t cms_check_dss_stat(cms_res_t res)
 {
     status_t dss_status = OG_SUCCESS;
     status_t ret;
 
     ret = cms_res_check(res.res_id, &dss_status);
-if (ret != OG_SUCCESS) {
+    if (ret != OG_SUCCESS) {
         CMS_LOG_ERR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20,
                           "check dss failed, res_id=%u, script=%s, ret=%d, dss_status=%d",
                           res.res_id, res.script, ret, dss_status);
@@ -1059,6 +1059,64 @@ if (ret != OG_SUCCESS) {
     return OG_SUCCESS;
 }
 
+static status_t cms_start_db_check_dss(uint32 res_id, const cms_res_t* res)
+{
+    status_t dss_status = OG_SUCCESS;
+    status_t ret;
+    cms_res_t dss;
+    uint32 dss_res_id;
+
+    if (!((g_cms_param->gcc_type == CMS_DEV_TYPE_SD || g_cms_param->gcc_type == CMS_DEV_TYPE_LUN) &&
+        cm_strcmpi(res->name, CMS_RES_TYPE_DB) == 0)) {
+        return OG_SUCCESS;
+    }
+
+    CMS_LOG_INF("cms check dss stat before start db, res_id=%u", res_id);
+    if (cms_get_res_id_by_type(CMS_RES_TYPE_DSS, &dss_res_id) != OG_SUCCESS) {
+        CMS_LOG_ERR("cms get res id failed, res_type %s", CMS_RES_TYPE_DSS);
+        return OG_ERROR;
+    }
+
+    OG_RETURN_IFERR(cms_get_res_by_id(dss_res_id, &dss));
+    ret = cms_res_check(dss.res_id, &dss_status);
+    if (ret != OG_SUCCESS) {
+        CMS_LOG_ERR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20,
+                          "check dss failed before start db, res_id=%u, script=%s, ret=%d, dss_status=%d",
+                          dss.res_id, dss.script, ret, dss_status);
+        return OG_ERROR;
+    }
+
+    if (dss_status == OG_ERROR) {
+        CMS_LOG_ERR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20,
+                          "dss process not exit before start db, res_id=%u, script=%s, ret=%d, dss_status=%d",
+                          dss.res_id, dss.script, ret, dss_status);
+        return OG_ERROR;
+    }
+
+    if (dss_status == OG_TIMEDOUT) {
+        CMS_LOG_ERR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20,
+                          "check dss stat timeout before start db, res_id=%u, script=%s",
+                          dss.res_id, dss.script);
+        return OG_ERROR;
+    }
+
+    if (dss_status == OG_EAGAIN) {
+        CMS_LOG_ERR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20,
+                          "dss work stat is abnormal before start db, res_id=%u, script=%s",
+                          dss.res_id, dss.script);
+        return OG_ERROR;
+    }
+
+    if (dss_status != OG_SUCCESS) {
+        CMS_LOG_ERR_LIMIT(LOG_PRINT_INTERVAL_SECOND_20,
+                          "unexpected dss status before start db, res_id=%u, script=%s, dss_status=%d",
+                          dss.res_id, dss.script, dss_status);
+        return OG_ERROR;
+    }
+
+    return OG_SUCCESS;
+}
+
 status_t cms_res_start(uint32 res_id, uint32 timeout_ms)
 {
     status_t ret;
@@ -1069,37 +1127,29 @@ status_t cms_res_start(uint32 res_id, uint32 timeout_ms)
     OG_RETURN_IFERR(cms_get_res_by_id(res_id, &res));
 
     CMS_LOG_INF("begin start res, res_id=%u", res_id);
-    if ((g_cms_param->gcc_type == CMS_DEV_TYPE_SD || g_cms_param->gcc_type == CMS_DEV_TYPE_LUN)
-        && cm_strcmpi(res.name, CMS_RES_TYPE_DB) == 0) {
-        CMS_LOG_INF("cms check dss stat before start db, res_id=%u", res_id);
-        cms_res_t dss_res;
-        uint32 dss_res_id;
-        cms_res_stat_t dss_res_stat;
-        // find dss resource
-        if (cms_get_res_id_by_type(CMS_RES_TYPE_DSS, &dss_res_id) != OG_SUCCESS) {
-            CMS_LOG_ERR("cms get res id failed, res_type %s", CMS_RES_TYPE_DSS);
-            return OG_ERROR;
-        }
-        
-        OG_RETURN_IFERR(cms_get_res_by_id(dss_res_id, &dss_res));
-        get_cur_res_stat(dss_res_id, &dss_res_stat);
-        if (cms_check_dss_stat(dss_res, dss_res_stat) != OG_SUCCESS) {
-            CMS_LOG_ERR("DSS status is abnormal, unable to start oGRac.");
-            return OG_ERROR;
-        }
+    get_cur_res_stat(res_id, &res_stat);
+    if (res_stat.cur_stat == CMS_RES_ONLINE) {
+        CMS_LOG_ERR("resource is ONLINE, no need to start, res_name=%s, res_id=%u", res.name, res_id);
+        return OG_SUCCESS;
     }
 
+    OG_RETURN_IFERR(cms_start_db_check_dss(res_id, &res));
     CMS_LOG_INF("begin to get start lock, res_id=%u", res_id);
     if (cms_get_res_start_lock(res_id) != OG_SUCCESS) {
         CMS_LOG_ERR("cms check res start condition failed, res_name=%s, res_id=%u", res.name, res_id);
         return OG_ERROR;
     }
-    
+
     get_cur_res_stat(res_id, &res_stat);
     if (res_stat.cur_stat == CMS_RES_ONLINE) {
         CMS_LOG_ERR("resource is ONLINE, no need to start, res_name=%s, res_id=%u", res.name, res_id);
         cms_release_res_start_lock(res_id);
         return OG_SUCCESS;
+    }
+
+    if (cms_start_db_check_dss(res_id, &res) != OG_SUCCESS) {
+        cms_release_res_start_lock(res_id);
+        return OG_ERROR;
     }
 
     if (cm_strcmpi(res.name, CMS_RES_TYPE_DSS) == 0) {

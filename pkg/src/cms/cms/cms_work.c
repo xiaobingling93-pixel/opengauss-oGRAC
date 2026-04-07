@@ -4195,7 +4195,7 @@ void cms_res_check_timer_entry(thread_t* thread)
             min_interval = MAX(max_interval, min_interval);
 
             get_cur_res_stat(i, &stat);
-            if (cm_strcmpi(res.name, CMS_RES_TYPE_DSS) == 0 && cms_check_dss_stat(res, stat) == OG_SUCCESS) {
+            if (cm_strcmpi(res.name, CMS_RES_TYPE_DSS) == 0 && cms_check_dss_stat(res) == OG_SUCCESS) {
                 cms_res_detect_online(i, &stat);
                 continue;
             }
