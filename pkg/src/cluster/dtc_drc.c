@@ -6330,8 +6330,6 @@ void drc_get_page_owner_id_for_rcy(knl_session_t *session, page_id_t pagid, uint
     if (NULL == buf_res) {
         cm_spin_unlock(&bucket->lock);
         *id = OG_INVALID_ID8;
-        buf_res->need_recover = OG_TRUE;
-        buf_res->need_flush = OG_FALSE;
         return;
     }
 
