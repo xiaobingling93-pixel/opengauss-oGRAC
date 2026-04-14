@@ -2462,6 +2462,13 @@ void cms_proc_msg_req_get_cluster_res_stat(cms_packet_head_t* msg)
         return;
     }
     cms_cli_msg_res_get_res_stat_t *res = (cms_cli_msg_res_get_res_stat_t*)cms_que_node_data(node);
+    errno_t errcode = memset_s(res, sizeof(cms_cli_msg_res_get_res_stat_t), 0, sizeof(cms_cli_msg_res_get_res_stat_t));
+    if (errcode != EOK) {
+        cms_record_io_stat_end(CMS_IO_RECORD_GET_STAT_LIST1, &tv_begin, OG_ERROR);
+        CMS_LOG_ERR("memset_s failed");
+        return;
+    }
+
     res->head.dest_node = -1;
     res->head.src_node = g_cms_param->node_id;
     res->head.msg_size = sizeof(cms_cli_msg_res_get_res_stat_t);

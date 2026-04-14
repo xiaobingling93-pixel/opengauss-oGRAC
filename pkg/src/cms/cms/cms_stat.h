@@ -121,6 +121,8 @@ typedef struct st_cms_hb_aync_start_t {
 #define GCC_FILE_VOTE_INFO_LOCK_NAME                    "_vote_info_lock"
 #define GCC_FILE_VOTE_INFO_LOCK_SIZE                    CMS_RLOCK_VOTE_INFO_LOCK_LEN
 
+#define CMS_READ_RES_STAT_FAILED_RETRY                  5
+
 #define CMS_RETRY_IF_ERR(func)          \
     while (func) {                      \
         cm_sleep(CMS_RETRY_SLEEP_TIME); \
