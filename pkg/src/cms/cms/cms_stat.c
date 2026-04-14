@@ -818,7 +818,7 @@ static status_t cms_check_cluster_reform_stat(uint32 res_id, bool32 *reform_done
     return OG_SUCCESS;
 }
 
-status_t cms_get_cluster_res_list(uint32 res_id, cms_res_status_list_t *stat)
+status_t cms_get_cluster_res_list(uint32 res_id, cms_res_status_list_t *stat, bool full_restart)
 {
     uint32 node_count = cms_get_gcc_node_count();
 
@@ -829,7 +829,8 @@ status_t cms_get_cluster_res_list(uint32 res_id, cms_res_status_list_t *stat)
         }
 
         cms_res_stat_t res_stat;
-        if (get_res_stat(node_id, res_id, &res_stat) != OG_SUCCESS) {
+        status_t status = get_res_stat(node_id, res_id, &res_stat);
+        if (status == OG_ERROR || (full_restart == OG_FALSE && status == OG_EAGAIN)) {
             return OG_ERROR;
         }
 
@@ -861,7 +862,7 @@ static bool32 res_is_full_restart(uint32 res_id)
     }
 
     for (;;) {
-        if (cms_get_cluster_res_list(res_id, &stat) != OG_SUCCESS) {
+        if (cms_get_cluster_res_list(res_id, &stat, OG_TRUE) != OG_SUCCESS) {
             cm_sleep(RETRY_SLEEP_TIME);
             continue;
         }
@@ -1598,11 +1599,13 @@ retry:
                             res_cur_stat->restart_count, res_cur_stat->restart_time, res_cur_stat->checking);
         retry_count++;
         if (retry_count >= CMS_READ_RES_STAT_FAILED_RETRY) {
-            CM_FREE_PTR(res_cur_stat);
             CMS_LOG_ERR("retry %d times and failed, get invalid inst_id after stat read. return ERROR.", CMS_READ_RES_STAT_FAILED_RETRY);
+            errno_t err = memcpy_s(res_stat, sizeof(cms_res_stat_t), res_cur_stat, sizeof(cms_res_stat_t));
+            CM_FREE_PTR(res_cur_stat);
+            MEMS_RETURN_IFERR(err);
             cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id], DISK_LOCK_READ);
             cm_thread_unlock(&g_node_lock[node_id]);
-            return OG_ERROR;
+            return OG_EAGAIN;
         } else {
             goto retry;
         }
@@ -2048,7 +2051,7 @@ status_t cms_get_cluster_stat(uint32 res_id, uint64 version, cms_res_status_list
         return ret;
     }
 
-    ret = cms_get_cluster_res_list(res_id, stat_list);
+    ret = cms_get_cluster_res_list(res_id, stat_list, OG_FALSE);
     if (ret != OG_SUCCESS) {
         CMS_LOG_ERR("get cluster stat failed, ret %d, res_id %u", ret, res_id);
         return ret;
