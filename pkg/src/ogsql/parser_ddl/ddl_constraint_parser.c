@@ -1308,6 +1308,20 @@ status_t og_parse_constraint_state(sql_stmt_t *stmt, knl_constraint_def_t *cons_
             case CONS_STATE_NO_VALIDATE:
                 cons_state->is_validate = OG_FALSE;
                 break;
+            case CONS_STATE_USING_INDEX:
+                if ((cons_def->type != CONS_TYPE_PRIMARY) && (cons_def->type != CONS_TYPE_UNIQUE)) {
+                    OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR,
+                        "\"USING INDEX\" cannot be specified in a constraint clause other than primary "
+                        "key constraint and unique constraint.");
+                    return OG_ERROR;
+                }
+                if (cons_state->is_use_index) {
+                    OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR, "duplicate using index specification");
+                    return OG_ERROR;
+                }
+                OG_RETURN_IFERR(og_parse_index_attrs(stmt, &cons_def->index, state->index_opts));
+                cons_state->is_use_index = OG_TRUE;
+                break;
             case CONS_STATE_PARALLEL:
                 if ((cons_def->type != CONS_TYPE_PRIMARY) && (cons_def->type != CONS_TYPE_UNIQUE)) {
                     OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR,
@@ -1371,12 +1385,10 @@ static status_t og_parse_primary_unique_cons(sql_stmt_t *stmt, knl_table_def_t *
         cons_def->cons_state.is_anonymous = OG_FALSE;
         cons_def->name.str = cons->name;
         cons_def->name.len = strlen(cons->name);
-        status = og_parse_constraint_state(stmt, cons_def, cons->idx_opts);
-        OG_RETURN_IFERR(status);
-    } else {
-        status = og_parse_index_attrs(stmt, &cons_def->index, cons->idx_opts);
-        OG_RETURN_IFERR(status);
     }
+
+    status = og_parse_constraint_state(stmt, cons_def, cons->state_opts);
+    OG_RETURN_IFERR(status);
     return OG_SUCCESS;
 }
 
@@ -1430,6 +1442,12 @@ static status_t og_parse_foreign_key(sql_stmt_t *stmt, knl_table_def_t *def, par
         OG_THROW_ERROR(ERR_SQL_SYNTAX_ERROR,
             "foreign key columns count must be equal to primary key columns count");
         return OG_ERROR;
+    }
+
+    if (cons->name != NULL) {
+        cons_def->cons_state.is_anonymous = OG_FALSE;
+        cons_def->name.str = cons->name;
+        cons_def->name.len = strlen(cons->name);
     }
     return OG_SUCCESS;
 }

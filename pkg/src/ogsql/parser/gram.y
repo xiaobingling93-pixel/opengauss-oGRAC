@@ -262,7 +262,7 @@ static status_t process_alter_index_action(sql_stmt_t *stmt, alter_index_action_
 %type <list> controlfiles logfiles instance_node_opts instance_nodes createdb_opts datafiles opt_user_options user_option_list
              tablespace_name_list createts_opts opt_createts_opts index_column_list createidx_opts opt_partition_index_def
              partition_index_list opt_part_options part_options subpartition_index_list opt_subpartition_index_def opt_createidx_opts
-             opt_view_column_list view_column_list opt_using_index table_column_list opt_constraint_states constraint_states
+             opt_view_column_list view_column_list table_column_list opt_constraint_states constraint_states
              opt_lob_store_params lob_store_params range_partition_list range_partition_boundary_list range_subpartition_list
              list_subpartition_list hash_subpartition_list list_partition_list listValueList hash_partition_list
              opt_partition_store_in_clause tablespaceList opt_interval_tablespaceList func_args_with_defaults_list
@@ -9903,25 +9903,62 @@ column_attr_cons:
         ;
 
 TableConstraint:
-            CONSTRAINT ColId ConstraintElem opt_constraint_states
+            CONSTRAINT ColId ConstraintElem
                 {
                     // Constraint with name
                     parse_constraint_t *cons = $3;
                     cons->name = $2;
-                    cons->idx_opts = $4;
                     $$ = cons;
             }
-            | ConstraintElem opt_using_index
+            | ConstraintElem
                 {
-                    parse_constraint_t *cons = $1;
-                    cons->idx_opts = $2;
-                    $$ = cons;
+                    $$ = $1;
                 }
         ;
 
 opt_constraint_states:
             constraint_states                           { $$ = $1; }
             | /* EMPTY */                               { $$ = NULL; }
+            /*
+             * Keep USING INDEX as a dedicated tail here instead of a plain constraint_state item.
+             * Otherwise PARALLEL/REVERSE can be parsed both as constraint states and as createidx_opts,
+             * which introduces bison shift/reduce conflicts.
+             */
+            | constraint_states USING INDEX_P opt_createidx_opts
+                {
+                    constraint_state *state = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(constraint_state),
+                        (void **)&state) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    state->type = CONS_STATE_USING_INDEX;
+                    state->index_opts = $4;
+
+                    galist_t *list = $1;
+                    if (cm_galist_insert(list, state) != OG_SUCCESS) {
+                        parser_yyerror("insert constraint states list failed.");
+                    }
+                    $$ = list;
+                }
+            | USING INDEX_P opt_createidx_opts
+                {
+                    constraint_state *state = NULL;
+                    if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(constraint_state),
+                        (void **)&state) != OG_SUCCESS) {
+                        parser_yyerror("alloc mem failed");
+                    }
+                    state->type = CONS_STATE_USING_INDEX;
+                    state->index_opts = $3;
+
+                    galist_t *list = NULL;
+                    if (sql_create_temp_list(og_yyget_extra(yyscanner)->core_yy_extra.stmt, &list) != OG_SUCCESS) {
+                        parser_yyerror("create constraint states list failed.");
+                    }
+                    if (cm_galist_insert(list, state) != OG_SUCCESS) {
+                        parser_yyerror("insert constraint states list failed.");
+                    }
+                    $$ = list;
+                }
         ;
 
 constraint_states:
@@ -10073,13 +10110,8 @@ constraint_state:
                 }
         ;
 
-opt_using_index:
-            USING INDEX_P opt_createidx_opts                              { $$ = $3; }
-            | /* EMPTY*/                                                { $$ = NULL; }
-        ;
-
 ConstraintElem:
-            PRIMARY KEY '(' table_column_list ')' 
+            PRIMARY KEY '(' table_column_list ')' opt_constraint_states
                 {
                     parse_constraint_t *cons = NULL;
                     if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(parse_constraint_t),
@@ -10088,9 +10120,10 @@ ConstraintElem:
                     }
                     cons->type = CONS_TYPE_PRIMARY;
                     cons->column_list = $4;
+                    cons->state_opts = $6;
                     $$ = cons;
                 }
-            | UNIQUE '(' table_column_list ')'
+            | UNIQUE '(' table_column_list ')' opt_constraint_states
                 {
                     parse_constraint_t *cons = NULL;
                     if (sql_stack_alloc(og_yyget_extra(yyscanner)->core_yy_extra.stmt, sizeof(parse_constraint_t),
@@ -10099,6 +10132,7 @@ ConstraintElem:
                     }
                     cons->type = CONS_TYPE_UNIQUE;
                     cons->column_list = $3;
+                    cons->state_opts = $5;
                     $$ = cons;
                 }
             | FOREIGN_KEY '(' table_column_list ')' REFERENCES any_name '(' table_column_list ')' opt_foreign_action
@@ -10136,8 +10170,8 @@ ConstraintElem:
         ;
 
 opt_foreign_action:
-            ON DELETE_P CASCADE                         { $$ = REF_DEL_CASCADE; }
-            | ON DELETE_P SET NULL_P                    { $$ = REF_DEL_SET_NULL; }
+            ON DELETE_P CASCADE                         { $$ = REF_DEL_NOT_ALLOWED | REF_DEL_CASCADE; }
+            | ON DELETE_P SET NULL_P                    { $$ = REF_DEL_NOT_ALLOWED | REF_DEL_SET_NULL; }
             | /* EMPTY */                               { $$ = REF_DEL_NOT_ALLOWED; }
         ;
 
