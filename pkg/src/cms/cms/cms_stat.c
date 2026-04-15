@@ -196,6 +196,16 @@ static status_t cms_sync_cur_res_stat(uint32 res_id, cms_res_stat_t* res_stat)
         CMS_LOG_ERR("cms_disk_lock timeout, node_id = %u, res_id = %u.", g_cms_param->node_id, res_id);
         return OG_ERROR;
     }
+    CMS_LOG_DEBUG_INF("[CMS] cms sync cur res stat, stat_ver=%llu, node_id=%u, "
+                        "res_id=%u, magic=%llu, session_id=%llu, inst_id=%llu, res_type=%s, cur_stat=%d, "
+                        "pre_stat=%d, target_stat=%d, work_stat=%u, hb_time=%lld, last_check=%lld, "
+                        "last_stat_change=%lld, restart_count=%d, restart_time=%lld, checking=%d.",
+                        g_stat->head.stat_ver, g_cms_param->node_id, res_id, res_stat->magic, res_stat->session_id,
+                        res_stat->inst_id, res_stat->res_type, res_stat->cur_stat,
+                        res_stat->pre_stat, res_stat->target_stat, res_stat->work_stat,
+                        res_stat->hb_time, res_stat->last_check, res_stat->last_stat_change,
+                        res_stat->restart_count, res_stat->restart_time, res_stat->checking);
+
     if (stat_write(CMS_RES_STAT_POS(g_cms_param->node_id, (res_id)), (char*)(res_stat),
         sizeof(cms_res_stat_t)) != OG_SUCCESS) {
         CMS_LOG_ERR("sync cur res stat failed. node_id = %u, res_id = %u.", g_cms_param->node_id, res_id);
@@ -508,6 +518,7 @@ status_t cms_res_lock_init(void)
         }
         OG_RETURN_IFERR(stat_read(CMS_RES_STAT_POS(g_cms_param->node_id, res_id), (char *)CMS_CUR_RES_STAT(res_id),
             sizeof(cms_res_stat_t)));
+
         CMS_CUR_RES_STAT(res_id)->checking = 0;
         for (int32 slot_id = 0; slot_id < CMS_MAX_RES_SLOT_COUNT; slot_id++) {
             OG_RETURN_IFERR(cms_disk_lock_init(g_cms_param->gcc_type, g_cms_param->gcc_home, "",
@@ -807,7 +818,7 @@ static status_t cms_check_cluster_reform_stat(uint32 res_id, bool32 *reform_done
     return OG_SUCCESS;
 }
 
-status_t cms_get_cluster_res_list(uint32 res_id, cms_res_status_list_t *stat)
+status_t cms_get_cluster_res_list(uint32 res_id, cms_res_status_list_t *stat, bool full_restart)
 {
     uint32 node_count = cms_get_gcc_node_count();
 
@@ -818,7 +829,8 @@ status_t cms_get_cluster_res_list(uint32 res_id, cms_res_status_list_t *stat)
         }
 
         cms_res_stat_t res_stat;
-        if (get_res_stat(node_id, res_id, &res_stat) != OG_SUCCESS) {
+        status_t status = get_res_stat(node_id, res_id, &res_stat);
+        if (status == OG_ERROR || (full_restart == OG_FALSE && status == OG_EAGAIN)) {
             return OG_ERROR;
         }
 
@@ -850,7 +862,7 @@ static bool32 res_is_full_restart(uint32 res_id)
     }
 
     for (;;) {
-        if (cms_get_cluster_res_list(res_id, &stat) != OG_SUCCESS) {
+        if (cms_get_cluster_res_list(res_id, &stat, OG_TRUE) != OG_SUCCESS) {
             cm_sleep(RETRY_SLEEP_TIME);
             continue;
         }
@@ -1377,6 +1389,7 @@ uint32 cms_online_res_count(uint32 res_id, iofence_type_t iofence_type)
 
         CMS_RETRY_IF_ERR(stat_read(CMS_RES_STAT_POS(node_id, res_id), (char *)CMS_RES_STAT(node_id, res_id),
             sizeof(cms_res_stat_t)));
+
         if (g_stat->node_inf[node_id].res_stat[(res_id)].cur_stat == CMS_RES_ONLINE) {
             online_node_count++;
         }
@@ -1515,20 +1528,24 @@ status_t cms_res_no_hb(uint32 res_id)
 status_t get_res_stat(uint32 node_id, uint32 res_id, cms_res_stat_t* res_stat)
 {
     status_t ret;
+    errno_t errcode;
 
     if (cms_node_is_invalid(node_id)) {
         CMS_LOG_ERR("invalid node id, node_id=%u", node_id);
         return OG_ERROR;
     }
+    int retry_count = 0;
+
+    cm_thread_lock(&g_node_lock[node_id]);
 
     uint32 size = CM_ALIGN_512(sizeof(cms_res_stat_t));
     cms_res_stat_t* res_cur_stat = (cms_res_stat_t*)cm_malloc_align(CMS_BLOCK_SIZE, size);
     if (res_cur_stat == NULL) {
         CMS_LOG_ERR("cm_malloc_align failed, alloc_size=%u", size);
+        cm_thread_unlock(&g_node_lock[node_id]);
         return OG_ERROR;
     }
 
-    cm_thread_lock(&g_node_lock[node_id]);
     if (cms_disk_lock(&g_cms_inst->res_stat_lock[node_id][res_id], DISK_LOCK_WAIT_TIMEOUT, DISK_LOCK_READ) !=
         OG_SUCCESS) {
         CM_FREE_PTR(res_cur_stat);
@@ -1536,19 +1553,42 @@ status_t get_res_stat(uint32 node_id, uint32 res_id, cms_res_stat_t* res_stat)
         cm_thread_unlock(&g_node_lock[node_id]);
         return OG_ERROR;
     }
+retry:
 
-    ret = stat_read(CMS_RES_STAT_POS(node_id, res_id), (char *)res_cur_stat, sizeof(cms_res_stat_t));
-    cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id], DISK_LOCK_READ);
-    if (ret != OG_SUCCESS) {
+    errcode = memset_s(res_cur_stat, sizeof(cms_res_stat_t), 0, sizeof(cms_res_stat_t));
+    if (errcode != EOK) {
         CM_FREE_PTR(res_cur_stat);
-        CMS_LOG_ERR("stat read failed");
+        CMS_LOG_ERR("stat read memset_s failed");
+        cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id], DISK_LOCK_READ);
         cm_thread_unlock(&g_node_lock[node_id]);
         return OG_ERROR;
     }
 
+    ret = stat_read(CMS_RES_STAT_POS(node_id, res_id), (char *)res_cur_stat, sizeof(cms_res_stat_t));
+    if (ret != OG_SUCCESS) {
+        CM_FREE_PTR(res_cur_stat);
+        CMS_LOG_ERR("stat read failed");
+        cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id], DISK_LOCK_READ);
+        cm_thread_unlock(&g_node_lock[node_id]);
+        return OG_ERROR;
+    }
+
+    CMS_LOG_DEBUG_INF("[CMS] get_res_stat: stat_ver=%llu, node_id=%u, "
+                        "res_id=%u, magic=%llu, session_id=%llu, inst_id=%llu, res_type=%s, cur_stat=%d, "
+                        "pre_stat=%d, target_stat=%d, work_stat=%u, hb_time=%lld, last_check=%lld, "
+                        "last_stat_change=%lld, restart_count=%d, restart_time=%lld, checking=%d.",
+                        g_stat->head.stat_ver, node_id, res_id, res_cur_stat->magic, res_cur_stat->session_id,
+                        res_cur_stat->inst_id, res_cur_stat->res_type, res_cur_stat->cur_stat,
+                        res_cur_stat->pre_stat, res_cur_stat->target_stat, res_cur_stat->work_stat,
+                        res_cur_stat->hb_time, res_cur_stat->last_check, res_cur_stat->last_stat_change,
+                        res_cur_stat->restart_count, res_cur_stat->restart_time, res_cur_stat->checking);
+
+    // when read failed, retry 5 times.
     if ((res_cur_stat->cur_stat == CMS_RES_OFFLINE && res_cur_stat->inst_id != OG_INVALID_ID64) ||
-        (res_cur_stat->cur_stat != CMS_RES_OFFLINE && res_cur_stat->inst_id >= OG_MAX_INSTANCES)) {
-        CM_ABORT_REASONABLE(0, "[CMS] ABORT INFO: invalid inst_id after stat read, stat_ver=%llu, node_id=%u, "
+        (res_cur_stat->cur_stat != CMS_RES_OFFLINE && res_cur_stat->inst_id >= OG_MAX_INSTANCES) ||
+        (res_cur_stat->cur_stat == CMS_RES_UNKNOWN && res_cur_stat->pre_stat == CMS_RES_UNKNOWN
+                        && res_cur_stat->hb_time == 0 && res_cur_stat->restart_time == 0)) {      // res_cur_stat is all zero
+        CMS_LOG_ERR("[CMS] ERROR INFO: invalid inst_id after stat read, stat_ver=%llu, node_id=%u, "
                             "res_id=%u, magic=%llu, session_id=%llu, inst_id=%llu, res_type=%s, cur_stat=%d, "
                             "pre_stat=%d, target_stat=%d, work_stat=%u, hb_time=%lld, last_check=%lld, "
                             "last_stat_change=%lld, restart_count=%d, restart_time=%lld, checking=%d.",
@@ -1557,7 +1597,20 @@ status_t get_res_stat(uint32 node_id, uint32 res_id, cms_res_stat_t* res_stat)
                             res_cur_stat->pre_stat, res_cur_stat->target_stat, res_cur_stat->work_stat,
                             res_cur_stat->hb_time, res_cur_stat->last_check, res_cur_stat->last_stat_change,
                             res_cur_stat->restart_count, res_cur_stat->restart_time, res_cur_stat->checking);
+        retry_count++;
+        if (retry_count >= CMS_READ_RES_STAT_FAILED_RETRY) {
+            CMS_LOG_ERR("retry %d times and failed, get invalid inst_id after stat read. return ERROR.", CMS_READ_RES_STAT_FAILED_RETRY);
+            errno_t err = memcpy_s(res_stat, sizeof(cms_res_stat_t), res_cur_stat, sizeof(cms_res_stat_t));
+            CM_FREE_PTR(res_cur_stat);
+            MEMS_RETURN_IFERR(err);
+            cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id], DISK_LOCK_READ);
+            cm_thread_unlock(&g_node_lock[node_id]);
+            return OG_EAGAIN;
+        } else {
+            goto retry;
+        }
     }
+    cms_disk_unlock(&g_cms_inst->res_stat_lock[node_id][res_id], DISK_LOCK_READ);
 
     errno_t err = memcpy_s(res_stat, sizeof(cms_res_stat_t), res_cur_stat, sizeof(cms_res_stat_t));
     CM_FREE_PTR(res_cur_stat);
@@ -1998,7 +2051,7 @@ status_t cms_get_cluster_stat(uint32 res_id, uint64 version, cms_res_status_list
         return ret;
     }
 
-    ret = cms_get_cluster_res_list(res_id, stat_list);
+    ret = cms_get_cluster_res_list(res_id, stat_list, OG_FALSE);
     if (ret != OG_SUCCESS) {
         CMS_LOG_ERR("get cluster stat failed, ret %d, res_id %u", ret, res_id);
         return ret;
@@ -2497,6 +2550,15 @@ status_t cms_aync_update_res_hb(cms_res_stat_t *res_stat_disk, uint32 res_id)
     res_stat_disk->hb_time = res_stat->hb_time;
     res_stat_disk->last_check = res_stat->last_check;
     // In this function, we simply update the hb_time and last_check.
+    CMS_LOG_DEBUG_INF("[CMS] cms aync update res hb, stat_ver=%llu, node_id=%u, "
+                        "res_id=%u, magic=%llu, session_id=%llu, inst_id=%llu, res_type=%s, cur_stat=%d, "
+                        "pre_stat=%d, target_stat=%d, work_stat=%u, hb_time=%lld, last_check=%lld, "
+                        "last_stat_change=%lld, restart_count=%d, restart_time=%lld, checking=%d.",
+                        g_stat->head.stat_ver, g_cms_param->node_id, res_id, res_stat_disk->magic, res_stat_disk->session_id,
+                        res_stat_disk->inst_id, res_stat_disk->res_type, res_stat_disk->cur_stat,
+                        res_stat_disk->pre_stat, res_stat_disk->target_stat, res_stat_disk->work_stat,
+                        res_stat_disk->hb_time, res_stat_disk->last_check, res_stat_disk->last_stat_change,
+                        res_stat_disk->restart_count, res_stat_disk->restart_time, res_stat_disk->checking);
     if (stat_write(CMS_CUR_RES_STAT_POS(res_id), (char *)res_stat_disk, sizeof(cms_res_stat_t)) != OG_SUCCESS) {
         CMS_LOG_ERR("aync_write res failed, res_id=%u", res_id);
         cms_disk_unlock(&g_cms_inst->res_stat_lock[g_cms_param->node_id][res_id], DISK_LOCK_WRITE);
@@ -2505,6 +2567,7 @@ status_t cms_aync_update_res_hb(cms_res_stat_t *res_stat_disk, uint32 res_id)
         return OG_ERROR;
     }
     cms_disk_unlock(&g_cms_inst->res_stat_lock[g_cms_param->node_id][res_id], DISK_LOCK_WRITE);
+    
     cm_thread_unlock(&g_res_session[res_id].lock);
     cms_record_io_aync_hb_gap_end(node_hb_aync, OG_SUCCESS);
     return OG_SUCCESS;
@@ -2545,14 +2608,31 @@ status_t cms_stat_read_from_disk(uint32 node_id, uint32 res_id, cms_res_stat_t *
         CMS_LOG_ERR("read state fail, node_id=%u, res_id=%u", node_id, res_id);
         return OG_ERROR;
     }
-    CMS_LOG_INF("read res stat succ, node_id %u, res_id %u, target_stat %d, curr_stat %d",
-        node_id, res_id, stat->target_stat, stat->cur_stat);
+    CMS_LOG_INF("[CMS] cms_stat_read_from_disk read res stat succ, node_id, stat_ver=%llu, node_id=%u, "
+                        "res_id=%u, magic=%llu, session_id=%llu, inst_id=%llu, res_type=%s, cur_stat=%d, "
+                        "pre_stat=%d, target_stat=%d, work_stat=%u, hb_time=%lld, last_check=%lld, "
+                        "last_stat_change=%lld, restart_count=%d, restart_time=%lld, checking=%d.",
+                        g_stat->head.stat_ver, node_id, res_id, stat->magic, stat->session_id,
+                        stat->inst_id, stat->res_type, stat->cur_stat,
+                        stat->pre_stat, stat->target_stat, stat->work_stat,
+                        stat->hb_time, stat->last_check, stat->last_stat_change,
+                        stat->restart_count, stat->restart_time, stat->checking);
     *resRef = stat;
     return OG_SUCCESS;
 }
 
 status_t cms_stat_write_to_disk(uint32 node_id, uint32 res_id, cms_res_stat_t *stat)
 {
+    CMS_LOG_DEBUG_INF("[CMS] cms stat write to disk, stat_ver=%llu, node_id=%u, "
+                        "res_id=%u, magic=%llu, session_id=%llu, inst_id=%llu, res_type=%s, cur_stat=%d, "
+                        "pre_stat=%d, target_stat=%d, work_stat=%u, hb_time=%lld, last_check=%lld, "
+                        "last_stat_change=%lld, restart_count=%d, restart_time=%lld, checking=%d.",
+                        g_stat->head.stat_ver, node_id, res_id, stat->magic, stat->session_id,
+                        stat->inst_id, stat->res_type, stat->cur_stat,
+                        stat->pre_stat, stat->target_stat, stat->work_stat,
+                        stat->hb_time, stat->last_check, stat->last_stat_change,
+                        stat->restart_count, stat->restart_time, stat->checking);
+
     if (stat_write(CMS_RES_STAT_POS(node_id, res_id), (char*)(stat), sizeof(cms_res_stat_t)) != OG_SUCCESS) {
         CMS_LOG_ERR("write state fail, node_id=%u, res_id=%u", node_id, res_id);
         return OG_ERROR;

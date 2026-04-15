@@ -121,6 +121,8 @@ typedef struct st_cms_hb_aync_start_t {
 #define GCC_FILE_VOTE_INFO_LOCK_NAME                    "_vote_info_lock"
 #define GCC_FILE_VOTE_INFO_LOCK_SIZE                    CMS_RLOCK_VOTE_INFO_LOCK_LEN
 
+#define CMS_READ_RES_STAT_FAILED_RETRY                  5
+
 #define CMS_RETRY_IF_ERR(func)          \
     while (func) {                      \
         cm_sleep(CMS_RETRY_SLEEP_TIME); \
@@ -300,7 +302,7 @@ status_t cms_stat_set_res_data(const char* res_type, uint32 slot_id, char* data,
 void cms_stat_update_restart_attr(uint32 res_id);
 void cms_stat_reset_restart_attr(uint32 res_id);
 status_t cms_get_stat_version_ex(uint64 version, cms_res_status_list_t* stat);
-status_t cms_get_cluster_res_list(uint32 res_id, cms_res_status_list_t *stat);
+status_t cms_get_cluster_res_list(uint32 res_id, cms_res_status_list_t *stat, bool full_restart);
 
 status_t cms_try_be_master(void);
 status_t cms_get_master_node(uint16* node_id);

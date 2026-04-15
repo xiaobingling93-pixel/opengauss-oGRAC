@@ -137,6 +137,7 @@ status_t cm_lock_disk(disk_handle_t handle, uint64 offset, int32 size)
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 status_t cm_open_disk(const char *name, disk_handle_t *handle)
 {
@@ -236,6 +237,26 @@ status_t cm_read_disk(disk_handle_t handle, uint64 offset, void *buf, int32 size
     int32 curr_size;
     int32 total_size;
     date_t start = cm_now();
+
+#ifndef WIN32
+    total_size = 0;
+    do {
+        ssize_t n = pread64((int)handle, (char *)buf + total_size, (size_t)(size - total_size),
+            (off64_t)(offset + (uint64)total_size));
+        if (n == -1) {
+            OG_THROW_ERROR(ERR_CM_READ_DISK, OG_ERRNO);
+            OG_LOG_RUN_ERR("pread64 failed:error code:%d,%s", errno, strerror(errno));
+            return OG_ERROR;
+        }
+        if (n == 0) {
+            OG_LOG_RUN_ERR("pread64 unexpected EOF at offset %llu, got %d of %d bytes", (unsigned long long)offset,
+                total_size, size);
+            return OG_ERROR;
+        }
+        curr_size = (int32)n;
+        total_size += curr_size;
+    } while (total_size < size);
+#else
     if (cm_seek_disk(handle, offset) != OG_SUCCESS) {
         return OG_ERROR;
     }
@@ -246,9 +267,15 @@ status_t cm_read_disk(disk_handle_t handle, uint64 offset, void *buf, int32 size
         if (cm_try_read_disk(handle, (char *)buf + total_size, size - total_size, &curr_size) != OG_SUCCESS) {
             return OG_ERROR;
         }
+        if (curr_size == 0) {
+            OG_LOG_RUN_ERR("ReadFile unexpected EOF at offset %llu, got %d of %d bytes", (unsigned long long)offset,
+                total_size, size);
+            return OG_ERROR;
+        }
 
         total_size += curr_size;
     } while (total_size < size);
+#endif
 
     date_t end = cm_now();
 #if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)
@@ -274,6 +301,26 @@ status_t cm_write_disk(disk_handle_t handle, uint64 offset, void *buf, int32 siz
     int32 total_size;
 
     date_t start = cm_now();
+
+#ifndef WIN32
+    total_size = 0;
+    do {
+        ssize_t n = pwrite64((int)handle, (const char *)buf + total_size, (size_t)(size - total_size),
+            (off64_t)(offset + (uint64)total_size));
+        if (n == -1) {
+            OG_THROW_ERROR(ERR_CM_WRITE_DISK, OG_ERRNO);
+            OG_LOG_RUN_ERR("pwrite64 failed:error code:%d,%s", errno, strerror(errno));
+            return OG_ERROR;
+        }
+        if (n == 0) {
+            OG_LOG_RUN_ERR("pwrite64 wrote 0 bytes at offset %llu, got %d of %d bytes", (unsigned long long)offset,
+                total_size, size);
+            return OG_ERROR;
+        }
+        curr_size = (int32)n;
+        total_size += curr_size;
+    } while (total_size < size);
+#else
     if (cm_seek_disk(handle, offset) != OG_SUCCESS) {
         return OG_ERROR;
     }
@@ -284,9 +331,15 @@ status_t cm_write_disk(disk_handle_t handle, uint64 offset, void *buf, int32 siz
         if (cm_try_write_disk(handle, (char *)buf + total_size, size - total_size, &curr_size) != OG_SUCCESS) {
             return OG_ERROR;
         }
+        if (curr_size == 0) {
+            OG_LOG_RUN_ERR("WriteFile wrote 0 bytes at offset %llu, got %d of %d bytes", (unsigned long long)offset,
+                total_size, size);
+            return OG_ERROR;
+        }
 
         total_size += curr_size;
     } while (total_size < size);
+#endif
 
     date_t end = cm_now();
 #if defined(_DEBUG) || defined(DEBUG) || defined(DB_DEBUG_VERSION)

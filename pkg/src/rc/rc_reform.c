@@ -423,21 +423,28 @@ static void rc_refresh_cluster_info(void)
 
     // refresh self info from cms
     bool8 full_restart = OG_TRUE;
-    bool8 kill_self = OG_TRUE;
+    bool8 kill_self = OG_FALSE;
     for (uint8 i = 0; i < tmp_current_stat.inst_count; i++) {
         if (tmp_current_stat.inst_list[i].stat == CMS_RES_ONLINE && tmp_current_stat.inst_list[i].work_stat ==
             RC_JOINED) {
             full_restart = OG_FALSE;
         }
-        if (g_rc_ctx->self_id == tmp_current_stat.inst_list[i].inst_id && tmp_current_stat.inst_list[i].stat ==
+
+        if (g_rc_ctx->self_id == tmp_current_stat.inst_list[i].inst_id && tmp_current_stat.inst_list[i].stat !=
             CMS_RES_ONLINE) {
-            kill_self = OG_FALSE;
+            kill_self = OG_TRUE;
         }
+
     }
 
     if (kill_self) {
-        CM_ABORT_REASONABLE(0, "[RC] ABORT INFO: self abort, notified by CMS kick-out from cluster, version is %llu.",
-            tmp_current_stat.version);
+        for (uint8 i = 0; i < tmp_current_stat.inst_count; i++) {
+            OG_LOG_RUN_INF("tmp_current_stat, i:%u, session_id:%llu, stat:%u, inst_id:%u, work_stat:%u, node_id:%u, hb_time:%lld",
+                i, tmp_current_stat.inst_list[i].session_id, tmp_current_stat.inst_list[i].stat, tmp_current_stat.inst_list[i].inst_id,
+                tmp_current_stat.inst_list[i].work_stat, tmp_current_stat.inst_list[i].node_id, tmp_current_stat.inst_list[i].hb_time);
+        }
+        CM_ABORT_REASONABLE(0, "[RC] ABORT INFO: self abort, notified by CMS kick-out from cluster, version is %llu, self id:%u.",
+            tmp_current_stat.version, g_rc_ctx->self_id);
     }
 
     g_rc_ctx->info.full_restart = full_restart;
