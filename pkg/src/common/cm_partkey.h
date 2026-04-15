@@ -430,7 +430,7 @@ static inline status_t part_put_data(part_key_t *part_key, void *data, uint32 le
             *(int64 *)addr = *(int64 *)data;
             part_set_key_bits(part_key, PART_KEY_BITS_8);
             break;
-        
+
         case OG_TYPE_TIMESTAMP_TZ:
             actual_size = (uint16)sizeof(timestamp_tz_t);
             addr = (char *)part_key + part_key->size;

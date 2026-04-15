@@ -69,6 +69,8 @@ status_t db_delete_distribute_strategy(knl_session_t *session, table_t *table);
 #define COLUMN_RESET_DEFAULT_NULL(col)  ((col)->flags &= ~KNL_COLUMN_FLAG_DEFAULT_NULL)
 #define COLUMN_SET_JSONB(col)          ((col)->flags |= KNL_COLUMN_FLAG_JSONB)
 #define COLUMN_RESET_JSONB(col)        ((col)->flags &= ~KNL_COLUMN_FLAG_JSONB)
+#define COLUMN_SET_ROWID_TYPE(col)          ((col)->flags |= KNL_COLUMN_FLAG_ROWID_TYPE)
+#define COLUMN_RESET_ROWID_TYPE(col)        ((col)->flags &= ~KNL_COLUMN_FLAG_ROWID_TYPE)
 #define MAX_COLUMN_ID_STR_LEN 6 // sizeof("65535,")
 
 typedef struct st_ptrans_match_cond {
@@ -426,6 +428,11 @@ static void db_init_column_flg(knl_column_def_t *def, knl_column_t *column)
         } else {
             // modify to char(BYTE) need reset KNL_COLUMN_FLAG_CHARACTER to 0;
             COLUMN_SET_NOCHARACTER(column);
+        }
+        if (def->typmod.is_rowid_type) {
+            COLUMN_SET_ROWID_TYPE(column);
+        } else {
+            COLUMN_RESET_ROWID_TYPE(column);
         }
     }
 

@@ -62,6 +62,8 @@ status_t sql_func_to_char(sql_stmt_t *stmt, expr_node_t *func, variant_t *res);
 status_t sql_verify_to_char(sql_verifier_t *verif, expr_node_t *func);
 status_t sql_func_to_nchar(sql_stmt_t *stmt, expr_node_t *func, variant_t *res);
 status_t sql_verify_to_nchar(sql_verifier_t *verifier, expr_node_t *func);
+status_t sql_func_check_rowid(sql_stmt_t *stmt, expr_node_t *func, variant_t *res);
+status_t sql_verify_check_rowid(sql_verifier_t *verif, expr_node_t *func);
 status_t sql_func_to_clob(sql_stmt_t *stmt, expr_node_t *func, variant_t *res);
 status_t sql_verify_to_clob(sql_verifier_t *verif, expr_node_t *func);
 status_t sql_func_to_multi_byte(sql_stmt_t *stmt, expr_node_t *func, variant_t *res);

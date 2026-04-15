@@ -51,7 +51,8 @@ typedef struct st_typmode {
         // for string
         struct {
             uint8 is_char : 1;  // defined byte or char attr
-            uint8 charset : 7;
+            uint8 is_rowid_type : 1;
+            uint8 charset : 6;
             uint8 collate;
         };
     };

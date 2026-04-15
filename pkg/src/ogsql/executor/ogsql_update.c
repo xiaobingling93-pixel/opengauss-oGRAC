@@ -380,6 +380,10 @@ static status_t sql_adjust_element_by_col(sql_stmt_t *stmt, knl_column_t *knl_co
         case OG_TYPE_CHAR:
             status = sql_convert_char(KNL_SESSION(stmt), val, knl_col->size, KNL_COLUMN_IS_CHARACTER(knl_col));
             OG_BREAK_IF_ERROR(status);
+            if (KNL_COLUMN_IS_ROWID_TYPE(knl_col)) {
+                status = sql_check_rowid_type_is_valid(val);
+                OG_BREAK_IF_ERROR(status);
+            }
             status = row_put_text(&row_ass, &val->v_text);
             break;
 
@@ -799,6 +803,9 @@ static status_t sql_put_var_to_row(sql_stmt_t *stmt, knl_cursor_t *knl_cur, row_
 
         case OG_TYPE_CHAR:
             OG_RETURN_IFERR(sql_convert_char(KNL_SESSION(stmt), value, column->size, KNL_COLUMN_IS_CHARACTER(column)));
+            if (KNL_COLUMN_IS_ROWID_TYPE(column)) {
+                OG_RETURN_IFERR(sql_check_rowid_type_is_valid(value));
+            }
             status = row_put_text(row_ass, &value->v_text);
             break;
 

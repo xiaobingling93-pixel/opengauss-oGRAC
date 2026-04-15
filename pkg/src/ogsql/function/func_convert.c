@@ -2196,6 +2196,40 @@ status_t sql_verify_to_nchar(sql_verifier_t *verifier, expr_node_t *func)
     return sql_verify_to_char(verifier, func);
 }
 
+status_t sql_func_check_rowid(sql_stmt_t *stmt, expr_node_t *func, variant_t *res)
+{
+    CM_POINTER3(stmt, func, res);
+
+    expr_tree_t *arg = func->argument;
+    CM_POINTER(arg);
+
+    SQL_EXEC_FUNC_ARG_EX(arg, res, res);
+
+    sql_keep_stack_variant(stmt, res);
+    OG_RETURN_IFERR(sql_check_rowid_type_is_valid(res));
+    if (OG_IS_STRING_TYPE(res->type)) {
+        return OG_SUCCESS;
+    }
+    return OG_ERROR;
+}
+status_t sql_verify_check_rowid(sql_verifier_t *verif, expr_node_t *func)
+{
+    CM_POINTER2(verif, func);
+
+    if (sql_verify_func_node(verif, func, 1, 1, OG_INVALID_ID32) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+
+    expr_tree_t *arg = func->argument;
+    if (!sql_match_string_type(TREE_DATATYPE(arg))) {
+        OG_SRC_ERROR_REQUIRE_STRING(TREE_LOC(arg), TREE_DATATYPE(arg));
+        return OG_ERROR;
+    }
+    func->datatype = OG_TYPE_CHAR;
+    func->size = ROWID_LENGTH;
+    return OG_SUCCESS;
+}
+
 status_t sql_func_to_clob(sql_stmt_t *stmt, expr_node_t *func, variant_t *res)
 {
     variant_t var;

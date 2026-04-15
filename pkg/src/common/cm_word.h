@@ -122,6 +122,7 @@ typedef enum en_datatype_wid {
     DTYP_CHAR,            /* char */
     DTYP_VARCHAR,         /* varchar */
     DTYP_STRING,          /* string */
+    DTYP_ROWID,           /* rowid */
     DTYP_SERIAL,          /* serial */
     DTYP_DATE,            /* date | datetime */
     DTYP_TIMESTAMP,       /* timestamp */

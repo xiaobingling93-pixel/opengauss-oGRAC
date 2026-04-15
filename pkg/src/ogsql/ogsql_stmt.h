@@ -884,6 +884,7 @@ status_t sql_apply_typmode(variant_t *var, const typmode_t *type_mod, char *buf,
 // this function like sql_apply_typmode_bin(), can merge to one function ?
 status_t sql_convert_bin(sql_stmt_t *stmt, variant_t *v, uint32 def_size);
 status_t sql_convert_char(knl_session_t *session, variant_t *v, uint32 def_size, bool32 is_character);
+status_t sql_check_rowid_type_is_valid(variant_t *var);
 status_t sql_part_put_number_key(variant_t *value, og_type_t data_type, part_key_t *partkey, uint32 precision);
 status_t sql_part_put_scan_key(sql_stmt_t *stmt, variant_t *value, og_type_t data_type, part_key_t *partkey);
 status_t sql_part_put_key(sql_stmt_t *stmt, variant_t *value, og_type_t data_type, uint32 def_size, bool32 is_character,
