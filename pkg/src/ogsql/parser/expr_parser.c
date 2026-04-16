@@ -3295,6 +3295,46 @@ status_t sql_create_null_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, source
     return OG_SUCCESS;
 }
 
+status_t sql_create_datetime_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, const char* val, uint32 datatype_id,
+    source_location_t loc)
+{
+    expr_node_t *node = NULL;
+    text_t dt_text = { (char*)val, strlen(val) };
+
+    if (sql_init_expr_node(stmt, expr, &node, OG_TYPE_DATE, EXPR_NODE_CONST, loc) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+
+    /*
+     * Bison SCONST may already be dequoted by the scanner, while the native
+     * parser's string token still keeps the enclosing quotes.
+     */
+    if (dt_text.len >= 2 && dt_text.str[0] == '\'' && dt_text.str[dt_text.len - 1] == '\'') {
+        CM_REMOVE_ENCLOSED_CHAR(&dt_text);
+    }
+
+    if (datatype_id == DTYP_DATE) {
+        node->datatype = OG_TYPE_DATE;
+        node->typmod.precision = 0;
+        OG_RETURN_IFERR(cm_text2date_def(&dt_text, &node->value.v_date));
+    } else if (datatype_id == DTYP_TIMESTAMP) {
+        node->datatype = OG_TYPE_TIMESTAMP;
+        node->typmod.precision = OG_DEFAULT_DATETIME_PRECISION;
+        OG_RETURN_IFERR(cm_text2timestamp_def(&dt_text, &node->value.v_date));
+    } else {
+        OG_SRC_THROW_ERROR_EX(loc, ERR_SQL_SYNTAX_ERROR, "invalid datatype word id: %u", datatype_id);
+        return OG_ERROR;
+    }
+
+    node->value.type = node->datatype;
+    node->value.is_null = OG_FALSE;
+    node->typmod.size = sizeof(date_t);
+
+    APPEND_CHAIN(&((*expr)->chain), node);
+    sql_generate_expr(*expr);
+    return OG_SUCCESS;
+}
+
 status_t sql_create_interval_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, const char* val,
     interval_info_t info, source_location_t loc)
 {

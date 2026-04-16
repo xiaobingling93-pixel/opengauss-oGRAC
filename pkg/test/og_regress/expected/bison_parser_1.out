@@ -176,10 +176,10 @@ SQL> insert into bison_t1 values (1, 1) returning a; --error
 OG-00601, Sql syntax error: too less value expressions
 SQL> 
 SQL> declare
-  2 	tmp int;
+  2     tmp int;
   3 begin
-  4 	insert into bison_t1 values (1,2,3) on duplicate key update (a, b) = (select 1,2), c = 4 returning c into tmp;
-  5 	dbe_output.print_line(tmp);
+  4     insert into bison_t1 values (1,2,3) on duplicate key update (a, b) = (select 1,2), c = 4 returning c into tmp;
+  5     dbe_output.print_line(tmp);
   6 end;
   7 /
 
@@ -537,7 +537,7 @@ SQL> delete from bison_t1 where a = 1;
 
 1 rows affected.
 
-SQL> delete from bison_t1 using bison_t1, bison_t2 where a = 1;	
+SQL> delete from bison_t1 using bison_t1, bison_t2 where a = 1;
 
 0 rows affected.
 
@@ -1269,7 +1269,7 @@ SQL> COMMIT;
 Succeed.
 
 SQL> 
-SQL> SELECT 
+SQL> SELECT
   2     employee_id,
   3     employee_name,
   4     manager_id
@@ -1293,7 +1293,7 @@ EMPLOYEE_ID                              EMPLOYEE_NAME                          
 10 rows fetched.
 
 SQL> 
-SQL> SELECT 
+SQL> SELECT
   2     employee_id,
   3     employee_name,
   4     manager_id
@@ -1318,7 +1318,7 @@ EMPLOYEE_ID                              EMPLOYEE_NAME                          
 
 SQL> 
 SQL> -- 原生会报错,order by前加个括号就可以执行；raw_parser加不加都可以执行，结果一致
-SQL> SELECT 
+SQL> SELECT
   2     employee_id,
   3     employee_name,
   4     manager_id
@@ -1343,7 +1343,7 @@ EMPLOYEE_ID                              EMPLOYEE_NAME                          
 
 SQL> 
 SQL> -- error
-SQL> (SELECT 
+SQL> (SELECT
   2     employee_id,
   3     employee_name,
   4     manager_id
@@ -1357,7 +1357,7 @@ SQL> select * from bison_t1 order siblings by a; -- error
 
 OG-00601, [1:43]Sql syntax error: ORDER SIBLINGS BY clause not allowed here.
 SQL> 
-SQL> SELECT 
+SQL> SELECT
   2     employee_id,
   3     employee_name,
   4     manager_id
@@ -1381,7 +1381,7 @@ EMPLOYEE_ID                              EMPLOYEE_NAME                          
 10 rows fetched.
 
 SQL> 
-SQL> SELECT 
+SQL> SELECT
   2     employee_id,
   3     employee_name,
   4     manager_id
@@ -1425,7 +1425,7 @@ EMPLOYEE_ID                              EMPLOYEE_NAME                          
 
 SQL> 
 SQL> -- 目前会报错，level需要映射为EXPR_NODE_RESERVED
-SQL> SELECT 
+SQL> SELECT
   2     employee_id,
   3     employee_name,
   4     manager_id,
@@ -1470,63 +1470,79 @@ SQL>
 SQL> -- 插入示例数据
 SQL> INSERT INTO sales_data VALUES (1, 'North', 'Electronics', 'John', 1500, DATE '2024-01-15');
 
-OG-00601, [1:78]Sql syntax error: syntax error
+1 rows affected.
+
 SQL> INSERT INTO sales_data VALUES (2, 'North', 'Furniture', 'John', 2500, DATE '2024-01-20');
 
-OG-00601, [1:76]Sql syntax error: syntax error
+1 rows affected.
+
 SQL> INSERT INTO sales_data VALUES (3, 'South', 'Electronics', 'Sarah', 1800, DATE '2024-01-10');
 
-OG-00601, [1:79]Sql syntax error: syntax error
+1 rows affected.
+
 SQL> INSERT INTO sales_data VALUES (4, 'South', 'Furniture', 'Sarah', 2200, DATE '2024-01-25');
 
-OG-00601, [1:77]Sql syntax error: syntax error
+1 rows affected.
+
 SQL> INSERT INTO sales_data VALUES (5, 'North', 'Electronics', 'Mike', 1200, DATE '2024-02-05');
 
-OG-00601, [1:78]Sql syntax error: syntax error
+1 rows affected.
+
 SQL> INSERT INTO sales_data VALUES (6, 'South', 'Furniture', 'Mike', 1900, DATE '2024-02-10');
 
-OG-00601, [1:76]Sql syntax error: syntax error
+1 rows affected.
+
 SQL> INSERT INTO sales_data VALUES (7, 'North', 'Electronics', 'John', 1700, DATE '2024-02-15');
 
-OG-00601, [1:78]Sql syntax error: syntax error
+1 rows affected.
+
 SQL> INSERT INTO sales_data VALUES (8, 'South', 'Electronics', 'Sarah', 2100, DATE '2024-02-20');
 
-OG-00601, [1:79]Sql syntax error: syntax error
+1 rows affected.
+
 SQL> 
 SQL> COMMIT;
 
 Succeed.
 
 SQL> 
-SQL> SELECT 
+SQL> SELECT
   2     region,
   3     product_category,
   4     SUM(sale_amount) AS total_sales
   5 FROM sales_data
-  6 GROUP BY GROUPING SETS ( 
+  6 GROUP BY GROUPING SETS (
   7     (region, product_category));
 
 REGION               PRODUCT_CATEGORY     TOTAL_SALES                             
 -------------------- -------------------- ----------------------------------------
+South                Furniture            4100                                    
+North                Furniture            2500                                    
+South                Electronics          3900                                    
+North                Electronics          4400                                    
 
-0 rows fetched.
+4 rows fetched.
 
 SQL> 
-SQL> SELECT 
+SQL> SELECT
   2     region,
   3     product_category,
   4     SUM(sale_amount) AS total_sales
   5 FROM sales_data
-  6 GROUP BY ( 
+  6 GROUP BY (
   7     region, product_category);
 
 REGION               PRODUCT_CATEGORY     TOTAL_SALES                             
 -------------------- -------------------- ----------------------------------------
+South                Furniture            4100                                    
+North                Furniture            2500                                    
+South                Electronics          3900                                    
+North                Electronics          4400                                    
 
-0 rows fetched.
+4 rows fetched.
 
 SQL> 
-SQL> SELECT 
+SQL> SELECT
   2     region,
   3     product_category,
   4     SUM(sale_amount) AS total_sales
@@ -1537,7 +1553,7 @@ SQL> SELECT
 OG-00601, [6:35]Sql syntax error: syntax error
 SQL> 
 SQL> 
-SQL> SELECT 
+SQL> SELECT
   2     region,
   3     product_category,
   4     salesperson,
@@ -1546,22 +1562,50 @@ SQL> SELECT
   7 FROM sales_data
   8 GROUP BY GROUPING SETS (
   9     (region, product_category, salesperson),
- 10     (region, product_category),             
- 11     (region, salesperson),                  
- 12     (product_category, salesperson),        
- 13     (region),                               
- 14     (product_category),                     
- 15     (salesperson),                           
+ 10     (region, product_category),
+ 11     (region, salesperson),
+ 12     (product_category, salesperson),
+ 13     (region),
+ 14     (product_category),
+ 15     (salesperson),
  16     ()
  17 );
 
 REGION               PRODUCT_CATEGORY     SALESPERSON                    TOTAL_SALES                              TRANSACTION_COUNT   
 -------------------- -------------------- ------------------------------ ---------------------------------------- --------------------
+South                Furniture            Sarah                          2200                                     1                   
+North                Furniture            John                           2500                                     1                   
+North                Electronics          John                           3200                                     2                   
+North                Electronics          Mike                           1200                                     1                   
+South                Electronics          Sarah                          3900                                     2                   
+South                Furniture            Mike                           1900                                     1                   
+South                Furniture                                           4100                                     2                   
+North                Furniture                                           2500                                     1                   
+South                Electronics                                         3900                                     2                   
+North                Electronics                                         4400                                     3                   
+North                                     Mike                           1200                                     1                   
+North                                     John                           5700                                     3                   
+South                                     Sarah                          6100                                     3                   
+South                                     Mike                           1900                                     1                   
+                     Furniture            Mike                           1900                                     1                   
+                     Electronics          Mike                           1200                                     1                   
+                     Furniture            Sarah                          2200                                     1                   
+                     Furniture            John                           2500                                     1                   
+                     Electronics          Sarah                          3900                                     2                   
+                     Electronics          John                           3200                                     2                   
+North                                                                    6900                                     4                   
+South                                                                    8000                                     4                   
+                     Electronics                                         8300                                     5                   
+                     Furniture                                           6600                                     3                   
+                                          John                           5700                                     3                   
+                                          Sarah                          6100                                     3                   
+                                          Mike                           3100                                     2                   
+                                                                         14900                                    8                   
 
-0 rows fetched.
+28 rows fetched.
 
 SQL> 
-SQL> SELECT 
+SQL> SELECT
   2     region,
   3     product_category,
   4     salesperson,
@@ -1574,11 +1618,24 @@ SQL> SELECT
 
 REGION               PRODUCT_CATEGORY     SALESPERSON                    TOTAL_SALES                              GRP_ID              
 -------------------- -------------------- ------------------------------ ---------------------------------------- --------------------
+South                Furniture            Sarah                          2200                                     0                   
+North                Furniture            John                           2500                                     0                   
+North                Electronics          John                           3200                                     0                   
+North                Electronics          Mike                           1200                                     0                   
+South                Electronics          Sarah                          3900                                     0                   
+South                Furniture            Mike                           1900                                     0                   
+South                Furniture                                           4100                                     1                   
+North                Furniture                                           2500                                     1                   
+South                Electronics                                         3900                                     1                   
+North                Electronics                                         4400                                     1                   
+North                                                                    6900                                     3                   
+South                                                                    8000                                     3                   
+                                                                         14900                                    7                   
 
-0 rows fetched.
+13 rows fetched.
 
 SQL> 
-SQL> SELECT 
+SQL> SELECT
   2     region,
   3     product_category,
   4     salesperson,
@@ -1589,8 +1646,36 @@ SQL> SELECT
 
 REGION               PRODUCT_CATEGORY     SALESPERSON                    TOTAL_SALES                              GRP_ID              
 -------------------- -------------------- ------------------------------ ---------------------------------------- --------------------
+South                Furniture            Sarah                          2200                                     0                   
+North                Furniture            John                           2500                                     0                   
+North                Electronics          John                           3200                                     0                   
+North                Electronics          Mike                           1200                                     0                   
+South                Electronics          Sarah                          3900                                     0                   
+South                Furniture            Mike                           1900                                     0                   
+South                Furniture                                           4100                                     1                   
+North                Furniture                                           2500                                     1                   
+South                Electronics                                         3900                                     1                   
+North                Electronics                                         4400                                     1                   
+North                                     Mike                           1200                                     2                   
+North                                     John                           5700                                     2                   
+South                                     Sarah                          6100                                     2                   
+South                                     Mike                           1900                                     2                   
+                     Furniture            Mike                           1900                                     4                   
+                     Electronics          Mike                           1200                                     4                   
+                     Furniture            Sarah                          2200                                     4                   
+                     Furniture            John                           2500                                     4                   
+                     Electronics          Sarah                          3900                                     4                   
+                     Electronics          John                           3200                                     4                   
+North                                                                    6900                                     3                   
+South                                                                    8000                                     3                   
+                     Electronics                                         8300                                     5                   
+                     Furniture                                           6600                                     5                   
+                                          John                           5700                                     6                   
+                                          Sarah                          6100                                     6                   
+                                          Mike                           3100                                     6                   
+                                                                         14900                                    7                   
 
-0 rows fetched.
+28 rows fetched.
 
 SQL> 
 SQL> SELECT salesperson, SUM(sale_amount) AS total_sales
@@ -1600,22 +1685,25 @@ SQL> SELECT salesperson, SUM(sale_amount) AS total_sales
 
 SALESPERSON                    TOTAL_SALES                             
 ------------------------------ ----------------------------------------
+John                           5700                                    
+Sarah                          6100                                    
 
-0 rows fetched.
+2 rows fetched.
 
 SQL> 
-SQL> SELECT region, 
+SQL> SELECT region,
   2        SUM(sale_amount) AS total_sales,
   3        AVG(sale_amount) AS avg_sale
   4 FROM sales_data
   5 GROUP BY region
-  6 HAVING SUM(sale_amount) > 3000 
+  6 HAVING SUM(sale_amount) > 3000
   7    AND AVG(sale_amount) < 2000;
 
 REGION               TOTAL_SALES                              AVG_SALE                                
 -------------------- ---------------------------------------- ----------------------------------------
+North                6900                                     1725                                    
 
-0 rows fetched.
+1 rows fetched.
 
 SQL> 
 SQL> SELECT region, product_category, COUNT(*) AS order_count
@@ -1626,8 +1714,11 @@ SQL> SELECT region, product_category, COUNT(*) AS order_count
 
 REGION               PRODUCT_CATEGORY     ORDER_COUNT         
 -------------------- -------------------- --------------------
+South                Furniture            2                   
+South                Electronics          2                   
+North                Electronics          3                   
 
-0 rows fetched.
+3 rows fetched.
 
 SQL> 
 SQL> SELECT salesperson, COUNT(DISTINCT product_category) AS category_count
@@ -1637,8 +1728,11 @@ SQL> SELECT salesperson, COUNT(DISTINCT product_category) AS category_count
 
 SALESPERSON                    CATEGORY_COUNT      
 ------------------------------ --------------------
+John                           2                   
+Mike                           2                   
+Sarah                          2                   
 
-0 rows fetched.
+3 rows fetched.
 
 SQL> 
 SQL> SELECT region, product_category, SUM(sale_amount) AS total
@@ -1648,8 +1742,13 @@ SQL> SELECT region, product_category, SUM(sale_amount) AS total
 
 REGION               PRODUCT_CATEGORY     TOTAL                                   
 -------------------- -------------------- ----------------------------------------
+South                                     8000                                    
+North                                     6900                                    
+                     Electronics          8300                                    
+                     Furniture            6600                                    
+                                          14900                                   
 
-0 rows fetched.
+5 rows fetched.
 
 SQL> 
 SQL> drop table if exists bison_t1;
@@ -2184,7 +2283,7 @@ SQL> MERGE INTO employees e
   2 USING salary_updates s
   3 ON (e.emp_id = s.emp_id)
   4 WHEN MATCHED THEN
-  5     UPDATE SET 
+  5     UPDATE SET
   6         e.salary = s.new_salary,
   7         e.last_update = s.update_date
   8     WHERE s.new_salary > e.salary
@@ -2207,7 +2306,7 @@ SQL> MERGE INTO employees e
   2 USING salary_updates s
   3 ON (e.emp_id = s.emp_id)
   4 WHEN MATCHED THEN
-  5     UPDATE SET 
+  5     UPDATE SET
   6         e.salary = s.new_salary,
   7         e.last_update = s.update_date
   8     WHERE s.new_salary > e.salary;
@@ -2221,7 +2320,7 @@ SQL> MERGE INTO employees e
   4 WHEN NOT MATCHED THEN INSERT (e.emp_id, e.name, e.salary, e.last_update)
   5     VALUES (s.emp_id, '新员工', s.new_salary, s.update_date)
   6 WHEN MATCHED THEN
-  7     UPDATE SET 
+  7     UPDATE SET
   8         e.salary = s.new_salary,
   9         e.last_update = s.update_date
  10     WHERE s.new_salary > e.salary;
@@ -3667,12 +3766,12 @@ SQL> INSERT INTO  test_func_2
 
 1 rows affected.
 
-SQL> INSERT INTO  test_func_2 
+SQL> INSERT INTO  test_func_2
   2 values (333, '王五', 'wangwu@126.com', '13312345680', to_date('01-11-1987', 'dd-mm-yyyy'), 'AD_ASST', 4400.00, 101, 10);
 
 1 rows affected.
 
-SQL> INSERT INTO  test_func_2 
+SQL> INSERT INTO  test_func_2
   2 values (444, '赵二', 'zhaoer@126.com', '13312345681', to_date('13-12-1988', 'dd-mm-yyyy'), 'AD_ASST', 3900.00, 101, 10);
 
 1 rows affected.
@@ -3729,7 +3828,7 @@ COUNT(STAFF_ID) OVER(PARTITION BY SECTION_ID ORDER BY STAFF_ID)
 
 4 rows fetched.
 
-SQL> drop table test_func_2; 
+SQL> drop table test_func_2;
 
 Succeed.
 
@@ -3867,7 +3966,7 @@ SQL> drop table t_second;
 Succeed.
 
 SQL> --quote
-SQL> select 1 as `1`; 
+SQL> select 1 as `1`;
 
 1           
 ------------
@@ -4377,12 +4476,12 @@ SQL> CREATE INDEX local_idx ON sales(sale_date) LOCAL;
 
 Succeed.
 
-SQL> SELECT INDEX_NAME, PARTITIONED, STATUS, INI_TRANS FROM MY_INDEXES WHERE TABLE_NAME = 'SALES';
+SQL> SELECT INDEX_NAME, PARTITIONED, STATUS, INI_TRANS FROM MY_INDEXES WHERE TABLE_NAME = 'SALES' order by INDEX_NAME;
 
 INDEX_NAME                                                       PARTITIONED STATUS  INI_TRANS   
 ---------------------------------------------------------------- ----------- ------- ------------
-LOCAL_IDX                                                        Y           VALID   2           
 GLOBAL_IDX                                                       N           VALID   2           
+LOCAL_IDX                                                        Y           VALID   2           
 
 2 rows fetched.
 
@@ -4463,6 +4562,49 @@ SQL> drop table sales;
 
 Succeed.
 
+SQL> drop table if exists bison_ts_lit;
+
+Succeed.
+
+SQL> create table bison_ts_lit(
+  2     id int,
+  3     ts timestamp(6),
+  4     ts_ltz timestamp with local time zone
+  5 );
+
+Succeed.
+
+SQL> insert into bison_ts_lit(id, ts, ts_ltz) values
+  2     (1, TIMESTAMP '2023-04-29 10:45:30.123456', TIMESTAMP '2023-04-29 12:34:56');
+
+1 rows affected.
+
+SQL> insert into bison_ts_lit(id, ts_ltz) values (2, systimestamp);
+
+1 rows affected.
+
+SQL> select count(*) as between_cnt from bison_ts_lit
+  2 where ts between TIMESTAMP '2023-04-29 10:00:00' and TIMESTAMP '2023-04-29 11:00:00';
+
+BETWEEN_CNT         
+--------------------
+1                   
+
+1 rows fetched.
+
+SQL> select count(*) as ltz_cnt from bison_ts_lit where ts_ltz is not null;
+
+LTZ_CNT             
+--------------------
+2                   
+
+1 rows fetched.
+
+SQL> drop table bison_ts_lit;
+
+Succeed.
+
+SQL> 
 SQL> create table test_array1(id int, idd int[]);
 
 Succeed.

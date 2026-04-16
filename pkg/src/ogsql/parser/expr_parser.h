@@ -287,6 +287,8 @@ status_t sql_create_string_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, cons
 status_t sql_create_hex_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, const char* val, source_location_t loc);
 status_t sql_create_bool_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, bool32 val, source_location_t loc);
 status_t sql_create_null_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, source_location_t loc);
+status_t sql_create_datetime_const_expr(sql_stmt_t *stmt, expr_tree_t **expr, const char* val, uint32 datatype_id,
+    source_location_t loc);
 status_t sql_create_columnref_expr(sql_stmt_t *stmt, expr_tree_t **expr, const char* val, galist_t *list,
     expr_node_type_t type, source_location_t loc);
 status_t sql_create_indices_expr(sql_stmt_t *stmt, expr_tree_t **expr, int32 start, int32 end, source_location_t loc);
