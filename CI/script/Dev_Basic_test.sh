@@ -23,6 +23,26 @@ function collect_core() {
 	sh ${collect_script} ${CORE_DIR} ${TEMP_DIR} ${ROOT_PATH} ${TEST_DATA_DIR}/data  ${RUN_TEST_USER}
 }
 
+function print_regress_diffs() {
+    local diff_dir="${ROOT_PATH}/pkg/test/og_regress/results"
+    local diff_file
+
+    if ls "${diff_dir}"/*.diff >/dev/null 2>&1; then
+        echo "========================= Regress Diff Begin =======================" | tee -a ${REGRESS_LOG}
+        for diff_file in "${diff_dir}"/*.diff; do
+            [ -f "${diff_file}" ] || continue
+            echo "----- ${diff_file} -----" | tee -a ${REGRESS_LOG}
+            cat "${diff_file}" | tee -a ${REGRESS_LOG}
+            echo "" | tee -a ${REGRESS_LOG}
+        done
+        echo "========================== Regress Diff End ========================" | tee -a ${REGRESS_LOG}
+        mkdir -p ${TEMP_DIR}/diff
+        cp "${diff_dir}"/*.diff ${TEMP_DIR}/diff
+    else
+        echo "No regress diff files found under ${diff_dir}" | tee -a ${REGRESS_LOG}
+    fi
+}
+
 function run_og_regress() {
 	echo "========================= Run Regression ======================="
 	cd ${ROOT_PATH}
@@ -37,9 +57,7 @@ function run_og_regress() {
 	if [ $fail_count -ne 0 ] || [ $ok_count -eq 0 ]; then
 		echo "Error: Some cases failed when og_regress!!"
 		echo "Error: Some cases failed when og_regress!!" >> ${REGRESS_LOG} 2>&1
-		cat $ROOT_PATH/pkg/test/og_regress/results/*.diff >> ${REGRESS_LOG} 2>&1
-		mkdir -p ${TEMP_DIR}/diff
-		cp $ROOT_PATH/pkg/test/og_regress/results/*.diff ${TEMP_DIR}/diff
+        print_regress_diffs
 		echo "Regress Failed! Regress Failed! Regress Failed! "
 		collect_core # local debug, can annotate this step
 		exit 1
@@ -304,4 +322,3 @@ main() {
 }
 
 main "$@"
-

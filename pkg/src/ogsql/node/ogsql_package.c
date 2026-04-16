@@ -43,6 +43,37 @@
 
 #define pl_sender (&g_instance->sql.pl_sender)
 
+static status_t sql_decode_index_col_token(const text_t *token, uint32 *col_id, bool32 *is_dsc)
+{
+    int32 encoded_col_id;
+    text_t col_token = *token;
+    text_t id_text;
+    text_t dir_text;
+
+    cm_trim_text(&col_token);
+    if (cm_text2int(&col_token, &encoded_col_id) != OG_SUCCESS) {
+        if (!cm_fetch_text(&col_token, ' ', '\0', &id_text) || cm_text2int(&id_text, &encoded_col_id) != OG_SUCCESS) {
+            return OG_ERROR;
+        }
+
+        cm_trim_text(&col_token);
+        dir_text = col_token;
+        *col_id = (uint32)encoded_col_id;
+        *is_dsc = (dir_text.len > 0 && cm_text_str_equal_ins(&dir_text, "DESC")) ? OG_TRUE : OG_FALSE;
+        return OG_SUCCESS;
+    }
+
+    if (encoded_col_id < 0) {
+        *col_id = (uint32)(-encoded_col_id - 1);
+        *is_dsc = OG_TRUE;
+        return OG_SUCCESS;
+    }
+
+    *col_id = (uint32)encoded_col_id;
+    *is_dsc = OG_FALSE;
+    return OG_SUCCESS;
+}
+
 static dbe_func_param_t g_collect_table_stats_params[] = {
     // id, name                ,datatype,      nullable    parameter len
     { 0,  "schema",          OG_TYPE_VARCHAR, OG_FALSE,   OG_MAX_NAME_LEN },
@@ -468,11 +499,14 @@ status_t sql_verify_ind_pos(sql_verifier_t *verf, expr_node_t *func)
 status_t sql_func_ind_pos(sql_stmt_t *stmt, expr_node_t *func, variant_t *res)
 {
     uint32 pos = 0;
-    text_t splitchar = { ",", 1 };
+    uint32 search_col_id = OG_INVALID_ID32;
+    uint32 curr_col_id = OG_INVALID_ID32;
     expr_tree_t *arg1 = func->argument;
     expr_tree_t *arg2 = arg1->next;
     variant_t var1;
     variant_t var2;
+    text_t column_text;
+    bool32 is_dsc = OG_FALSE;
 
     CM_POINTER3(stmt, func, res);
 
@@ -500,10 +534,28 @@ status_t sql_func_ind_pos(sql_stmt_t *stmt, expr_node_t *func, variant_t *res)
         return OG_SUCCESS;
     }
 
-    if (GET_DATABASE_CHARSET->num_instr(&var1.v_text, &var2.v_text, &splitchar, &pos) != OG_SUCCESS) {
+    if (cm_text2uint32(&var2.v_text, &search_col_id) != OG_SUCCESS) {
         cm_reset_error();
         OG_SRC_THROW_ERROR(func->argument->loc, ERR_INVALID_FUNC_PARAMS, "number argument expected");
         return OG_ERROR;
+    }
+
+    while (cm_fetch_text(&var1.v_text, ',', '\0', &column_text)) {
+        pos++;
+        if (sql_decode_index_col_token(&column_text, &curr_col_id, &is_dsc) != OG_SUCCESS) {
+            cm_reset_error();
+            OG_SRC_THROW_ERROR(func->argument->loc, ERR_INVALID_FUNC_PARAMS, "number argument expected");
+            return OG_ERROR;
+        }
+        (void)is_dsc;
+
+        if (curr_col_id == search_col_id) {
+            break;
+        }
+    }
+
+    if (curr_col_id != search_col_id) {
+        pos = 0;
     }
 
     res->v_int = (int)pos;
@@ -1434,13 +1486,15 @@ static status_t sql_func_list_cols_core(sql_stmt_t *stmt, expr_node_t *func, var
 
     column_count = knl_get_column_count(dc.handle);
     while (cm_fetch_text(column_list, ',', '\0', &column_text)) {
+        bool32 is_dsc = OG_FALSE;
+
         if (!cm_is_short(&column_text)) {
             OG_SRC_THROW_ERROR(func->loc, ERR_INVALID_NUMBER, ":invalid column list");
             status = OG_ERROR;
             break;
         }
 
-        if (cm_text2uint32(&column_text, &id) != OG_SUCCESS) {
+        if (sql_decode_index_col_token(&column_text, &id, &is_dsc) != OG_SUCCESS) {
             status = OG_ERROR;
             break;
         }
@@ -1474,6 +1528,12 @@ static status_t sql_func_list_cols_core(sql_stmt_t *stmt, expr_node_t *func, var
             }
         } else {
             cm_concat_text(&result->v_text, OG_NAME_BUFFER_SIZE * OG_MAX_INDEX_COLUMNS, &column->default_text);
+        }
+
+        if (is_dsc &&
+            cm_concat_string(&result->v_text, OG_NAME_BUFFER_SIZE * OG_MAX_INDEX_COLUMNS, " DESC") != OG_SUCCESS) {
+            status = OG_ERROR;
+            break;
         }
     }
 

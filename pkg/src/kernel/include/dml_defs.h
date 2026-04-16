@@ -484,6 +484,7 @@ typedef struct st_knl_index_desc {
     bool8 is_dsc; // true for dsc index
 
     index_profile_t profile;
+    uint8 col_dirs[OG_MAX_INDEX_COLUMNS];  /* sort_direction_t values for each index column */
 } knl_index_desc_t;
 
 void knl_init_key(knl_index_desc_t *desc, char *buf, rowid_t *rid);

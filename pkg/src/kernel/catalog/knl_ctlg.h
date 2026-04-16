@@ -41,6 +41,7 @@ status_t db_fill_builtin_indexes(knl_session_t *session);
 status_t db_write_systable(knl_session_t *session, knl_cursor_t *cursor, knl_table_desc_t *desc);
 status_t db_write_sysstorage(knl_session_t *session, knl_cursor_t *cursor, knl_scn_t org_scn, knl_storage_desc_t *desc);
 status_t db_write_sysindex(knl_session_t *session, knl_cursor_t *cursor, knl_index_desc_t *desc);
+status_t db_encode_index_column_list(text_t *list, uint32 list_max_size, knl_index_desc_t *desc);
 status_t db_write_syscolumn(knl_session_t *session, knl_cursor_t *cursor, knl_column_t *column);
 status_t db_write_syslob(knl_session_t *session, knl_cursor_t *cursor, knl_lob_desc_t *desc);
 status_t db_write_sysview(knl_session_t *session, knl_cursor_t *cursor, knl_view_t *view, knl_view_def_t *def);

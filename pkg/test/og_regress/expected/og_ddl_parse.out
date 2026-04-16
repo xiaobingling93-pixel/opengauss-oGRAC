@@ -159,5 +159,28 @@ SQL> DROP TABLE IF EXISTS T_RG_HS_01;
 Succeed.
 
 SQL> 
+SQL> DROP TABLE IF EXISTS native_pk_desc_idx_t;
+
+Succeed.
+
+SQL> CREATE TABLE native_pk_desc_idx_t (
+  2     a INT PRIMARY KEY,
+  3     b INT
+  4 );
+
+Succeed.
+
+SQL> CREATE INDEX native_pk_desc_idx_1 ON native_pk_desc_idx_t(a DESC);
+
+Succeed.
+
+SQL> CREATE INDEX native_pk_desc_idx_2 ON native_pk_desc_idx_t(a DESC); -- error
+
+OG-00726, The column has been indexed by NATIVE_PK_DESC_IDX_1.
+SQL> DROP TABLE IF EXISTS native_pk_desc_idx_t;
+
+Succeed.
+
+SQL> 
 
 
