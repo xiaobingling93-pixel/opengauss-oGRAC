@@ -6,9 +6,10 @@ from pathlib import Path
 from logs_tool.log import LOGS_HANDLER_LOG as LOG
 
 CUR_PATH, _ = os.path.split(os.path.abspath(__file__))
+PKG_DIR = os.path.abspath(os.path.join(CUR_PATH, "../../.."))
 TIME_OUT = 300
 FAIL = 1
-ENV_FILE = "/opt/ograc/action/env.sh"
+ENV_FILE = str(Path(os.path.join(PKG_DIR, "action", "storage_deploy", "env.sh")))
 
 
 def file_reader(data_path):
@@ -34,6 +35,27 @@ def get_param_value(param):
 def get_file_creation_time(file_path):
     ori_create_time = os.path.getctime(file_path)
     return int(round(ori_create_time * 1000))
+
+
+def split_log_name(log_name):
+    parts = log_name.rsplit(".", 1)
+    if len(parts) != 2:
+        return log_name, ""
+    return parts[0], parts[1]
+
+
+def is_rotated_log(log_name_prefix, log_name_tail, log_name, file_name):
+    if not log_name_tail:
+        return False
+    if file_name.endswith("tar.gz") or file_name.endswith("swp") or file_name.endswith("swo"):
+        return False
+    if len(file_name) <= len(log_name):
+        return False
+    if not file_name.startswith(log_name_prefix) or not file_name.endswith(log_name_tail):
+        return False
+
+    middle = file_name[len(log_name_prefix):-len(log_name_tail)]
+    return middle.startswith("_") and middle.endswith(".") and middle[1:-1].isdigit()
 
 
 def close_child_process(proc):
@@ -95,12 +117,9 @@ class LogsHandler:
             if not os.path.exists(log_content):
                 continue
             files_names = os.listdir(log_content)
-            log_name_pre = log_name.split(".")[0]
+            log_name_pre, log_name_tail = split_log_name(log_name)
             for file_name in files_names:
-                conditions = log_name_pre in file_name and not file_name.endswith("tar.gz") \
-                             and not file_name.endswith("swp") and not file_name.endswith("swo") \
-                             and len(file_name) > len(log_name)
-                if conditions:
+                if is_rotated_log(log_name_pre, log_name_tail, log_name, file_name):
                     # 判断当前是否有新产生的归档日志，有就退出循环进行打包操作
                     break
             else:

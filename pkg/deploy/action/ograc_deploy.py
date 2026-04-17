@@ -177,6 +177,7 @@ class OgracDeploy:
 
         self._install_ograc_package()
         self._copy_resources()
+        self._fix_common_permissions()
 
         sys_password_file = None
         if "ograc" in INSTALL_ORDER and sys.stdin.isatty():
@@ -291,6 +292,13 @@ class OgracDeploy:
             all_offline = False
         else:
             all_online = False
+
+        if self.ograc_in_container == "0":
+            timers_ready = self._check_systemd_timers_ready()
+            if timers_ready:
+                all_offline = False
+            else:
+                all_online = False
 
         if all_online:
             LOG.info("All processes are online")
@@ -648,6 +656,31 @@ class OgracDeploy:
             if os.path.isfile(appctl):
                 exec_popen(f"chown root:root {appctl}")
 
+    def _fix_common_permissions(self):
+        """Align common/script permissions with the legacy deploy flow."""
+        common_script_dir = self.paths.common_script_dir
+        logs_handler_dir = os.path.join(common_script_dir, "logs_handler")
+        logs_tool_dir = os.path.join(logs_handler_dir, "logs_tool")
+        compress_script = os.path.join(logs_handler_dir, "do_compress_and_archive.py")
+
+        if os.path.isdir(common_script_dir):
+            os.chmod(common_script_dir, 0o755)
+        if os.path.isdir(logs_handler_dir):
+            os.chmod(logs_handler_dir, 0o755)
+        if os.path.isdir(logs_tool_dir):
+            os.chmod(logs_tool_dir, 0o700)
+
+        if os.path.isfile(compress_script):
+            try:
+                uid = pwd.getpwnam(self.ograc_user).pw_uid
+                gid = grp.getgrnam(self.ograc_group).gr_gid
+                os.chown(compress_script, uid, gid)
+                os.chmod(compress_script, 0o440)
+            except (KeyError, OSError) as err:
+                raise RuntimeError(
+                    f"failed to fix logs handler permissions for {compress_script}: {err}"
+                ) from err
+
     def _mount_fs(self):
         """Mount file systems."""
         if self.ograc_in_container != "0":
@@ -883,23 +916,52 @@ echo "Product Version : {version}"
             safe_remove(os.path.join("/etc/systemd/system", timer_name))
             safe_remove(service_path)
 
+    @staticmethod
+    def _run_systemctl(command, unit_name, allow_fail=False):
+        ret, stdout, stderr = exec_popen(f"systemctl {command} {unit_name}")
+        if ret == 0:
+            return True
+
+        message = stderr or stdout or "unknown error"
+        if allow_fail:
+            LOG.warning("systemctl %s %s failed: %s", command, unit_name, message)
+            return False
+
+        raise RuntimeError(f"systemctl {command} {unit_name} failed: {message}")
+
+    def _check_systemd_timers_ready(self):
+        ready = True
+        for timer in (self.paths.daemon_timer_unit, self.paths.logs_timer_unit):
+            active_ok = self._run_systemctl("is-active", timer, allow_fail=True)
+            enabled_ok = self._run_systemctl("is-enabled", timer, allow_fail=True)
+            if not active_ok:
+                LOG.error("%s is not active", timer)
+            if not enabled_ok:
+                LOG.error("%s is not enabled", timer)
+            ready = ready and active_ok and enabled_ok
+        return ready
+
     def _start_systemd_timers(self):
         if self.ograc_in_container != "0":
             return
         LOG.info("Installing and starting systemd timers")
         self._cleanup_legacy_systemd_units()
         self._install_systemd_units()
-        exec_popen("systemctl daemon-reload")
+        ret, stdout, stderr = exec_popen("systemctl daemon-reload")
+        if ret != 0:
+            raise RuntimeError(f"systemctl daemon-reload failed: {stderr or stdout}")
         for timer in (self.paths.daemon_timer_unit, self.paths.logs_timer_unit):
-            exec_popen(f"systemctl start {timer}")
-            exec_popen(f"systemctl enable {timer}")
+            self._run_systemctl("start", timer)
+            self._run_systemctl("enable", timer)
 
     def _stop_systemd_timers(self):
         LOG.info("Stopping systemd timers")
-        exec_popen("systemctl daemon-reload")
+        ret, stdout, stderr = exec_popen("systemctl daemon-reload")
+        if ret != 0:
+            LOG.warning("systemctl daemon-reload failed while stopping timers: %s", stderr or stdout)
         for timer in (self.paths.daemon_timer_unit, self.paths.logs_timer_unit):
-            exec_popen(f"systemctl stop {timer}")
-            exec_popen(f"systemctl disable {timer}")
+            self._run_systemctl("stop", timer, allow_fail=True)
+            self._run_systemctl("disable", timer, allow_fail=True)
 
     def _init_limits_config(self):
         """Configure openfile limits."""

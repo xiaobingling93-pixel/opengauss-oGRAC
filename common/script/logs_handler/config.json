@@ -12,6 +12,24 @@
   },
 
   {
+    "log_file_dir": "/opt/ograc/log/cms/run/cms_srv.dlog",
+    "max_log_vol": "210",
+    "userandgroup": "deploy_user"
+  },
+
+  {
+    "log_file_dir": "/opt/ograc/log/cms/run/cms_srv.hblog",
+    "max_log_vol": "210",
+    "userandgroup": "deploy_user"
+  },
+
+  {
+    "log_file_dir": "/opt/ograc/log/cms/run/cms_cma.dlog",
+    "max_log_vol": "210",
+    "userandgroup": "deploy_user"
+  },
+
+  {
     "log_file_dir": "/opt/ograc/log/dbstor/bak/log-dsware_cms_0.log",
     "max_log_vol": "80",
     "userandgroup": "deploy_user"
@@ -25,6 +43,12 @@
 
   {
     "log_file_dir": "/opt/ograc/log/ograc/run/ogracd.rlog",
+    "max_log_vol": "210",
+    "userandgroup": "deploy_user"
+  },
+
+  {
+    "log_file_dir": "/opt/ograc/log/ograc/run/ogracd.dlog",
     "max_log_vol": "210",
     "userandgroup": "deploy_user"
   },
