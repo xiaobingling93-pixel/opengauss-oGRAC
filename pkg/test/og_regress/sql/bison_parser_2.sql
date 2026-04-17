@@ -15,7 +15,7 @@ create tablespace tmp_tablespace datafile 'tmp_tablespace.dbf' size 10M autooffl
 drop tablespace tmp_tablespace;
 create tablespace tmp_tablespace extents 4K datafile 'tmp_tablespace.dbf' size 10M autooffline on extent autoallocate; --error
 
-drop table bison_t1;
+drop table if exists bison_t1;
 create table bison_t1 (a int, b int, c int);
 create index bison_t1_idx1 on bison_t1(a);
 create index sys.bison_t1_idx2 on sys.bison_t1(b);

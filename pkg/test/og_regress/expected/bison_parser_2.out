@@ -58,7 +58,7 @@ SQL> create tablespace tmp_tablespace extents 4K datafile 'tmp_tablespace.dbf' s
 
 OG-00601, [1:118]Sql syntax error: invalid extent clause
 SQL> 
-SQL> drop table bison_t1;
+SQL> drop table if exists bison_t1;
 
 Succeed.
 

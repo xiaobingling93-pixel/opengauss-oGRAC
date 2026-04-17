@@ -85,13 +85,17 @@ typedef enum {
     CONS_STATE_NO_RELY,
     CONS_STATE_VALIDATE,
     CONS_STATE_NO_VALIDATE,
+    CONS_STATE_USING_INDEX,
     CONS_STATE_PARALLEL,
     CONS_STATE_REVERSE
 } constraint_state_type;
 
 typedef struct {
     constraint_state_type type;
-    uint32 parallelism;
+    union {
+        uint32 parallelism;
+        galist_t *index_opts;
+    };
 } constraint_state;
 
 typedef struct {
@@ -99,8 +103,8 @@ typedef struct {
     char *name;
     union {
         struct {
+            galist_t *state_opts;
             galist_t *column_list;
-            galist_t *idx_opts;
         };
         struct {
             galist_t *cols;
