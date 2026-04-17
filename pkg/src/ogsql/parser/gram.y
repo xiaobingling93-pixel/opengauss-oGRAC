@@ -6179,6 +6179,24 @@ AexprConst: ICONST
                 }
                 $$ = expr;
             }
+            | DATE_P SCONST
+            {
+                expr_tree_t *expr = NULL;
+                if (sql_create_datetime_const_expr(og_yyget_extra(yyscanner)->core_yy_extra.stmt,
+                    &expr, $2, DTYP_DATE, @1.loc) != OG_SUCCESS) {
+                    parser_yyerror("init date expr failed");
+                }
+                $$ = expr;
+            }
+            | TIMESTAMP SCONST
+            {
+                expr_tree_t *expr = NULL;
+                if (sql_create_datetime_const_expr(og_yyget_extra(yyscanner)->core_yy_extra.stmt,
+                    &expr, $2, DTYP_TIMESTAMP, @1.loc) != OG_SUCCESS) {
+                    parser_yyerror("init timestamp expr failed");
+                }
+                $$ = expr;
+            }
             | NCHAR SCONST
             {
                 /* National character string literal (N'...') - treat as regular string */

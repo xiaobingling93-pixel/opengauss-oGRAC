@@ -1330,7 +1330,7 @@ INSERT INTO sales VALUES (3, '2025-06-15', 3000);
 
 CREATE INDEX global_idx ON sales(id);
 CREATE INDEX local_idx ON sales(sale_date) LOCAL;
-SELECT INDEX_NAME, PARTITIONED, STATUS, INI_TRANS FROM MY_INDEXES WHERE TABLE_NAME = 'SALES';
+SELECT INDEX_NAME, PARTITIONED, STATUS, INI_TRANS FROM MY_INDEXES WHERE TABLE_NAME = 'SALES' order by INDEX_NAME;
 SELECT * FROM MY_IND_PARTITIONS WHERE INDEX_NAME='LOCAL_IDX' order by PARTITION_NAME;
 ALTER INDEX global_idx REBUILD;
 ALTER INDEX global_idx UNUSABLE;
@@ -1348,6 +1348,20 @@ ALTER INDEX global_idx UNUSABLE;
 ALTER INDEX global_idx REBUILD;
 
 drop table sales;
+drop table if exists bison_ts_lit;
+create table bison_ts_lit(
+    id int,
+    ts timestamp(6),
+    ts_ltz timestamp with local time zone
+);
+insert into bison_ts_lit(id, ts, ts_ltz) values
+    (1, TIMESTAMP '2023-04-29 10:45:30.123456', TIMESTAMP '2023-04-29 12:34:56');
+insert into bison_ts_lit(id, ts_ltz) values (2, systimestamp);
+select count(*) as between_cnt from bison_ts_lit
+where ts between TIMESTAMP '2023-04-29 10:00:00' and TIMESTAMP '2023-04-29 11:00:00';
+select count(*) as ltz_cnt from bison_ts_lit where ts_ltz is not null;
+drop table bison_ts_lit;
+
 create table test_array1(id int, idd int[]);
 create table test_array2(id int, idd int[5]);
 create table test_array3(c1 clob[]); --error
