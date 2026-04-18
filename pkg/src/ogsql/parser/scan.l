@@ -1092,24 +1092,28 @@ other            .
                     return process_integer_literal(yytext, yylval, yyscanner);
                 }
 {decimalf}      {
+                    SET_YYLLOC();
                     if (process_binary_float_double(yytext, yyleng, yyscanner, yylval) != OG_SUCCESS) {
                         yyerror("number overflow");
                     }
                     return FCONST_F;
                 }
 {realf}         {
+                    SET_YYLLOC();
                     if (process_binary_float_double(yytext, yyleng, yyscanner, yylval) != OG_SUCCESS) {
                         yyerror("number overflow");
                     }
                     return FCONST_F;
                 }
 {decimald}      {
+                    SET_YYLLOC();
                     if (process_binary_float_double(yytext, yyleng, yyscanner, yylval) != OG_SUCCESS) {
                         yyerror("number overflow");
                     }
                     return FCONST_D;
                 }
 {reald}         {
+                    SET_YYLLOC();
                     if (process_binary_float_double(yytext, yyleng, yyscanner, yylval) != OG_SUCCESS) {
                         yyerror("number overflow");
                     }

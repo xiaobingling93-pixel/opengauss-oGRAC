@@ -64,6 +64,7 @@ select 1.2f;
 select 1.2F;
 select 1.2d;
 select 1.2D;
+select 1.23d, 1.24f;
 
 select 1.79E+308; --error
 select 1.79E+308f;
@@ -135,3 +136,5 @@ insert into test1 values(1.79E+309d, 1.79E+309d); --error
 insert into test1 values(1.79E+309D, 1.79E+309D); --error
 select * from test1;
 drop table test1;
+
+alter system set use_bison_parser = false;

@@ -747,9 +747,6 @@ SQL> drop table char_test;
 Succeed.
 
 SQL> 
-SQL> drop table t_national_character;
-
-OG-00843, [1:32]The table or view SYS.T_NATIONAL_CHARACTER does not exist.
 SQL> create table t_national_character(c1 national character(5));
 
 Succeed.
@@ -758,9 +755,6 @@ SQL> drop table t_national_character;
 
 Succeed.
 
-SQL> drop table test_table;
-
-OG-00843, [1:22]The table or view SYS.TEST_TABLE does not exist.
 SQL> create table test_table(col1 national character(1));
 
 Succeed.
@@ -809,9 +803,6 @@ SQL> drop table test_table;
 
 Succeed.
 
-SQL> drop table t_national_char;
-
-OG-00843, [1:27]The table or view SYS.T_NATIONAL_CHAR does not exist.
 SQL> create table t_national_char(c1 national char(5));
 
 Succeed.
@@ -820,9 +811,6 @@ SQL> drop table t_national_char;
 
 Succeed.
 
-SQL> drop table test_table;
-
-OG-00843, [1:22]The table or view SYS.TEST_TABLE does not exist.
 SQL> create table test_table (col1 national char(1));
 
 Succeed.
@@ -847,9 +835,6 @@ SQL> drop table test_table;
 
 Succeed.
 
-SQL> drop table t_national_character_varying;
-
-OG-00843, [1:40]The table or view SYS.T_NATIONAL_CHARACTER_VARYING does not exist.
 SQL> create table t_national_character_varying(c1 national character varying(5));
 
 Succeed.
@@ -858,9 +843,6 @@ SQL> drop table t_national_character_varying;
 
 Succeed.
 
-SQL> drop table t_national_char_varying;
-
-OG-00843, [1:35]The table or view SYS.T_NATIONAL_CHAR_VARYING does not exist.
 SQL> create table t_national_char_varying(c1 national char varying(5));
 
 Succeed.
@@ -869,9 +851,6 @@ SQL> drop table t_national_char_varying;
 
 Succeed.
 
-SQL> drop table test_table;
-
-OG-00843, [1:22]The table or view SYS.TEST_TABLE does not exist.
 SQL> create table test_table (col1 national char varying(1));
 
 Succeed.
@@ -896,9 +875,6 @@ SQL> drop table test_table;
 
 Succeed.
 
-SQL> drop table t_nchar_varying;
-
-OG-00843, [1:27]The table or view SYS.T_NCHAR_VARYING does not exist.
 SQL> create table t_nchar_varying(c1 nchar varying(5));
 
 Succeed.
@@ -907,9 +883,6 @@ SQL> drop table t_nchar_varying;
 
 Succeed.
 
-SQL> drop table test_tables;
-
-OG-00843, [1:23]The table or view SYS.TEST_TABLES does not exist.
 SQL> create table test_tables(col1 nchar varying(1));
 
 Succeed.
@@ -935,9 +908,6 @@ SQL> drop table test_tables;
 Succeed.
 
 SQL> 
-SQL> drop table c_nclob_1;
-
-OG-00843, [1:21]The table or view SYS.C_NCLOB_1 does not exist.
 SQL> create table c_nclob_1(c1 nclob);
 
 Succeed.
@@ -947,9 +917,6 @@ SQL> drop table c_nclob_1;
 Succeed.
 
 SQL> 
-SQL> drop table nclob_table;
-
-OG-00843, [1:23]The table or view SYS.NCLOB_TABLE does not exist.
 SQL> create table nclob_table(id number, nclob_col nclob);
 
 Succeed.

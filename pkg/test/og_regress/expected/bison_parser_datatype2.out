@@ -276,7 +276,7 @@ SQL> select 1.2;
 
 SQL> select 1.2f;
 
-SELECT 1.2F         
+1.2F                
 --------------------
 1.2                 
 
@@ -284,7 +284,7 @@ SELECT 1.2F
 
 SQL> select 1.2F;
 
-SELECT 1.2F         
+1.2F                
 --------------------
 1.2                 
 
@@ -292,7 +292,7 @@ SELECT 1.2F
 
 SQL> select 1.2d;
 
-SELECT 1.2D         
+1.2D                
 --------------------
 1.2                 
 
@@ -300,9 +300,17 @@ SELECT 1.2D
 
 SQL> select 1.2D;
 
-SELECT 1.2D         
+1.2D                
 --------------------
 1.2                 
+
+1 rows fetched.
+
+SQL> select 1.23d, 1.24f;
+
+1.23D                1.24F               
+-------------------- --------------------
+1.23                 1.24                
 
 1 rows fetched.
 
@@ -312,7 +320,7 @@ SQL> select 1.79E+308; --error
 OG-00636, [1:8]Invalid number -- overflow
 SQL> select 1.79E+308f;
 
-SELECT 1.79E+308F   
+1.79E+308F          
 --------------------
 1.79e+308           
 
@@ -320,7 +328,7 @@ SELECT 1.79E+308F
 
 SQL> select 1.79E+308F;
 
-SELECT 1.79E+308F   
+1.79E+308F          
 --------------------
 1.79e+308           
 
@@ -328,7 +336,7 @@ SELECT 1.79E+308F
 
 SQL> select 1.79E+308d;
 
-SELECT 1.79E+308D   
+1.79E+308D          
 --------------------
 1.79e+308           
 
@@ -336,7 +344,7 @@ SELECT 1.79E+308D
 
 SQL> select 1.79E+308D;
 
-SELECT 1.79E+308D   
+1.79E+308D          
 --------------------
 1.79e+308           
 
@@ -383,31 +391,31 @@ SQL> select 1.79E+309; --error
 OG-00601, [1:8]Sql syntax error: number overflow
 SQL> select 1.79E+309f; --error
 
-OG-00601, [1:1]Sql syntax error: number overflow
+OG-00601, [1:8]Sql syntax error: number overflow
 SQL> select 1.79E+309F; --error
 
-OG-00601, [1:1]Sql syntax error: number overflow
+OG-00601, [1:8]Sql syntax error: number overflow
 SQL> select 1.79E+309d; --error
 
-OG-00601, [1:1]Sql syntax error: number overflow
+OG-00601, [1:8]Sql syntax error: number overflow
 SQL> select 1.79E+309D; --error
 
-OG-00601, [1:1]Sql syntax error: number overflow
+OG-00601, [1:8]Sql syntax error: number overflow
 SQL> select -1.79E+309; --error
 
 OG-00601, [1:9]Sql syntax error: number overflow
 SQL> select -1.79E+309f; --error
 
-OG-00601, [1:8]Sql syntax error: number overflow
+OG-00601, [1:9]Sql syntax error: number overflow
 SQL> select -1.79E+309F; --error
 
-OG-00601, [1:8]Sql syntax error: number overflow
+OG-00601, [1:9]Sql syntax error: number overflow
 SQL> select -1.79E+309d; --error
 
-OG-00601, [1:8]Sql syntax error: number overflow
+OG-00601, [1:9]Sql syntax error: number overflow
 SQL> select -1.79E+309D; --error
 
-OG-00601, [1:8]Sql syntax error: number overflow
+OG-00601, [1:9]Sql syntax error: number overflow
 SQL> 
 SQL> create table testfd(id float);
 
@@ -471,7 +479,7 @@ SQL> select 1.17549E-38;
 
 SQL> select 1.17549E-38F;
 
-SELECT 1.17549E-38F 
+1.17549E-38F        
 --------------------
 1.17549e-38         
 
@@ -479,7 +487,7 @@ SELECT 1.17549E-38F
 
 SQL> select 1.17549E-38f;
 
-SELECT 1.17549E-38F 
+1.17549E-38F        
 --------------------
 1.17549e-38         
 
@@ -487,7 +495,7 @@ SELECT 1.17549E-38F
 
 SQL> select 1.17549E-38D;
 
-SELECT 1.17549E-38D 
+1.17549E-38D        
 --------------------
 1.17549e-38         
 
@@ -495,7 +503,7 @@ SELECT 1.17549E-38D
 
 SQL> select 1.17549E-38d;
 
-SELECT 1.17549E-38D 
+1.17549E-38D        
 --------------------
 1.17549e-38         
 
@@ -512,7 +520,7 @@ SQL> select 1.17549E+38;
 
 SQL> select 1.17549E+38F;
 
-SELECT 1.17549E+38F 
+1.17549E+38F        
 --------------------
 1.17549e+38         
 
@@ -520,7 +528,7 @@ SELECT 1.17549E+38F
 
 SQL> select 1.17549E+38f;
 
-SELECT 1.17549E+38F 
+1.17549E+38F        
 --------------------
 1.17549e+38         
 
@@ -528,7 +536,7 @@ SELECT 1.17549E+38F
 
 SQL> select 1.17549E+38D;
 
-SELECT 1.17549E+38D 
+1.17549E+38D        
 --------------------
 1.17549e+38         
 
@@ -536,7 +544,7 @@ SELECT 1.17549E+38D
 
 SQL> select 1.17549E+38d;
 
-SELECT 1.17549E+38D 
+1.17549E+38D        
 --------------------
 1.17549e+38         
 
@@ -553,7 +561,7 @@ SQL> select 1.23 + 2.4;
 
 SQL> select 1.23f + 2.4d;
 
-SELECT 1.23F + 2.4D 
+1.23F + 2.4D        
 --------------------
 3.63                
 
@@ -561,7 +569,7 @@ SELECT 1.23F + 2.4D
 
 SQL> select 1.23d + 2.4d;
 
-SELECT 1.23D + 2.4D 
+1.23D + 2.4D        
 --------------------
 3.63                
 
@@ -569,7 +577,7 @@ SELECT 1.23D + 2.4D
 
 SQL> select 1.23f + 2.4f;
 
-SELECT 1.23F + 2.4F 
+1.23F + 2.4F        
 --------------------
 3.63                
 
@@ -577,7 +585,7 @@ SELECT 1.23F + 2.4F
 
 SQL> select 1.23d + 2.4f;
 
-SELECT 1.23D + 2.4F 
+1.23D + 2.4F        
 --------------------
 3.63                
 
@@ -637,16 +645,16 @@ SQL> insert into test1 values(1.79E+308D, 1.79E+308D);
 
 SQL> insert into test1 values(1.79E+309f, 1.79E+309f); --error
 
-OG-00601, [1:25]Sql syntax error: number overflow
+OG-00601, [1:26]Sql syntax error: number overflow
 SQL> insert into test1 values(1.79E+309F, 1.79E+309F); --error
 
-OG-00601, [1:25]Sql syntax error: number overflow
+OG-00601, [1:26]Sql syntax error: number overflow
 SQL> insert into test1 values(1.79E+309d, 1.79E+309d); --error
 
-OG-00601, [1:25]Sql syntax error: number overflow
+OG-00601, [1:26]Sql syntax error: number overflow
 SQL> insert into test1 values(1.79E+309D, 1.79E+309D); --error
 
-OG-00601, [1:25]Sql syntax error: number overflow
+OG-00601, [1:26]Sql syntax error: number overflow
 SQL> select * from test1;
 
 ID                   ID2                 
@@ -659,6 +667,11 @@ ID                   ID2
 4 rows fetched.
 
 SQL> drop table test1;
+
+Succeed.
+
+SQL> 
+SQL> alter system set use_bison_parser = false;
 
 Succeed.
 
