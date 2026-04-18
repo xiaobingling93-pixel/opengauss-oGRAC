@@ -6,6 +6,7 @@ import sys
 import json
 import stat
 import hashlib
+import re
 
 
 CUR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -44,10 +45,12 @@ _module_config_cache = None
 _deploy_params_cache = None
 
 
-def _derive_instance_tag(ograc_home):
+def _derive_instance_tag(ograc_home, user):
     real_home = os.path.realpath(ograc_home)
-    digest = hashlib.sha256(real_home.encode("utf-8")).hexdigest()
-    return digest[:8]
+    instance_key = f"{user}:{real_home}"
+    digest = hashlib.sha256(instance_key.encode("utf-8")).hexdigest()
+    safe_user = re.sub(r"[^A-Za-z0-9_.-]+", "-", str(user or "ograc")).strip("-") or "ograc"
+    return f"{safe_user}-{digest[:10]}"
 
 
 def _load_config_params_lun_raw():
@@ -92,15 +95,16 @@ def load_env_defaults():
     """Derive user/group/common_group/ogmgr_user from module_config."""
     mc = _get_module_config()
     user = os.environ.get("OGRAC_USER") or mc.get("user") or "ograc"
-    group = os.environ.get("OGRAC_GROUP", user)
+    group = os.environ.get("OGRAC_GROUP") or mc.get("group") or user
     common_group = f"{user}group"
     ogmgr_user = f"{user}mgr"
+    nfs_port = os.environ.get("NFS_PORT") or mc.get("nfs_port") or _DEFAULT_NFS_PORT
     return {
         "ograc_user": user,
         "ograc_group": group,
         "ograc_common_group": common_group,
         "ogmgr_user": ogmgr_user,
-        "nfs_port": _DEFAULT_NFS_PORT,
+        "nfs_port": nfs_port,
     }
 
 
@@ -138,7 +142,7 @@ class PathConfig:
         self.data_root = data_root
         self.user = user
         self.instance = InstanceConfig(user)
-        self.instance_tag = _derive_instance_tag(ograc_home)
+        self.instance_tag = _derive_instance_tag(ograc_home, user)
 
         self.action_dir = os.path.join(ograc_home, "action")
         self.config_dir = os.path.join(ograc_home, "config")
@@ -158,7 +162,8 @@ class PathConfig:
         self.stop_enable = os.path.join(ograc_home, "stop.enable")
         self.upgrade_backup_root = os.path.join(ograc_home, "upgrade_backup")
         self.deploy_log_dir = os.path.join(ograc_home, "log", "deploy")
-        self.deploy_daemon_log = os.path.join(self.deploy_log_dir, "deploy_daemon.log")
+        self.deploy_daemon_log = os.path.join(
+            self.deploy_log_dir, f"deploy_daemon_{self.instance_tag}.log")
         self.ograc_service_script = os.path.join(self.common_script_dir, "ograc_service.sh")
         self.ograc_daemon_script = os.path.join(self.common_script_dir, "ograc_daemon.sh")
         self.rerun_script = os.path.join(self.common_script_dir, "rerun.sh")
@@ -271,6 +276,10 @@ class DeployConfig:
     def raw_params(self):
         return dict(self._params)
 
+    @property
+    def nfs_port(self):
+        return self._params.get("nfs_port", self._env.get("nfs_port", _DEFAULT_NFS_PORT))
+
     def write_param(self, key, value):
         self._params[key] = value
         raw = _load_config_params_lun_raw()
@@ -345,6 +354,7 @@ if __name__ == "__main__":
         if param == "--shell-env":
             _cfg = get_config()
             print(f'OGRAC_HOME="{_cfg.paths.ograc_home}"')
+            print(f'OGRAC_DATA_ROOT="{_cfg.paths.data_root}"')
             print(f'OGRAC_ACTION_DIR="{_cfg.paths.action_dir}"')
             print(f'COMMON_SCRIPT_DIR="{_cfg.paths.common_script_dir}"')
             print(f'DEPLOY_LOG_DIR="{_cfg.logs.log_dir("deploy")}"')
@@ -352,9 +362,11 @@ if __name__ == "__main__":
             print(f'DEPLOY_DAEMON_LOG="{_cfg.paths.deploy_daemon_log}"')
             print(f'OGRAC_USER="{_cfg.deploy.ograc_user}"')
             print(f'OGRAC_GROUP="{_cfg.deploy.ograc_group}"')
+            print(f'OGRAC_INSTANCE_TAG="{_cfg.paths.instance_tag}"')
             print(f'OGRAC_DAEMON_SERVICE="{_cfg.paths.daemon_service_unit}"')
             print(f'OGRAC_DAEMON_TIMER="{_cfg.paths.daemon_timer_unit}"')
             print(f'OGRAC_LOGS_SERVICE="{_cfg.paths.logs_service_unit}"')
             print(f'OGRAC_LOGS_TIMER="{_cfg.paths.logs_timer_unit}"')
+            print(f'NFS_PORT="{_cfg.deploy.nfs_port}"')
         else:
             print(get_value(param))

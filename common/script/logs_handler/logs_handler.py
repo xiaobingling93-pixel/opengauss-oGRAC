@@ -2,14 +2,44 @@ import os
 import json
 import subprocess
 import signal
+import importlib.util
 from pathlib import Path
 from logs_tool.log import LOGS_HANDLER_LOG as LOG
 
 CUR_PATH, _ = os.path.split(os.path.abspath(__file__))
-PKG_DIR = os.path.abspath(os.path.join(CUR_PATH, "../../.."))
 TIME_OUT = 300
 FAIL = 1
-ENV_FILE = str(Path(os.path.join(PKG_DIR, "action", "storage_deploy", "env.sh")))
+
+
+def _resolve_action_config():
+    candidates = []
+    action_dir = os.environ.get("OGRAC_ACTION_DIR")
+    if action_dir:
+        candidates.append(Path(action_dir) / "config.py")
+
+    root_dir = Path(CUR_PATH).resolve().parents[2]
+    candidates.append(root_dir / "action" / "config.py")
+    candidates.append(root_dir / "pkg" / "deploy" / "action" / "config.py")
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError("new-flow action/config.py not found for logs handler")
+
+
+def _load_runtime_cfg():
+    action_config = _resolve_action_config()
+    spec = importlib.util.spec_from_file_location("_ograc_action_config", action_config)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.get_config()
+
+
+CFG = _load_runtime_cfg()
+OGRAC_HOME = CFG.paths.ograc_home
+DEPLOY_USER = CFG.deploy.ograc_user
+DEPLOY_GROUP = CFG.deploy.ograc_group
+OGMGR_USER = CFG.deploy.ogmgr_user
 
 
 def file_reader(data_path):
@@ -19,17 +49,23 @@ def file_reader(data_path):
 
 
 def get_param_value(param):
-    with open(ENV_FILE, 'r', encoding='utf-8') as file:
-        env_config = file.readlines()
     if param == "deploy_user":
-        for line in env_config:
-            if line.startswith("ograc_user"):
-                return line.split("=")[1].strip("\n").strip('"')
+        return DEPLOY_USER
     if param == "deploy_group":
-        for line in env_config:
-            if line.startswith("ograc_group"):
-                return line.split("=")[1].strip("\n").strip('"')
+        return DEPLOY_GROUP
     return ""
+
+
+def resolve_log_path(log_file_dir):
+    if log_file_dir.startswith("${OGRAC_HOME}"):
+        return log_file_dir.replace("${OGRAC_HOME}", OGRAC_HOME, 1)
+    return log_file_dir
+
+
+def resolve_user_and_group(user_and_group):
+    if user_and_group == "deploy_user":
+        return f"{DEPLOY_USER}:{DEPLOY_GROUP}"
+    return user_and_group.replace("ogmgruser", OGMGR_USER)
 
 
 def get_file_creation_time(file_path):
@@ -106,10 +142,10 @@ class LogsHandler:
 
     def execute(self):
         for item in self.config_params:
-            user = item.get('userandgroup') if \
-                item.get('userandgroup') != "deploy_user" else self.deploy_user
+            user = resolve_user_and_group(item.get('userandgroup', self.deploy_user))
             self.user_name = user.split(':')[0]
-            log_file_dir, max_log_vol = item.get('log_file_dir'), int(item.get('max_log_vol'))
+            log_file_dir = resolve_log_path(item.get('log_file_dir'))
+            max_log_vol = int(item.get('max_log_vol'))
             if os.path.exists("/.dockerenv"):
                 max_log_vol //= 2
             # 分离日志目录和日志名
