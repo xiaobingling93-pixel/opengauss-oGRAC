@@ -11,8 +11,12 @@ set +x
 CURRENT_PATH=$(dirname "$(readlink -f "$0")")
 LOCK_DIR="/tmp/ograc_deploy_lock"
 
-eval "$(python3 "${CURRENT_PATH}/config.py" --shell-env 2>/dev/null)"
-OGRAC_HOME="${OGRAC_HOME:-/opt/ograc}"
+SHELL_ENV=$(python3 "${CURRENT_PATH}/config.py" --shell-env 2>/dev/null)
+if [ $? -ne 0 ]; then
+    echo "[ERROR] failed to load new-flow config from ${CURRENT_PATH}/config.py" >&2
+    exit 1
+fi
+eval "${SHELL_ENV}"
 DEPLOY_LOG_DIR="${DEPLOY_LOG_DIR:-${OGRAC_HOME}/log/deploy}"
 OM_DEPLOY_LOG_FILE="${OM_DEPLOY_LOG_FILE:-${DEPLOY_LOG_DIR}/deploy.log}"
 mkdir -p "${DEPLOY_LOG_DIR}"
@@ -54,8 +58,15 @@ if os.path.isfile(f):
 " 2>/dev/null)
 
 if [[ "${deploy_mode}" == "dbstor" ]] || [[ "${deploy_mode}" == "combined" ]]; then
-    log_info "deploy_mode=${deploy_mode}, routing to storage_deploy flow"
-    exec sh "${STORAGE_DEPLOY}/appctl.sh" "${ACTION}" "$@"
+    case "${ACTION}" in
+        pre_install|install|start|stop|check_status|uninstall)
+            log_info "deploy_mode=${deploy_mode}, keeping daemon lifecycle on new flow"
+            ;;
+        *)
+            log_info "deploy_mode=${deploy_mode}, routing non-daemon action to storage_deploy flow"
+            exec sh "${STORAGE_DEPLOY}/appctl.sh" "${ACTION}" "$@"
+            ;;
+    esac
 fi
 
 case "${ACTION}" in

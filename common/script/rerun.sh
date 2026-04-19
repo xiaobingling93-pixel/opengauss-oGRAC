@@ -1,83 +1,89 @@
+#!/bin/bash
 
 set +x
-CURRENT_PATH=$(dirname $(readlink -f $0))
-SCRIPT_NAME=${PARENT_DIR_NAME}/$(basename $0)
-source ${CURRENT_PATH}/log4sh.sh
-LOCK_NAME="/opt/ograc/common/script/rerun.lock"
+CURRENT_PATH=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+SCRIPT_NAME=$(basename "${BASH_SOURCE[0]}")
+ACTION_CONFIG="${CURRENT_PATH}/../../action/config.py"
+if [ ! -f "${ACTION_CONFIG}" ]; then
+    echo "[ERROR] new-flow config.py not found: ${ACTION_CONFIG}" >&2
+    exit 1
+fi
+SHELL_ENV=$(python3 "${ACTION_CONFIG}" --shell-env 2>/dev/null)
+if [ $? -ne 0 ]; then
+    echo "[ERROR] failed to load new-flow config from ${ACTION_CONFIG}" >&2
+    exit 1
+fi
+eval "${SHELL_ENV}"
 
+COMMON_SCRIPT_DIR="${COMMON_SCRIPT_DIR:-${CURRENT_PATH}}"
+LOCK_NAME="${COMMON_SCRIPT_DIR}/rerun.${OGRAC_INSTANCE_TAG}.lock"
+
+source "${CURRENT_PATH}/log4sh.sh"
+
+run_systemctl()
+{
+    local action="$1"
+    local unit="$2"
+    systemctl "${action}" "${unit}"
+    local ret=$?
+    if [ ${ret} -eq 0 ]; then
+        logAndEchoInfo "[rerun] systemctl ${action} ${unit} success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    else
+        logAndEchoError "[rerun] systemctl ${action} ${unit} failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    fi
+    return ${ret}
+}
+
+with_lock()
+{
+    if ( set -o noclobber; echo "$$" > "${LOCK_NAME}") 2> /dev/null; then
+        trap 'rm -f "${LOCK_NAME}"; exit $?' INT TERM EXIT
+        "$@"
+        local ret=$?
+        rm -f "${LOCK_NAME}"
+        trap - INT TERM EXIT
+        return ${ret}
+    fi
+
+    logAndEchoError "Failed to acquire lockfile: ${LOCK_NAME}. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    [ -f "${LOCK_NAME}" ] && logAndEchoError "Held by $(cat "${LOCK_NAME}"). [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    return 1
+}
+
+start_units()
+{
+    logAndEchoInfo "[rerun] begin to start instance timers. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    systemctl daemon-reload || return 1
+    run_systemctl start "${OGRAC_DAEMON_TIMER}" || return 1
+    run_systemctl enable "${OGRAC_DAEMON_TIMER}" || return 1
+    run_systemctl start "${OGRAC_LOGS_TIMER}" || return 1
+    run_systemctl enable "${OGRAC_LOGS_TIMER}" || return 1
+}
+
+stop_units()
+{
+    logAndEchoInfo "[rerun] begin to stop instance timers. [Line:${LINENO}, File:${SCRIPT_NAME}]"
+    systemctl daemon-reload || return 1
+    run_systemctl stop "${OGRAC_LOGS_TIMER}" || return 1
+    run_systemctl disable "${OGRAC_LOGS_TIMER}" || return 1
+    run_systemctl stop "${OGRAC_DAEMON_TIMER}" || return 1
+    run_systemctl disable "${OGRAC_DAEMON_TIMER}" || return 1
+    run_systemctl stop "${OGRAC_LOGS_SERVICE}" || true
+    run_systemctl stop "${OGRAC_DAEMON_SERVICE}" || true
+}
 
 ACTION=$1
-case "$ACTION" in
+case "${ACTION}" in
     start)
-        if ( set -o noclobber; echo "$$" > "$LOCK_NAME") 2> /dev/null;then
-            trap 'rm -f "$LOCK_NAME"; exit $?' INT TERM EXIT
-            ### 开始正常流程
-            logAndEchoInfo "[rerun] begin to start service. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            systemctl daemon-reload
-
-            systemctl start ograc.timer
-            if [ $? -eq 0 ]; then
-                logAndEchoInfo "[rerun] start ograc.timer success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            else
-                logAndEchoError "[rerun] start ograc.timer failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-                exit 1
-            fi
-            systemctl status ograc.timer
-
-
-            systemctl enable ograc.timer
-            if [ $? -eq 0 ]; then
-                logAndEchoInfo "[rerun] enable ograc.timer success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            else
-                logAndEchoError "[rerun] enable ograc.timer failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-                exit 1
-            fi
-            systemctl is-enabled ograc.timer
-
-            ### 正常流程结束
-
-            ### Removing lock
-            rm -f $LOCK_NAME
-            trap - INT TERM EXIT
-        else
-            logAndEchoError "Failed to acquire lockfile: $LOCK_NAME. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            logAndEchoError "Held by $(cat $LOCK_NAME). [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            logAndEchoError "rerun start failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            exit 1
-        fi
-
+        with_lock start_units
         exit $?
         ;;
     stop)
-        if ( set -o noclobber; echo "$$" > "$LOCK_NAME") 2> /dev/null;then
-            trap 'rm -f "$LOCK_NAME"; exit $?' INT TERM EXIT
-
-            logAndEchoInfo "[rerun] begin to stop service. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-
-            ### 开始正常流程
-            sh /opt/ograc/action/appctl.sh stop
-            if [ $? -eq 0 ]; then
-                logAndEchoInfo "[rerun] stop service success. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            else
-                logAndEchoError "[rerun] stop service failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-                exit 1
-            fi
-            ### 正常流程结束
-
-            ### Removing lock
-            rm -f $LOCK_NAME
-            trap - INT TERM EXIT
-        else
-            logAndEchoError "Failed to acquire lockfile: $LOCK_NAME. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            logAndEchoError "Held by $(cat $LOCK_NAME). [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            logAndEchoError "rerun stop failed. [Line:${LINENO}, File:${SCRIPT_NAME}]"
-            exit 1
-        fi
-
-
+        with_lock stop_units
         exit $?
         ;;
     *)
         echo "action not support"
+        exit 1
         ;;
 esac

@@ -58,6 +58,9 @@ def setup(project_name):
         log_root.setLevel(logging.INFO)
     return log_root
 
-
-LOGS_HANDLER_LOG = setup("ograc_logs_handler")
-os.chmod(f'{str(Path(log_config.get("log_dir"), "ograc_logs_handler.log"))}', 0o640)
+_instance_tag = os.environ.get("OGRAC_INSTANCE_TAG", "").strip()
+_project_name = f"ograc_logs_handler_{_instance_tag}" if _instance_tag else "ograc_logs_handler"
+LOGS_HANDLER_LOG = setup(_project_name)
+_log_file_path = _get_log_file_path(_project_name)
+if _log_file_path and os.path.exists(_log_file_path):
+    os.chmod(_log_file_path, 0o640)

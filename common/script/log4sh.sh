@@ -1,28 +1,34 @@
 #!/bin/bash
 set +x
 
-OM_DEPLOY_LOG_PATH=/opt/ograc/log/deploy
-OM_DEPLOY_LOG_FILE=/opt/ograc/log/deploy/deploy_daemon.log
-CURRENT_PATH=$(dirname $(readlink -f $0))
-SCRIPT_NAME=${CURRENT_PATH}/$(basename $0)
+CURRENT_PATH=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ACTION_CONFIG="${CURRENT_PATH}/../../action/config.py"
+if [ -f "${ACTION_CONFIG}" ]; then
+    eval "$(python3 "${ACTION_CONFIG}" --shell-env 2>/dev/null)"
+fi
+
+OGRAC_HOME="${OGRAC_HOME:-$(cd "${CURRENT_PATH}/../.." && pwd)}"
+OM_DEPLOY_LOG_PATH="${DEPLOY_LOG_DIR:-${OGRAC_HOME}/log/deploy}"
+OM_DEPLOY_LOG_FILE="${DEPLOY_DAEMON_LOG:-${OM_DEPLOY_LOG_FILE:-${OM_DEPLOY_LOG_PATH}/deploy_daemon.log}}"
+SCRIPT_NAME=${CURRENT_PATH}/$(basename "${BASH_SOURCE[0]}")
 LOG_MOD=640
 LOG_MOD_STR='rw-r-----'
 
 initLog4sh()
 {
-    if [ ! -d ${OM_DEPLOY_LOG_PATH} ]; then
-        mkdir ${OM_DEPLOY_LOG_PATH}
+    if [ ! -d "${OM_DEPLOY_LOG_PATH}" ]; then
+        mkdir -p "${OM_DEPLOY_LOG_PATH}"
     fi
-    if [ ! -f ${OM_DEPLOY_LOG_FILE} ];then
-        touch ${OM_DEPLOY_LOG_FILE}
-        chmod 640 ${OM_DEPLOY_LOG_FILE}
+    if [ ! -f "${OM_DEPLOY_LOG_FILE}" ];then
+        touch "${OM_DEPLOY_LOG_FILE}"
+        chmod 640 "${OM_DEPLOY_LOG_FILE}"
     fi
     # 修改日志文件权限
-    file_mod=`ls -l ${OM_DEPLOY_LOG_FILE} | awk '{print $1}'`
+    file_mod=$(ls -l "${OM_DEPLOY_LOG_FILE}" | awk '{print $1}')
     if [[ ! "${file_mod}" =~ ${LOG_MOD_STR} ]]; then
-        chmod ${LOG_MOD} ${OM_DEPLOY_LOG_FILE}
+        chmod ${LOG_MOD} "${OM_DEPLOY_LOG_FILE}"
         if [ $? -ne 0 ]; then
-            logAndEchoError "correct ${OM_DEPLOY_LOG_FILE} mod failed"
+            logAndEchoError "correct ${OM_DEPLOY_LOG_FILE} mode failed"
             exit 1
         fi
     fi
@@ -30,18 +36,18 @@ initLog4sh()
 
 _logInfo() {
     initLog4sh;
-    printf "[%s] [%s] [%-5d] [%s] " "`date -d today \"+%Y-%m-%d %H:%M:%S,%N %z\"`" "INFO" "$$" "$(basename ${BASH_SOURCE[2]}) ${BASH_LINENO[1]}" 1>> ${OM_DEPLOY_LOG_FILE} 2>&1; echo "$@" 1>> ${OM_DEPLOY_LOG_FILE} 2>&1;
+    printf "[%s] [%s] [%-5d] [%s] " "$(date "+%Y-%m-%d %H:%M:%S,%N %z")" "INFO" "$$" "$(basename "${BASH_SOURCE[2]}") ${BASH_LINENO[1]}" 1>> "${OM_DEPLOY_LOG_FILE}" 2>&1; echo "$@" 1>> "${OM_DEPLOY_LOG_FILE}" 2>&1;
 }
 
 _logWarn() {
     initLog4sh;
-    printf "[%s] [%s] [%-5d] [%s] " "`date -d today \"+%Y-%m-%d %H:%M:%S,%N %z\"`" "WARN" "$$" "$(basename ${BASH_SOURCE[2]}) ${BASH_LINENO[1]}" 1>> ${OM_DEPLOY_LOG_FILE} 2>&1; echo "$@" 1>> ${OM_DEPLOY_LOG_FILE} 2>&1;
+    printf "[%s] [%s] [%-5d] [%s] " "$(date "+%Y-%m-%d %H:%M:%S,%N %z")" "WARN" "$$" "$(basename "${BASH_SOURCE[2]}") ${BASH_LINENO[1]}" 1>> "${OM_DEPLOY_LOG_FILE}" 2>&1; echo "$@" 1>> "${OM_DEPLOY_LOG_FILE}" 2>&1;
 
 }
 
 _logError() {
     initLog4sh;
-    printf "[%s] [%s] [%-5d] [%s] " "`date -d today \"+%Y-%m-%d %H:%M:%S,%N %z\"`" "ERROR" "$$" "$(basename ${BASH_SOURCE[2]}) ${BASH_LINENO[1]}" 1>> ${OM_DEPLOY_LOG_FILE} 2>&1; echo "$@" 1>> ${OM_DEPLOY_LOG_FILE} 2>&1;
+    printf "[%s] [%s] [%-5d] [%s] " "$(date "+%Y-%m-%d %H:%M:%S,%N %z")" "ERROR" "$$" "$(basename "${BASH_SOURCE[2]}") ${BASH_LINENO[1]}" 1>> "${OM_DEPLOY_LOG_FILE}" 2>&1; echo "$@" 1>> "${OM_DEPLOY_LOG_FILE}" 2>&1;
 }
 logInfo() { _logInfo "$@"; }
 logWarn() { _logWarn "$@"; }

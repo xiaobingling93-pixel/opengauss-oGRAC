@@ -848,18 +848,21 @@ echo "Product Version : {version}"
         """Generate systemd unit files from cfg.paths."""
         service_script = self.paths.ograc_service_script
         logs_script = os.path.join(self.paths.common_script_dir, "logs_handler", "execute.py")
+        env_lines = self._build_systemd_env_lines()
         units = {
             self.paths.daemon_service_unit: (
                 "[Unit]\n"
-                "Description=ograc daemon service\n\n"
+                f"Description=ograc daemon service ({self.paths.instance_tag})\n\n"
                 "[Service]\n"
-                "Type=simple\n"
+                "Type=oneshot\n"
                 "KillMode=process\n"
+                f"WorkingDirectory={self.paths.ograc_home}\n"
+                f"{env_lines}"
                 f"ExecStart=/bin/bash {service_script} start\n"
             ),
             self.paths.daemon_timer_unit: (
                 "[Unit]\n"
-                "Description=Run every 60s and on boot\n\n"
+                f"Description=Run daemon guard every 60s ({self.paths.instance_tag})\n\n"
                 "[Timer]\n"
                 f"Unit={self.paths.daemon_service_unit}\n"
                 "OnBootSec=2min\n"
@@ -869,15 +872,17 @@ echo "Product Version : {version}"
             ),
             self.paths.logs_service_unit: (
                 "[Unit]\n"
-                "Description=regularly clean up the logs of each module of ograc\n\n"
+                f"Description=regularly clean up ograc logs ({self.paths.instance_tag})\n\n"
                 "[Service]\n"
-                "Type=simple\n"
+                "Type=oneshot\n"
                 "KillMode=process\n"
-                f"ExecStart=/bin/python3 {logs_script}\n"
+                f"WorkingDirectory={self.paths.ograc_home}\n"
+                f"{env_lines}"
+                f"ExecStart=/usr/bin/python3 {logs_script}\n"
             ),
             self.paths.logs_timer_unit: (
                 "[Unit]\n"
-                "Description=Run every 60min and on boot\n\n"
+                f"Description=Run logs handler every 60min ({self.paths.instance_tag})\n\n"
                 "[Timer]\n"
                 f"Unit={self.paths.logs_service_unit}\n"
                 "OnBootSec=2min\n"
@@ -894,6 +899,28 @@ echo "Product Version : {version}"
                 os.chmod(path, 0o644)
             except OSError as e:
                 LOG.warning("Failed to write %s: %s", path, e)
+
+    def _build_systemd_env_lines(self):
+        env_map = {
+            "OGRAC_HOME": self.paths.ograc_home,
+            "OGRAC_DATA_ROOT": self.paths.data_root,
+            "OGRAC_ACTION_DIR": self.paths.action_dir,
+            "COMMON_SCRIPT_DIR": self.paths.common_script_dir,
+            "OGRAC_USER": self.ograc_user,
+            "OGRAC_GROUP": self.ograc_group,
+            "OGRAC_INSTANCE_TAG": self.paths.instance_tag,
+            "OGRAC_DAEMON_SERVICE": self.paths.daemon_service_unit,
+            "OGRAC_DAEMON_TIMER": self.paths.daemon_timer_unit,
+            "OGRAC_LOGS_SERVICE": self.paths.logs_service_unit,
+            "OGRAC_LOGS_TIMER": self.paths.logs_timer_unit,
+            "DEPLOY_DAEMON_LOG": self.paths.deploy_daemon_log,
+            "NFS_PORT": str(self.deploy.nfs_port),
+        }
+        lines = []
+        for key, value in env_map.items():
+            escaped = str(value).replace("\\", "\\\\").replace('"', '\\"')
+            lines.append(f'Environment="{key}={escaped}"\n')
+        return "".join(lines)
 
     def _cleanup_legacy_systemd_units(self):
         legacy_pairs = (
