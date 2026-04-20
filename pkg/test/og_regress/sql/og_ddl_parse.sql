@@ -50,3 +50,12 @@ FROM SYS.DB_TAB_PARTITIONS X
                     ON X.PARTITION_NAME = Z.PARENTPART_NAME;
 
 DROP TABLE IF EXISTS T_RG_HS_01;
+
+DROP TABLE IF EXISTS native_pk_desc_idx_t;
+CREATE TABLE native_pk_desc_idx_t (
+    a INT PRIMARY KEY,
+    b INT
+);
+CREATE INDEX native_pk_desc_idx_1 ON native_pk_desc_idx_t(a DESC);
+CREATE INDEX native_pk_desc_idx_2 ON native_pk_desc_idx_t(a DESC); -- error
+DROP TABLE IF EXISTS native_pk_desc_idx_t;

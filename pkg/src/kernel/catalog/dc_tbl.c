@@ -372,6 +372,57 @@ static status_t dc_convert_column(knl_session_t *session, knl_cursor_t *cursor, 
 * Return Value    : void
 * History         : 1. 2017/4/26,  add description
 */
+static inline uint8 dc_get_index_col_dir(uint8 col_dir)
+{
+    return col_dir == SORT_MODE_DESC ? SORT_MODE_DESC : SORT_MODE_ASC;
+}
+
+static status_t dc_decode_index_col_token(text_t *col_text, uint16 *col_id, uint8 *col_dir)
+{
+    int32 encoded_col_id = 0;
+    status_t status;
+    text_t token = *col_text;
+    text_t id_text;
+    text_t dir_text;
+
+    cm_trim_text(&token);
+    status = cm_text2int(&token, &encoded_col_id);
+    if (status != OG_SUCCESS) {
+        /*
+         * Keep catalog loading backward compatible. Older or tool-generated
+         * metadata may still expose a plain column id token or a token with
+         * an explicit ASC/DESC suffix.
+         */
+        if (!cm_fetch_text(&token, ' ', '\0', &id_text) || cm_text2int(&id_text, &encoded_col_id) != OG_SUCCESS) {
+            *col_id = 0;
+            *col_dir = SORT_MODE_ASC;
+            return OG_ERROR;
+        }
+
+        cm_trim_text(&token);
+        dir_text = token;
+        if (dir_text.len > 0 && cm_text_str_equal_ins(&dir_text, "DESC")) {
+            *col_id = (uint16)encoded_col_id;
+            *col_dir = SORT_MODE_DESC;
+            return OG_SUCCESS;
+        }
+
+        *col_id = (uint16)encoded_col_id;
+        *col_dir = SORT_MODE_ASC;
+        return OG_SUCCESS;
+    }
+
+    if (encoded_col_id < 0) {
+        encoded_col_id = -encoded_col_id - 1;
+        *col_dir = SORT_MODE_DESC;
+    } else {
+        *col_dir = SORT_MODE_ASC;
+    }
+
+    *col_id = (uint16)encoded_col_id;
+    return OG_SUCCESS;
+}
+
 void dc_convert_column_list(uint32 col_count, text_t *column_list, uint16 *cols)
 {
     uint32 i;
@@ -384,10 +435,34 @@ void dc_convert_column_list(uint32 col_count, text_t *column_list, uint16 *cols)
     }
 }
 
+static void dc_convert_index_column_list(uint32 col_count, text_t *column_list, uint16 *cols, uint8 *col_dirs,
+                                         bool8 *is_dsc)
+{
+    text_t col_id;
+
+    *is_dsc = OG_FALSE;
+    for (uint32 i = 0; i < col_count; i++) {
+        if (!cm_fetch_text(column_list, ',', '\0', &col_id)) {
+            continue;
+        }
+
+        if (dc_decode_index_col_token(&col_id, &cols[i], &col_dirs[i]) != OG_SUCCESS) {
+            cols[i] = 0;
+            col_dirs[i] = SORT_MODE_ASC;
+            continue;
+        }
+
+        if (dc_get_index_col_dir(col_dirs[i]) == SORT_MODE_DESC) {
+            *is_dsc = OG_TRUE;
+        }
+    }
+}
+
 void dc_convert_index(knl_session_t *session, knl_cursor_t *cursor, knl_index_desc_t *desc)
 {
     text_t text;
     text_t column_list;
+    errno_t ret;
 
     desc->uid = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_INDEX_COLUMN_ID_USER);
     desc->table_id = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_INDEX_COLUMN_ID_TABLE);
@@ -406,9 +481,9 @@ void dc_convert_index(knl_session_t *session, knl_cursor_t *cursor, knl_index_de
     desc->flags = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_INDEX_COLUMN_ID_FLAGS);
     desc->parted = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_INDEX_COLUMN_ID_PARTITIONED);
     desc->pctfree = *(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_INDEX_COLUMN_ID_PCTFREE);
-    desc->is_dsc = OG_FALSE;
-
-    dc_convert_column_list(desc->column_count, &column_list, desc->columns);
+    ret = memset_sp(desc->col_dirs, sizeof(desc->col_dirs), SORT_MODE_ASC, sizeof(desc->col_dirs));
+    knl_securec_check(ret);
+    dc_convert_index_column_list(desc->column_count, &column_list, desc->columns, desc->col_dirs, &desc->is_dsc);
 
     desc->seg_scn = desc->org_scn;
     desc->is_enforced = desc->is_cons;
@@ -2166,7 +2241,6 @@ static status_t dc_convert_icol_desc(knl_session_t *session, dc_entity_t *entity
 {
     knl_icol_info_t *icol_info;
     knl_column_t *idx_column;
-    knl_column_t *arg_column = NULL;
     uint32 col_id = 0;
     text_t vcol_name;
     text_t left;
@@ -2200,12 +2274,11 @@ static status_t dc_convert_icol_desc(knl_session_t *session, dc_entity_t *entity
 
         icol_info->arg_cols[0] = (uint16)col_id;
 
-        arg_column = dc_get_column(entity, icol_info->arg_cols[0]);
         icol_info->is_func = OG_TRUE;
-        icol_info->is_dsc = KNL_COLUMN_IS_DESCEND(arg_column);
+        icol_info->is_dsc = dc_get_index_col_dir(index->desc.col_dirs[icol_pos]) == SORT_MODE_DESC;
     } else {
         icol_info->is_func = OG_FALSE;
-        icol_info->is_dsc = KNL_COLUMN_IS_DESCEND(idx_column);
+        icol_info->is_dsc = dc_get_index_col_dir(index->desc.col_dirs[icol_pos]) == SORT_MODE_DESC;
     }
 
     return OG_SUCCESS;
@@ -2742,7 +2815,7 @@ static status_t dc_load_cons_index(knl_session_t *session, knl_cursor_t *cursor,
                 continue;
             }
 
-            if (db_index_columns_matched(session, &index->desc, entity, NULL, col_count, col_ids)) {
+            if (db_index_columns_matched(session, &index->desc, entity, NULL, col_count, col_ids, OG_FALSE)) {
                 found = OG_TRUE;
                 break;
             }

@@ -83,6 +83,11 @@ typedef struct st_ptrans_match_cond {
 
 static status_t db_clean_shadow_index(knl_session_t *session, uint32 user_id, uint32 table_id, bool32 clean_segment);
 
+static inline uint8 db_get_index_col_dir(const knl_index_desc_t *desc, uint32 col_pos)
+{
+    return desc->col_dirs[col_pos] == SORT_MODE_DESC ? SORT_MODE_DESC : SORT_MODE_ASC;
+}
+
 status_t db_invalid_cursor_operation(knl_session_t *session, knl_cursor_t *cursor)
 {
     OG_THROW_ERROR(ERR_CAPABILITY_NOT_SUPPORT, "invalid operation on view or external table");
@@ -1745,7 +1750,7 @@ static status_t db_alloc_index_id(dc_entity_t *entity, knl_index_def_t *def, uin
  * History         : 1. 2017/4/26,  add description
  */
 bool32 db_index_columns_matched(knl_session_t *session, knl_index_desc_t *desc, dc_entity_t *entity,
-                                knl_handle_t def_cols, uint32 col_count, uint16 *columns)
+                                knl_handle_t def_cols, uint32 col_count, uint16 *columns, bool32 compare_column_mode)
 {
     uint32 i;
     knl_index_col_def_t *index_col = NULL;
@@ -1776,9 +1781,88 @@ bool32 db_index_columns_matched(knl_session_t *session, knl_index_desc_t *desc, 
                 return OG_FALSE;
             }
         }
+
+        if (!compare_column_mode || def_cols == NULL) {
+            continue;
+        }
+
+        def_columns = (galist_t *)def_cols;
+        index_col = (knl_index_col_def_t *)cm_galist_get(def_columns, i);
+        if (db_get_index_col_dir(desc, i) != (index_col->mode == SORT_MODE_DESC ? SORT_MODE_DESC : SORT_MODE_ASC)) {
+            return OG_FALSE;
+        }
     }
 
     return OG_TRUE;
+}
+
+static status_t db_find_exact_index_in_catalog(knl_session_t *session, knl_index_desc_t *desc,
+                                               char *matched_name, uint32 matched_name_size, bool32 *found)
+{
+    knl_cursor_t *cursor = NULL;
+    text_t requested_col_list;
+    text_t stored_col_list;
+    text_t index_name;
+    char requested_col_buf[COLUMN_LIST_BUF_LEN];
+
+    *found = OG_FALSE;
+    if (desc->is_func) {
+        return OG_SUCCESS;
+    }
+
+    requested_col_list.str = requested_col_buf;
+    requested_col_list.len = 0;
+    if (db_encode_index_column_list(&requested_col_list, COLUMN_LIST_BUF_LEN, desc) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+
+    CM_SAVE_STACK(session->stack);
+    cursor = knl_push_cursor(session);
+    knl_open_sys_cursor(session, cursor, CURSOR_ACTION_SELECT, SYS_INDEX_ID, IX_SYS_INDEX_001_ID);
+    knl_init_index_scan(cursor, OG_FALSE);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, OG_TYPE_INTEGER, (char *)&desc->uid,
+                     sizeof(uint32), IX_COL_SYS_INDEX_001_USER);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.l_key, OG_TYPE_INTEGER, (char *)&desc->table_id,
+                     sizeof(uint32), IX_COL_SYS_INDEX_001_TABLE);
+    knl_set_key_flag(&cursor->scan_range.l_key, SCAN_KEY_LEFT_INFINITE, IX_COL_SYS_INDEX_001_ID);
+
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, OG_TYPE_INTEGER, (char *)&desc->uid,
+                     sizeof(uint32), IX_COL_SYS_INDEX_001_USER);
+    knl_set_scan_key(INDEX_DESC(cursor->index), &cursor->scan_range.r_key, OG_TYPE_INTEGER, (char *)&desc->table_id,
+                     sizeof(uint32), IX_COL_SYS_INDEX_001_TABLE);
+    knl_set_key_flag(&cursor->scan_range.r_key, SCAN_KEY_RIGHT_INFINITE, IX_COL_SYS_INDEX_001_ID);
+
+    for (;;) {
+        if (knl_fetch(session, cursor) != OG_SUCCESS) {
+            CM_RESTORE_STACK(session->stack);
+            return OG_ERROR;
+        }
+
+        if (cursor->eof) {
+            CM_RESTORE_STACK(session->stack);
+            return OG_SUCCESS;
+        }
+
+        if (*(uint32 *)CURSOR_COLUMN_DATA(cursor, SYS_INDEX_COLUMN_ID_COLS) != desc->column_count) {
+            continue;
+        }
+
+        stored_col_list.str = CURSOR_COLUMN_DATA(cursor, SYS_INDEX_COLUMN_ID_COL_LIST);
+        stored_col_list.len = CURSOR_COLUMN_SIZE(cursor, SYS_INDEX_COLUMN_ID_COL_LIST);
+        if (!cm_text_equal(&requested_col_list, &stored_col_list)) {
+            continue;
+        }
+
+        index_name.str = CURSOR_COLUMN_DATA(cursor, SYS_INDEX_COLUMN_ID_NAME);
+        index_name.len = CURSOR_COLUMN_SIZE(cursor, SYS_INDEX_COLUMN_ID_NAME);
+        if (cm_text2str(&index_name, matched_name, matched_name_size) != OG_SUCCESS) {
+            CM_RESTORE_STACK(session->stack);
+            return OG_ERROR;
+        }
+        *found = OG_TRUE;
+        CM_RESTORE_STACK(session->stack);
+        return OG_SUCCESS;
+    }
 }
 
 static status_t db_create_virtual_icol(knl_session_t *session, knl_dictionary_t *dc,
@@ -1846,10 +1930,15 @@ static status_t db_prepare_idx_cols(knl_session_t *session, knl_index_def_t *def
     bool32 is_double = OG_FALSE;
 
     db_alloc_vcol_id(entity, &vcol_id);
+    desc->is_dsc = OG_FALSE;
 
     for (uint32 i = 0; i < desc->column_count; i++) {
         index_col = (knl_index_col_def_t *)cm_galist_get(&def->columns, i);
         desc->columns[i] = knl_get_column_id(dc, &index_col->name);
+        desc->col_dirs[i] = (uint8)(index_col->mode == SORT_MODE_DESC ? SORT_MODE_DESC : SORT_MODE_ASC);
+        if (desc->col_dirs[i] == SORT_MODE_DESC) {
+            desc->is_dsc = OG_TRUE;
+        }
 
         if (desc->columns[i] == OG_INVALID_ID16) {
             OG_THROW_ERROR(ERR_COLUMN_NOT_EXIST, T2S(&def->table), T2S_EX(&index_col->name));
@@ -2058,6 +2147,7 @@ static status_t db_init_idx_desc(knl_session_t *session, knl_dictionary_t *dc, k
 {
     dc_entity_t *entity = DC_ENTITY(dc);
     table_t *table = &entity->table;
+    errno_t err;
 
     idx_desc->table_id = entity->table.desc.id;
     idx_desc->primary = idx_def->primary;
@@ -2071,7 +2161,11 @@ static status_t db_init_idx_desc(knl_session_t *session, knl_dictionary_t *dc, k
     idx_desc->parted = idx_def->parted;
     idx_desc->pctfree = (idx_def->pctfree == OG_INVALID_ID32) ? table->desc.pctfree : idx_def->pctfree;
     idx_desc->is_reverse = idx_def->is_reverse;
-    idx_desc->is_dsc = idx_def->is_dsc;
+    err = memset_sp(idx_desc->col_dirs, sizeof(idx_desc->col_dirs), SORT_MODE_ASC, sizeof(idx_desc->col_dirs));
+    if (err != EOK) {
+        knl_securec_check(err);
+        return OG_ERROR;
+    }
     if (idx_desc->initrans == 0) {
         idx_desc->initrans = cm_text_str_equal_ins(&idx_def->user, "SYS") ? OG_INI_TRANS : session->kernel->attr.initrans;
     }
@@ -2132,8 +2226,12 @@ static status_t db_verify_index_def(knl_session_t *session, knl_dictionary_t *dc
     index_t *index = NULL;
     dc_entity_t *entity = DC_ENTITY(dc);
     table_t *table = &entity->table;
+    bool32 matched_in_catalog = OG_FALSE;
+    char matched_index_name[OG_NAME_BUFFER_SIZE];
 
-    (void)cm_text2str(&def->name, desc->name, OG_NAME_BUFFER_SIZE);
+    if (cm_text2str(&def->name, desc->name, OG_NAME_BUFFER_SIZE) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
 
     if (db_chk_idx_def(session, dc, table, def, desc) != OG_SUCCESS) {
         return OG_ERROR;
@@ -2162,11 +2260,27 @@ static status_t db_verify_index_def(knl_session_t *session, knl_dictionary_t *dc
         }
 
         if (db_index_columns_matched(session, &index->desc,
-                                     entity, &def->columns, desc->column_count, desc->columns)) {
+                                     entity, &def->columns, desc->column_count, desc->columns, OG_TRUE)) {
             OG_THROW_ERROR(ERR_COLUMN_ALREADY_INDEXED, index->desc.name);
             return OG_ERROR;
         }
     }
+
+    /*
+     * DDL immediately following another CREATE INDEX may observe an index
+     * definition that has already been persisted in SYS_INDEX but not fully
+     * reconstructed with descending metadata in the current DC. Re-check the
+     * catalog using the encoded COL_LIST so exact duplicates are still blocked.
+     */
+    if (db_find_exact_index_in_catalog(session, desc, matched_index_name,
+                                       OG_NAME_BUFFER_SIZE, &matched_in_catalog) != OG_SUCCESS) {
+        return OG_ERROR;
+    }
+    if (matched_in_catalog) {
+        OG_THROW_ERROR(ERR_COLUMN_ALREADY_INDEXED, matched_index_name);
+        return OG_ERROR;
+    }
+
     desc->max_key_size = btree_max_allowed_size(session, desc);
     return OG_SUCCESS;
 }
@@ -2422,7 +2536,8 @@ static status_t db_find_matched_index(knl_session_t *session, knl_dictionary_t *
             return OG_ERROR;
         }
 
-        if (!db_index_columns_matched(session, &index->desc, DC_ENTITY(dc), &def->columns, column_count, idx_cols)) {
+        if (!db_index_columns_matched(session, &index->desc, DC_ENTITY(dc), &def->columns,
+                                      column_count, idx_cols, OG_FALSE)) {
             OG_THROW_ERROR(ERR_INDEX_NOT_SUITABLE);
             return OG_ERROR;
         }
@@ -2433,7 +2548,7 @@ static status_t db_find_matched_index(knl_session_t *session, knl_dictionary_t *
         for (uint32 i = 0; i < table->index_set.total_count; i++) {
             index = table->index_set.items[i];
             if (db_index_columns_matched(session, &index->desc, DC_ENTITY(dc),
-                                         &def->columns, column_count, idx_cols)) {
+                                         &def->columns, column_count, idx_cols, OG_FALSE)) {
                 *matched = OG_TRUE;
                 *index_ptr = index;
                 break;
@@ -6609,7 +6724,6 @@ static status_t db_write_shadow_sysindex(knl_session_t *session, knl_index_desc_
     row_assist_t ra;
     text_t column_list;
     char buf[COLUMN_LIST_BUF_LEN];
-    uint32 i;
     space_t *space;
     status_t status;
 
@@ -6626,13 +6740,9 @@ static status_t db_write_shadow_sysindex(knl_session_t *session, knl_index_desc_
 
     column_list.len = 0;
     column_list.str = buf;
-    for (i = 0; i < desc->column_count; i++) {
-        cm_concat_int32(&column_list, sizeof(buf), desc->columns[i]);
-        if (i + 1 < desc->column_count) {
-            if (cm_concat_string(&column_list, COLUMN_LIST_BUF_LEN, ",") != OG_SUCCESS) {
-                return OG_ERROR;
-            }
-        }
+    if (db_encode_index_column_list(&column_list, COLUMN_LIST_BUF_LEN, desc) != OG_SUCCESS) {
+        CM_RESTORE_STACK(session->stack);
+        return OG_ERROR;
     }
 
     row_init(&ra, cursor->buf, KNL_MAX_ROW_SIZE(session), 17);

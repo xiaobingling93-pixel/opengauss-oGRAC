@@ -475,6 +475,36 @@ status_t db_build_sys_column(knl_session_t *session, knl_cursor_t *cursor)
     return OG_SUCCESS;
 }
 
+static inline uint8 db_get_index_col_dir(const knl_index_desc_t *desc, uint32 col_pos)
+{
+    return desc->col_dirs[col_pos] == SORT_MODE_DESC ? SORT_MODE_DESC : SORT_MODE_ASC;
+}
+
+static inline int32 db_encode_index_col_id(const knl_index_desc_t *desc, uint32 col_pos)
+{
+    int32 col_id = (int32)desc->columns[col_pos];
+
+    /*
+     * Persist descending columns as -(col_id + 1) so column 0 can still be
+     * distinguished from ascending column 0 after catalog reload.
+     */
+    return db_get_index_col_dir(desc, col_pos) == SORT_MODE_DESC ? -(col_id + 1) : col_id;
+}
+
+status_t db_encode_index_column_list(text_t *list, uint32 list_max_size, knl_index_desc_t *desc)
+{
+    for (uint32 i = 0; i < desc->column_count; i++) {
+        cm_concat_int32(list, list_max_size, db_encode_index_col_id(desc, i));
+        if (i + 1 < desc->column_count) {
+            if (cm_concat_string(list, list_max_size, ",") != OG_SUCCESS) {
+                return OG_ERROR;
+            }
+        }
+    }
+
+    return OG_SUCCESS;
+}
+
 status_t db_write_sysindex(knl_session_t *session, knl_cursor_t *cursor, knl_index_desc_t *desc)
 {
     row_assist_t ra;
@@ -492,13 +522,8 @@ status_t db_write_sysindex(knl_session_t *session, knl_cursor_t *cursor, knl_ind
 
     knl_open_sys_cursor(session, cursor, CURSOR_ACTION_INSERT, SYS_INDEX_ID, OG_INVALID_ID32);
 
-    for (uint32 i = 0; i < desc->column_count; i++) {
-        cm_concat_int32(&column_list, COLUMN_LIST_BUF_LEN, desc->columns[i]);
-        if (i + 1 < desc->column_count) {
-            if (cm_concat_string(&column_list, COLUMN_LIST_BUF_LEN, ",") != OG_SUCCESS) {
-                return OG_ERROR;
-            }
-        }
+    if (db_encode_index_column_list(&column_list, COLUMN_LIST_BUF_LEN, desc) != OG_SUCCESS) {
+        return OG_ERROR;
     }
 
     row_init(&ra, cursor->buf, KNL_MAX_ROW_SIZE(session), SYSINDEX_COLS);
@@ -608,25 +633,6 @@ status_t db_build_sys_user(knl_session_t *session, knl_cursor_t *cursor)
     return OG_SUCCESS;
 }
 
-/*
- * Description     : get indexed column list from index description
- * Input           : list : indexed column id list
- * Output          : desc : index description
- * Return Value    : status
- * History         : 1.2017/4/26,  add description
- */
-static void db_get_index_column_list(text_t *list, uint32 list_max_size, knl_index_desc_t *desc)
-{
-    uint32 i;
-
-    for (i = 0; i < desc->column_count; i++) {
-        cm_concat_int32(list, list_max_size, desc->columns[i]);
-        if (i + 1 < desc->column_count) {
-            (void)cm_concat_string(list, COLUMN_LIST_BUF_LEN, ",");
-        }
-    }
-}
-
 void db_update_core_index(knl_session_t *session, rd_update_core_index_t *redo_index_info)
 {
     uint8 i;
@@ -675,7 +681,9 @@ status_t db_build_sys_index(knl_session_t *session, knl_cursor_t *cursor)
         column_list.str = buf;
         column_list.len = 0;
         desc = &g_sys_indexes[i].desc;
-        db_get_index_column_list(&column_list, COLUMN_LIST_BUF_LEN, desc);
+        if (db_encode_index_column_list(&column_list, COLUMN_LIST_BUF_LEN, desc) != OG_SUCCESS) {
+            return OG_ERROR;
+        }
 
         row_init(&ra, cursor->buf, KNL_MAX_ROW_SIZE(session), SYSINDEX_COLS);
         (void)(row_put_int32(&ra, desc->uid));

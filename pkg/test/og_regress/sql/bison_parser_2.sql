@@ -23,6 +23,11 @@ create index bison_t1_idx3 on bison_t1(abs(a));
 create index bison_t1_idx4 on bison_t1(case when a = 1 then 1 else 0 end);
 create index bison_t1_idx5 on bison_t1(a, b) initrans 50 pctfree 50 crmode page parallel 5 reverse nologging;
 create index bison_t1_idx6 on bison_t1(c) initrans 50 pctfree 50 crmode page reverse nologging;
+drop table if exists bison_desc_idx_t;
+create table bison_desc_idx_t(a int primary key, b int);
+create index bison_desc_idx1 on bison_desc_idx_t(a desc);
+create index bison_desc_idx2 on bison_desc_idx_t(a desc); --error
+drop table if exists bison_desc_idx_t;
 
 drop table if exists bison_part_t1;
 create table bison_part_t1(f1 number2, f2 number2)
@@ -516,3 +521,8 @@ DROP VIEW read_only_view;
 DROP TABLE test_table;
 
 alter system set use_bison_parser = false;
+drop table if exists native_desc_idx_t;
+create table native_desc_idx_t(a int primary key, b int);
+create index native_desc_idx1 on native_desc_idx_t(a desc);
+create index native_desc_idx2 on native_desc_idx_t(a desc); --error
+drop table if exists native_desc_idx_t;

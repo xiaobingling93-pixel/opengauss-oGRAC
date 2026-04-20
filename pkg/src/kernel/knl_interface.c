@@ -11561,7 +11561,20 @@ static bool32 knl_check_idxes_columns_duplicate(knl_index_def_t *idx1, knl_index
     for (uint32 i = 0; i < idx1->columns.count; i++) {
         index_col1 = (knl_index_col_def_t *)cm_galist_get(&idx1->columns, i);
         index_col2 = (knl_index_col_def_t *)cm_galist_get(&idx2->columns, i);
-        if (!cm_text_equal(&index_col1->name, &index_col2->name)) {
+        if (index_col1->is_func != index_col2->is_func) {
+            return OG_FALSE;
+        }
+
+        if (index_col1->is_func) {
+            if (!cm_text_equal(&index_col1->func_text, &index_col2->func_text)) {
+                return OG_FALSE;
+            }
+        } else if (!cm_text_equal(&index_col1->name, &index_col2->name)) {
+            return OG_FALSE;
+        }
+
+        if ((index_col1->mode == SORT_MODE_DESC ? SORT_MODE_DESC : SORT_MODE_ASC) !=
+            (index_col2->mode == SORT_MODE_DESC ? SORT_MODE_DESC : SORT_MODE_ASC)) {
             return OG_FALSE;
         }
     }

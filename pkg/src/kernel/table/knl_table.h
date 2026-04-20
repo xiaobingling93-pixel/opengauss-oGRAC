@@ -164,7 +164,7 @@ status_t db_update_index_name(knl_session_t *session, uint32 uid, uint32 table_i
 bool32 part_idx_find_by_name(part_index_t *part_index, text_t *name, index_part_t **idx_part);
 status_t db_init_table_desc(knl_session_t *session, knl_table_desc_t *desc, knl_table_def_t *def);
 bool32 db_index_columns_matched(knl_session_t *session, knl_index_desc_t *desc, dc_entity_t *entity,
-                                knl_handle_t def_cols, uint32 col_count, uint16 *columns);
+                                knl_handle_t def_cols, uint32 col_count, uint16 *columns, bool32 compare_column_mode);
 status_t db_create_ltt(knl_session_t *session, knl_table_def_t *def, dc_entity_t *entity);
 status_t db_drop_ltt(knl_session_t *session, knl_dictionary_t *dc);
 status_t db_create_ltt_index(knl_session_t *session, knl_index_def_t *def, knl_dictionary_t *dc,

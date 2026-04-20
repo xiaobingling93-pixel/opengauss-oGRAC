@@ -90,6 +90,25 @@ SQL> create index bison_t1_idx6 on bison_t1(c) initrans 50 pctfree 50 crmode pag
 
 Succeed.
 
+SQL> drop table if exists bison_desc_idx_t;
+
+Succeed.
+
+SQL> create table bison_desc_idx_t(a int primary key, b int);
+
+Succeed.
+
+SQL> create index bison_desc_idx1 on bison_desc_idx_t(a desc);
+
+Succeed.
+
+SQL> create index bison_desc_idx2 on bison_desc_idx_t(a desc); --error
+
+OG-00726, The column has been indexed by BISON_DESC_IDX1.
+SQL> drop table if exists bison_desc_idx_t;
+
+Succeed.
+
 SQL> 
 SQL> drop table if exists bison_part_t1;
 
@@ -1309,6 +1328,25 @@ Succeed.
 
 SQL> 
 SQL> alter system set use_bison_parser = false;
+
+Succeed.
+
+SQL> drop table if exists native_desc_idx_t;
+
+Succeed.
+
+SQL> create table native_desc_idx_t(a int primary key, b int);
+
+Succeed.
+
+SQL> create index native_desc_idx1 on native_desc_idx_t(a desc);
+
+Succeed.
+
+SQL> create index native_desc_idx2 on native_desc_idx_t(a desc); --error
+
+OG-00726, The column has been indexed by NATIVE_DESC_IDX1.
+SQL> drop table if exists native_desc_idx_t;
 
 Succeed.
 
