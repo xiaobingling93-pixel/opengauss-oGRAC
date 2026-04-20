@@ -56,3 +56,4 @@ test: og_order_by_down
 test: og_aggr_down
 test: bison_parser_datatype1
 test: bison_parser_datatype2
+test: og_rowid_insert
