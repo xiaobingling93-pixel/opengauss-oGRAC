@@ -211,6 +211,7 @@ static status_t og_create_index_scan_paths(join_assist_t *j_ast, tbl_join_info_t
     sql_table_t *tmp_tbl = NULL;
     OG_RETURN_IFERR(sql_alloc_mem(statement->context, sizeof(sql_table_t), (void **)&tmp_tbl));
     sql_init_table_indexable(tmp_tbl, tbl);
+
     if (check_can_index_only(j_ast->pa, tmp_tbl, &index->desc)) {
         ca.scan_flag |= RBO_INDEX_ONLY_FLAG;
     }
