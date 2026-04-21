@@ -45,6 +45,13 @@ static double compute_and_conds_ff(plan_assist_t *pa, dc_entity_t *entity, sql_t
     cbo_stats_info_t* stats_info);
 static inline sort_direction_t apply_hint_index_sort_scan_direction(sql_table_t *table, knl_index_desc_t *index);
 
+typedef enum en_index_access_guard_reason {
+    INDEX_ACCESS_GUARD_NONE = 0,
+    INDEX_ACCESS_GUARD_NUMERIC_STRING_CMP,
+    INDEX_ACCESS_GUARD_LIKE_COLUMN_NOT_LEFT,
+    INDEX_ACCESS_GUARD_LIKE_NO_FIXED_PREFIX,
+} index_access_guard_reason_t;
+
 inline static double sql_normalize_ff(double ff)
 {
     if (ff < 0) {
@@ -72,6 +79,103 @@ double sql_adjust_est_row(double rows)
 static inline bool32 check_index_fast_full_scan(cbo_index_choose_assist_t *ca)
 {
     return ca->index_ffs && INDEX_ONLY_SCAN_ONLY(ca->scan_flag);
+}
+
+static bool32 sql_is_like_cmp(cmp_type_t cmp_type)
+{
+    return cmp_type == CMP_TYPE_LIKE || cmp_type == CMP_TYPE_NOT_LIKE;
+}
+
+static bool32 sql_try_get_like_fixed_prefix_info(const expr_tree_t *like_pattern, uint32 *prefix_len,
+    bool32 *has_wildcard)
+{
+    expr_node_t *pattern_node = NULL;
+    bool32 has_escape = OG_FALSE;
+    char escape = OG_INVALID_INT8;
+    text_t *text = NULL;
+
+    if (like_pattern == NULL || like_pattern->root == NULL) {
+        return OG_FALSE;
+    }
+
+    pattern_node = like_pattern->root;
+    if (pattern_node->type != EXPR_NODE_CONST || !OG_IS_STRING_TYPE(pattern_node->datatype)) {
+        return OG_FALSE;
+    }
+
+    if (like_pattern->next != NULL && like_pattern->next->root != NULL &&
+        like_pattern->next->root->type == EXPR_NODE_CONST &&
+        OG_IS_STRING_TYPE(like_pattern->next->root->datatype) &&
+        like_pattern->next->root->value.v_text.len > 0) {
+        has_escape = OG_TRUE;
+        escape = like_pattern->next->root->value.v_text.str[0];
+    }
+
+    *prefix_len = 0;
+    *has_wildcard = OG_FALSE;
+    text = &pattern_node->value.v_text;
+    for (uint32 i = 0; i < text->len; i++) {
+        if (has_escape && text->str[i] == escape) {
+            if (i == text->len - 1) {
+                break;
+            }
+            (*prefix_len)++;
+            i++;
+            continue;
+        }
+        if (text->str[i] == '%' || text->str[i] == '_') {
+            *has_wildcard = OG_TRUE;
+            break;
+        }
+        (*prefix_len)++;
+    }
+    return OG_TRUE;
+}
+
+static bool32 sql_has_numeric_string_cmp(og_type_t column_type, og_type_t expr_type)
+{
+    if (OG_IS_UNKNOWN_TYPE(expr_type)) {
+        return OG_FALSE;
+    }
+
+    return (OG_IS_NUMERIC_TYPE(column_type) && OG_IS_STRING_TYPE(expr_type)) ||
+        (OG_IS_STRING_TYPE(column_type) && OG_IS_NUMERIC_TYPE(expr_type));
+}
+
+/*
+ * Keep index-access guard rules in one place. Future blocked cases should be
+ * added here so cardinality estimation can stay independent from access-path
+ * eligibility.
+ */
+static index_access_guard_reason_t sql_get_cmp_index_access_guard_reason(cmp_type_t cmp_type,
+    og_type_t datatype, bool32 column_on_left, const expr_tree_t *other_expr)
+{
+    uint32 prefix_len = 0;
+    bool32 has_wildcard = OG_FALSE;
+    og_type_t expr_type = OG_TYPE_UNKNOWN;
+
+    if (other_expr != NULL && other_expr->root != NULL) {
+        expr_type = other_expr->root->datatype;
+    }
+
+    if (sql_has_numeric_string_cmp(datatype, expr_type)) {
+        return INDEX_ACCESS_GUARD_NUMERIC_STRING_CMP;
+    }
+
+    if (!sql_is_like_cmp(cmp_type)) {
+        return INDEX_ACCESS_GUARD_NONE;
+    }
+
+    if (!column_on_left) {
+        return INDEX_ACCESS_GUARD_LIKE_COLUMN_NOT_LEFT;
+    }
+
+    if (sql_try_get_like_fixed_prefix_info(other_expr, &prefix_len, &has_wildcard) &&
+        has_wildcard && prefix_len == 0) {
+        return INDEX_ACCESS_GUARD_LIKE_NO_FIXED_PREFIX;
+    }
+
+    return INDEX_ACCESS_GUARD_NONE;
 }
 
 bool32 get_table_skip_index_flag(sql_table_t *table, uint32 id)
@@ -4087,6 +4191,81 @@ static bool32 match_cond_to_table_col(plan_assist_t *pa, sql_table_t *table, cmp
     return OG_FALSE;
 }
 
+static bool32 cmp_blocks_index_access_col(plan_assist_t *pa, sql_table_t *table, cmp_node_t *cmp, uint16 index_col)
+{
+    sql_stmt_t *stmt = pa->stmt;
+    knl_column_t *knl_col = knl_get_column(table->entry->dc.handle, index_col);
+    expr_node_t col_node;
+    expr_node_t *node = NULL;
+    expr_tree_t *left = cmp->left;
+    expr_tree_t *right = cmp->right;
+
+    if (left == NULL || right == NULL) {
+        return OG_FALSE;
+    }
+
+    OGSQL_SAVE_STACK(stmt);
+    RETVALUE_AND_RESTORE_STACK_IFERR(sql_get_index_col_node(stmt, knl_col, &col_node, &node, table->id, index_col),
+        stmt, OG_FALSE);
+
+    if (sql_expr_node_matched(stmt, left, node) &&
+        sql_get_cmp_index_access_guard_reason(cmp->type, node->datatype, OG_TRUE, right) !=
+            INDEX_ACCESS_GUARD_NONE) {
+        OGSQL_RESTORE_STACK(stmt);
+        return OG_TRUE;
+    }
+
+    if (sql_expr_node_matched(stmt, right, node) &&
+        sql_get_cmp_index_access_guard_reason(cmp->type, node->datatype, OG_FALSE, left) !=
+            INDEX_ACCESS_GUARD_NONE) {
+        OGSQL_RESTORE_STACK(stmt);
+        return OG_TRUE;
+    }
+
+    OGSQL_RESTORE_STACK(stmt);
+    return OG_FALSE;
+}
+
+static bool32 cmp_blocks_index_access(plan_assist_t *pa, sql_table_t *table, cmp_node_t *cmp, knl_index_desc_t *index)
+{
+    for (uint32 i = 0; i < index->column_count; i++) {
+        if (cmp_blocks_index_access_col(pa, table, cmp, index->columns[i])) {
+            return OG_TRUE;
+        }
+    }
+    return OG_FALSE;
+}
+
+static bool32 cond_blocks_index_access(plan_assist_t *pa, sql_table_t *table, cond_node_t *cond, knl_index_desc_t *index)
+{
+    if (cond == NULL) {
+        return OG_FALSE;
+    }
+
+    switch (cond->type) {
+        case COND_NODE_COMPARE:
+            return cmp_blocks_index_access(pa, table, cond->cmp, index);
+        case COND_NODE_AND:
+            return cond_blocks_index_access(pa, table, cond->left, index) &&
+                cond_blocks_index_access(pa, table, cond->right, index);
+        case COND_NODE_OR:
+            return cond_blocks_index_access(pa, table, cond->left, index) ||
+                cond_blocks_index_access(pa, table, cond->right, index);
+        default:
+            return OG_FALSE;
+    }
+}
+
+bool32 cbo_index_accessible(plan_assist_t *pa, sql_table_t *table, knl_index_desc_t *index, cond_tree_t *cond)
+{
+    if (cond == NULL || cond->root == NULL) {
+        return OG_TRUE;
+    }
+
+    /* Access-path guard only: cardinality estimation still uses match_cond_to_table_col. */
+    return !cond_blocks_index_access(pa, table, cond->root, index);
+}
+
 static bool32 prefer_another_index_choice(sql_stmt_t *stmt, plan_assist_t *pa, sql_table_t *table,
     cbo_index_choose_assist_t *ca, double cost)
 {
@@ -4875,6 +5054,10 @@ static void cbo_try_choose_fast_full_scan_index(sql_stmt_t *stmt, plan_assist_t 
 
 void cbo_try_choose_index(sql_stmt_t *stmt, plan_assist_t *pa, sql_table_t *table, index_t *index)
 {
+    if (!cbo_index_accessible(pa, table, &index->desc, pa->cond)) {
+        return;
+    }
+
     cbo_index_choose_assist_t ca = {
         .index = &index->desc,
         .strict_equal_cnt = 0,

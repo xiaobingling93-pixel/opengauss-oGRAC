@@ -217,6 +217,7 @@ status_t sql_initial_cost_hashjoin(join_assist_t *ja, sql_join_node_t* path,
 status_t sql_jtable_estimate_size(join_assist_t *ja, sql_join_table_t *jtable, sql_join_table_t *jtbl1,
     sql_join_table_t *jtbl2, special_join_info_t *sjoininfo, galist_t* restricts);
 bool32 check_can_index_only(plan_assist_t *pa, sql_table_t *table, knl_index_desc_t *index);
+bool32 cbo_index_accessible(plan_assist_t *pa, sql_table_t *table, knl_index_desc_t *index, cond_tree_t *cond);
 void cbo_try_choose_multi_index(sql_stmt_t *stmt, plan_assist_t *pa, sql_table_t *table, bool only_same_index);
 bool32 prefer_table_scan(sql_stmt_t *stmt, plan_assist_t *pa, sql_table_t *table, double seq_cost);
 status_t sql_init_table_scan_partition_info(sql_stmt_t *stmt, plan_assist_t *pa, sql_table_t *table);
