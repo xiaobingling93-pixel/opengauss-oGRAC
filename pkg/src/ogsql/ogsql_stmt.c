@@ -6149,7 +6149,7 @@ status_t sql_check_rowid_type_is_valid(variant_t *var)
     }
     for (uint32 i = 0; i < ROWID_LENGTH; i++) {
         char c = var->v_text.str[i];
-        if (~sql_char2base(c)) {
+        if (sql_char2base(c) == -1) {
             OG_THROW_ERROR_EX(ERR_TEXT_FORMAT_ERROR, "rowid. The rowid can only contain: "
                 "'A'-'Z', 'a'-'z', '1'-'9', '+', and '/', but '%c' was found.", c);
             return OG_ERROR;

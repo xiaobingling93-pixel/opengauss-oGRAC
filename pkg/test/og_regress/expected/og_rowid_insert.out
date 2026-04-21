@@ -1,0 +1,99 @@
+
+
+SQL> -- Create table
+SQL> drop table if exists og_rowid_insert_t;
+
+Succeed.
+
+SQL> create table og_rowid_insert_t(a varchar(15), b rowid);
+
+Succeed.
+
+SQL> 
+SQL> -- Test 0: valid rowid values should succeed.
+SQL> insert into og_rowid_insert_t values('test0', 'D/////AP/AAP///H//'),('test0', 'BAAAAAAAAAAAAAAAaa');
+
+2 rows affected.
+
+SQL> 
+SQL> -- Test 1: all-zero rowid should fail.
+SQL> insert into og_rowid_insert_t values('test1', 'AAAAAAAAAAAAAAAAAA');
+
+OG-00105, Invalid format of rowid. The data object number, relative file number, block number, and row number cannot all be zero.
+SQL> 
+SQL> -- Test 2: invalid rowid length should fail.
+SQL> insert into og_rowid_insert_t values('test2', 'BAAAAAAAAAAAAAAA');
+
+OG-00105, Invalid format of rowid. The rowid can only contain: 'A'-'Z', 'a'-'z', '1'-'9', '+', and '/', but ' ' was found.
+SQL> insert into og_rowid_insert_t values('test2', 'BAAAAAAAAAAAAAAAAAAA');
+
+OG-00698, The size(20) of value can't larger than defined size(18) of char
+SQL> 
+SQL> -- Test 3: invalid rowid characters should fail.
+SQL> insert into og_rowid_insert_t values('test3', 'BAAAAAAAAAAAAAAAa@');
+
+OG-00105, Invalid format of rowid. The rowid can only contain: 'A'-'Z', 'a'-'z', '1'-'9', '+', and '/', but '@' was found.
+SQL> insert into og_rowid_insert_t values('test3', 'BAAAAAAAAAAAAAAA A');
+
+OG-00105, Invalid format of rowid. The rowid can only contain: 'A'-'Z', 'a'-'z', '1'-'9', '+', and '/', but ' ' was found.
+SQL> 
+SQL> -- Test 4: mixed alphanumeric rowid values should succeed.
+SQL> insert into og_rowid_insert_t values('test4', 'A023s3AAAAAAAAAA2s'),('test4', 'ABbBbBAC9AAAAAAA2s'),('test4', 'BhelloAHiAAHa99A2s');
+
+3 rows affected.
+
+SQL> 
+SQL> -- Test 5: one valid and one invalid value should fail as a whole statement.
+SQL> insert into og_rowid_insert_t values('test5', 'A023s3AAAAAAAAAA2s'), ('test5', 'BAAAAAAAAAAAAAAAa@');
+
+OG-00105, Invalid format of rowid. The rowid can only contain: 'A'-'Z', 'a'-'z', '1'-'9', '+', and '/', but '@' was found.
+SQL> 
+SQL> -- Test 6: NULL should succeed.
+SQL> insert into og_rowid_insert_t values('test6', null);
+
+1 rows affected.
+
+SQL> 
+SQL> -- Test 7: base64 characters '+' and '/' should succeed.
+SQL> insert into og_rowid_insert_t values('test7', 'B++///AB1AAB/+9Aa/');
+
+1 rows affected.
+
+SQL> 
+SQL> -- Test 8: boundary overflow in each rowid component should fail.
+SQL> insert into og_rowid_insert_t values('test8', 'EAAAAAAAAAAAAAAAAA');
+
+OG-00105, Invalid format of rowid. The Data Object Number can contain at most 32 bits, and the user input "EAAAAA" (which represents 4294967296) exceeds this range.
+SQL> insert into og_rowid_insert_t values('test8', 'AAAAAAAQAAAAAAAAAA');
+
+OG-00105, Invalid format of rowid. The Relative File Number can contain at most 10 bits, and the user input "AQA" (which represents 1024) exceeds this range.
+SQL> insert into og_rowid_insert_t values('test8', 'AAAAAAAAAAAQAAAAAA');
+
+OG-00105, Invalid format of rowid. The Block Number can contain at most 22 bits, and the user input "AAQAAA" (which represents 4194304) exceeds this range.
+SQL> insert into og_rowid_insert_t values('test8', 'AAAAAAAAAAAAAAAIAA');
+
+OG-00105, Invalid format of rowid. The Row Number can contain at most 15 bits, and the user input "IAA" (which represents 32768) exceeds this range.
+SQL> 
+SQL> -- Test 9: numeric input should be implicitly converted, then fail boundary check.
+SQL> insert into og_rowid_insert_t values('test9', 12345678901234567+98765432106543211);
+
+OG-00105, Invalid format of rowid. The Data Object Number can contain at most 32 bits, and the user input "111111" (which represents 57811623285) exceeds this range.
+SQL> 
+SQL> -- Query table contents
+SQL> select * from og_rowid_insert_t;
+
+A               B                 
+--------------- ------------------
+test0           D/////AP/AAP///H//
+test0           BAAAAAAAAAAAAAAAaa
+test4           A023s3AAAAAAAAAA2s
+test4           ABbBbBAC9AAAAAAA2s
+test4           BhelloAHiAAHa99A2s
+test6                             
+test7           B++///AB1AAB/+9Aa/
+
+7 rows fetched.
+
+SQL> 
+
+
