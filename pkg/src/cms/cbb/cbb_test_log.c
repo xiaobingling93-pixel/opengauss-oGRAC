@@ -24,37 +24,27 @@
  */
 #include <stdio.h>
 #include <stdarg.h>
-#include <pthread.h>
-#include "cm_timer.h"
-#include "cms_param.h"
+#include <string.h>
+#include "securec.h"
+#include "cms_log_module.h"
 #include "cbb_test_log.h"
 
-#define LOG_FILE "/opt/ograc/log/cms/run/cbb_lock.log"
-static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
+void write_log_to_file(const char *file, int line, const char *format, ...)
+{
+    char msg[OG_MAX_LOG_CONTENT_LENGTH] = { 0 };
+    va_list args;
+    int32 ret;
 
-void write_log_to_file(const char *file, int line, const char *format, ...) {
-    if (!LOG_OPER_ON) {
+    if (!LOG_OPER_ON || format == NULL) {
         return;
     }
-    pthread_mutex_lock(&log_mutex);
 
-    FILE *log_file = fopen(LOG_FILE, "a");
-    if (log_file != NULL) {
-        char time_str[OG_MAX_TIME_STRLEN] = { 0 };
-        (void)cm_date2str(g_timer()->now, "yyyy-mm-dd hh24:mi:ss.ff3", time_str, OG_MAX_TIME_STRLEN);
-
-        fprintf(log_file, "[%s] (%s:%d) ", time_str, file, line);
-
-        va_list args;
-        va_start(args, format);
-        vfprintf(log_file, format, args);
-        va_end(args);
-
-        fprintf(log_file, "\n");
-        fclose(log_file);
-    } else {
-        fprintf(stderr, "Error opening log file: %s\n", LOG_FILE);
+    va_start(args, format);
+    ret = vsnprintf_s(msg, sizeof(msg), sizeof(msg) - 1, format, args);
+    va_end(args);
+    if (ret < 0) {
+        return;
     }
 
-    pthread_mutex_unlock(&log_mutex);
+    cm_write_normal_log(LOG_OPER, LEVEL_INFO, (char *)file, (uint32)line, (int)MODULE_ID, OG_TRUE, "%s", msg);
 }
